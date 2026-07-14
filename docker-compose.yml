@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      args:
+        # Pass your Supabase environment variables here so Vite can build with them
+        # (Make sure these are defined in your VPS environment or an `.env` file where you run docker-compose)
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+        - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+    ports:
+      - "80:80"
+    restart: always
+    environment:
+      - NODE_ENV=production
