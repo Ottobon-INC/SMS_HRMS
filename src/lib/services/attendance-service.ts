@@ -1,7 +1,11 @@
 import { supabase } from '../supabase-client';
 import { AttendanceStatus } from '../../types';
 
-export async function clockInEmployee(empId: string): Promise<void> {
+export async function clockInEmployee(
+  empId: string, 
+  location?: string, 
+  latLng?: string
+): Promise<void> {
   const todayStr = new Date().toISOString().split('T')[0];
   const timeStr = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
 
@@ -15,13 +19,25 @@ export async function clockInEmployee(empId: string): Promise<void> {
   if (existing) {
     const { error } = await supabase
       .from('HRMS_attendance')
-      .update({ check_in_time: timeStr, status: 'Present' })
+      .update({ 
+        check_in_time: timeStr, 
+        status: 'Present',
+        check_in_location: location || null,
+        check_in_lat_lng: latLng || null
+      })
       .eq('id', existing.id);
     if (error) throw error;
   } else {
     const { error } = await supabase
       .from('HRMS_attendance')
-      .insert([{ employee_id: empId, date: todayStr, status: 'Present', check_in_time: timeStr }]);
+      .insert([{ 
+        employee_id: empId, 
+        date: todayStr, 
+        status: 'Present', 
+        check_in_time: timeStr,
+        check_in_location: location || null,
+        check_in_lat_lng: latLng || null
+      }]);
     if (error) throw error;
   }
 }

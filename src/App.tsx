@@ -8,7 +8,8 @@ import {
   Receipt, 
   HeartHandshake,
   Users,
-  LogOut
+  LogOut,
+  IndianRupee
 } from 'lucide-react';
 
 import { Language } from './types';
@@ -20,6 +21,7 @@ import { useAuth } from './hooks/useAuth';
 import { useLeaves } from './hooks/useLeaves';
 import { useAttendance } from './hooks/useAttendance';
 import { usePayroll } from './hooks/usePayroll';
+import { useAdvances } from './hooks/useAdvances';
 
 import DashboardSnapshot from './components/DashboardSnapshot';
 import CheckInModule from './components/CheckInModule';
@@ -33,6 +35,8 @@ import EmployeeDirectory from './components/EmployeeDirectory';
 import AdminAttendance from './components/AdminAttendance';
 import AdminLeaveApprovals from './components/AdminLeaveApprovals';
 import AdminPayroll from './components/AdminPayroll';
+import AdvanceRequestModule from './components/AdvanceRequestModule';
+import AdminAdvanceApprovals from './components/AdminAdvanceApprovals';
 import SmsLogo from './components/SmsLogo';
 import UserProfileModal from './components/UserProfileModal';
 
@@ -56,11 +60,13 @@ export default function App() {
       'dashboard': 'dashboard',
       'attendance': 'attendance',
       'leave': 'leave',
+      'advance': 'advance',
       'payroll': 'payroll',
       'admin-dashboard': 'adminDashboard',
       'directory': 'directory',
-      'team-attendance': 'attendanceOverview',
+      'attendance-overview': 'attendanceOverview',
       'leave-approvals': 'leaveApprovals',
+      'advance-approvals': 'advanceApprovals',
       'run-payroll': 'adminPayroll',
       'invoices': 'invoice'
     };
@@ -79,11 +85,13 @@ export default function App() {
       'dashboard': 'dashboard',
       'attendance': 'attendance',
       'leave': 'leave',
+      'advance': 'advance',
       'payroll': 'payroll',
       'adminDashboard': 'admin-dashboard',
       'directory': 'directory',
-      'attendanceOverview': 'team-attendance',
+      'attendanceOverview': 'attendance-overview',
       'leaveApprovals': 'leave-approvals',
+      'advanceApprovals': 'advance-approvals',
       'adminPayroll': 'run-payroll',
       'invoice': 'invoices'
     };
@@ -128,6 +136,7 @@ export default function App() {
   const { applyLeave, approveLeave, rejectLeave, updateBalances } = useLeaves(isLocalMode, loadData);
   const { toggleCheckIn, updateAttendance } = useAttendance(isLocalMode, loadData);
   const { runBulkPayroll, updatePayslip, generateSinglePayslip } = usePayroll(isLocalMode, loadData);
+  const { submitAdvance, approveAdvance, rejectAdvance } = useAdvances(isLocalMode, loadData);
 
   useEffect(() => {
     loadData();
@@ -137,8 +146,8 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     
-    const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'adminPayroll', 'invoice'];
-    const employeeTabs = ['dashboard', 'attendance', 'leave', 'payroll'];
+    const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'advanceApprovals', 'adminPayroll', 'invoice'];
+    const employeeTabs = ['dashboard', 'attendance', 'leave', 'advance', 'payroll'];
 
     if (currentUser.role === 'admin' && !adminTabs.includes(activeTab)) {
       setActiveTab('adminDashboard');
@@ -256,6 +265,15 @@ export default function App() {
             onRejectLeave={rejectLeave}
           />
         );
+      case 'advance':
+        return (
+          <AdvanceRequestModule
+            language={language}
+            advanceRequests={currentUser.advanceRequests || []}
+            onSubmitAdvance={(amount, reason) => submitAdvance(currentUser.id, amount, reason)}
+            isEligible={(currentUser.experience || 0) >= 1 || new Date(currentUser.joiningDate) <= new Date(new Date().setFullYear(new Date().getFullYear() - 1))}
+          />
+        );
       case 'payroll':
         return (
           <PayrollModule
@@ -308,6 +326,15 @@ export default function App() {
             employees={employees}
             onApproveLeave={(empId, reqId, note) => approveLeave(reqId, note)}
             onRejectLeave={(empId, reqId, note) => rejectLeave(reqId, note)}
+          />
+        );
+      case 'advanceApprovals':
+        return (
+          <AdminAdvanceApprovals
+            language={language}
+            employees={employees}
+            onApprove={approveAdvance}
+            onReject={rejectAdvance}
           />
         );
       case 'adminPayroll':
@@ -528,6 +555,23 @@ export default function App() {
                   </button>
 
                   <button
+                    id="nav-tab-advance-approvals"
+                    onClick={() => setActiveTab('advanceApprovals')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'advanceApprovals'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'advanceApprovals' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <IndianRupee className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'అడ్వాన్స్ ఆమోదాలు' : 'Advance Approvals'}</span>
+                  </button>
+
+                  <button
                     id="nav-tab-admin-payroll"
                     onClick={() => setActiveTab('adminPayroll')}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
@@ -613,6 +657,23 @@ export default function App() {
                       <Moon className="w-4 h-4 shrink-0" />
                     )}
                     <span>{t.leave}</span>
+                  </button>
+
+                  <button
+                    id="nav-tab-advance"
+                    onClick={() => setActiveTab('advance')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'advance'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'advance' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <IndianRupee className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'అడ్వాన్స్ అప్లై' : 'Salary Advance'}</span>
                   </button>
 
                   <button

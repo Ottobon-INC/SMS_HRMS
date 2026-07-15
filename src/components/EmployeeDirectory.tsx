@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit3, Trash2, ArrowLeft, Calendar, Moon, Landmark, User, Mail, DollarSign, CalendarDays, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit3, Trash2, ArrowLeft, Calendar, Moon, Landmark, User, Mail, IndianRupee, CalendarDays, Eye, EyeOff } from 'lucide-react';
 import { Language, Employee, LeaveType } from '../types';
 import { translations } from '../translations';
 import AttendanceModule from './AttendanceModule';
@@ -163,6 +163,7 @@ export default function EmployeeDirectory({
       colDesignation: "Designation",
       colJoin: "Joining Date",
       colStatus: "Attendance Today",
+      colLocation: "Current Location",
       colActions: "Actions",
       addTitle: "Onboard New Employee",
       editTitle: "Modify Employee Profile",
@@ -187,6 +188,7 @@ export default function EmployeeDirectory({
       colDesignation: "హోదా / Designation",
       colJoin: "చేరిన తేదీ",
       colStatus: "ఈరోజు హాజరు",
+      colLocation: "ప్రస్తుత స్థానం",
       colActions: "పనులు / Actions",
       addTitle: "కొత్త ఉద్యోగి నమోదు",
       editTitle: "ఉద్యోగి వివరాలు మార్చండి",
@@ -372,6 +374,7 @@ export default function EmployeeDirectory({
                 <th className="p-5 text-[10px] font-black uppercase tracking-wider text-slate-400">{dirText.colDesignation}</th>
                 <th className="p-5 text-[10px] font-black uppercase tracking-wider text-slate-400">{dirText.colJoin}</th>
                 <th className="p-5 text-[10px] font-black uppercase tracking-wider text-slate-400">{dirText.colStatus}</th>
+                <th className="p-5 text-[10px] font-black uppercase tracking-wider text-slate-400">{dirText.colLocation}</th>
                 <th className="p-5 text-[10px] font-black uppercase tracking-wider text-slate-400 text-right">{dirText.colActions}</th>
               </tr>
             </thead>
@@ -416,6 +419,21 @@ export default function EmployeeDirectory({
                   {/* Attendance status */}
                   <td className="p-5">
                     {getTodayStatusBadge(emp)}
+                  </td>
+
+                  {/* Location column */}
+                  <td className="p-5">
+                    {(() => {
+                      if (!emp.isCheckedIn) return <span className="text-slate-300">-</span>;
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      const todayLog = emp.checkInLogs.find(log => log.date === todayStr);
+                      return todayLog?.checkInLocation ? (
+                        <span className="text-[11px] text-slate-600 font-medium">
+                          <span className="mr-1">📍</span>
+                          {todayLog.checkInLocation}
+                        </span>
+                      ) : <span className="text-slate-300">-</span>;
+                    })()}
                   </td>
 
                   {/* Actions */}
@@ -529,7 +547,7 @@ export default function EmployeeDirectory({
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{dirText.labelSalary}</label>
                   <div className="relative">
-                    <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <IndianRupee className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                     <input
                       type="number"
                       required
@@ -709,7 +727,7 @@ export default function EmployeeDirectory({
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{dirText.labelSalary}</label>
                   <div className="relative">
-                    <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <IndianRupee className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                     <input
                       type="number"
                       required

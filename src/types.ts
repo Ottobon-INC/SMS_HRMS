@@ -15,6 +15,7 @@ export interface Employee {
   attendanceRecords: AttendanceRecord[];
   checkInLogs: CheckInLog[];
   payslips: Payslip[];
+  advanceRequests: AdvanceRequest[];
   gender?: 'male' | 'female' | 'other';
   experience?: number;
 }
@@ -27,6 +28,8 @@ export interface CheckInLog {
   checkInTime: string; // HH:MM:SS
   checkOutTime: string | null; // HH:MM:SS
   totalHours: number | null; // Decimal hours
+  checkInLocation?: string; // e.g. "Visakhapatnam, AP"
+  checkInLatLng?: string; // e.g. "17.7,83.3"
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'half-day' | 'leave' | 'holiday';
@@ -48,6 +51,18 @@ export interface LeaveRequest {
   reason: string;
   status: LeaveStatus;
   submittedAt: string;
+}
+
+export type AdvanceStatus = 'pending' | 'approved' | 'rejected' | 'deducted';
+
+export interface AdvanceRequest {
+  id: string;
+  amount: number;
+  reason: string;
+  status: AdvanceStatus;
+  submittedAt: string; // ISO date string
+  approvedAt?: string;
+  deductedInMonth?: string; // YYYY-MM
 }
 
 export interface LeaveBalance {

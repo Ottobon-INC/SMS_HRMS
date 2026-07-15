@@ -59,6 +59,22 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
     ];
 
     const existingPayslip = emp.payslips.find(p => p.month === month);
+    if (existingPayslip) continue; // Don't overwrite manually edited payslips
+
+    const approvedAdvances = emp.advanceRequests?.filter(a => a.status === 'approved') || [];
+    let advanceTotal = 0;
+    
+    for (const adv of approvedAdvances) {
+      advanceTotal += adv.amount;
+      // Mark as deducted in the DB
+      await supabase
+        .from('HRMS_advance_requests')
+        .update({ 
+          status: 'deducted', 
+          deducted_in_month: month 
+        })
+        .eq('id', adv.id);
+    }
 
     const payslip: Payslip = {
       id: `PS-${emp.id}-${month}`,
@@ -66,8 +82,8 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
       basicPay: basic,
       allowances,
       deductions,
-      advanceMoneyTaken: existingPayslip?.advanceMoneyTaken || false,
-      advanceMoneyAmount: existingPayslip?.advanceMoneyAmount || 0
+      advanceMoneyTaken: advanceTotal > 0,
+      advanceMoneyAmount: advanceTotal
     };
 
     await savePayslipToSupabase(emp.id, payslip);

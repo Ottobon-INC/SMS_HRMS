@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Users, CheckCircle, Clock, Landmark, AlertCircle } from 'lucide-react';
+import { ArrowRight, Users, CheckCircle, Clock, Landmark, AlertCircle, MapPin } from 'lucide-react';
 import { Language, Employee, LeaveRequest } from '../types';
 import { translations } from '../translations';
 
@@ -77,8 +77,25 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
       onLeaveLabel: "సెలవులో ఉన్నారు",
       absentLabel: "రాలేదు",
       inactiveEmployees: "ఇన్యాక్టివ్ ఉద్యోగులు",
+      checkInFeedTitle: "ఈ రోజు చెక్-ఇన్ ఫీడ్ (స్థానాలు)",
+      noCheckIns: "ఈ రోజు ఇంకా ఎవరూ చెక్-ఇన్ చేయలేదు.",
     }
   }[language];
+
+  // Get today's date string
+  const todayStr = new Date().toISOString().split('T')[0];
+  
+  // Collect today's check-ins with location
+  const todaysCheckIns = employees
+    .map(emp => {
+      const todayLog = emp.checkInLogs.find(log => log.date === todayStr);
+      return {
+        emp,
+        log: todayLog
+      };
+    })
+    .filter(item => item.log && item.log.checkInTime)
+    .sort((a, b) => (b.log!.checkInTime > a.log!.checkInTime ? 1 : -1));
 
   return (
     <div id="admin-dashboard-container" className="space-y-8 animate-fadeIn">
@@ -344,6 +361,61 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
 
       </div>
 
+      {/* 4. Today's Check-In Feed (Locations) */}
+      <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-slate-100 shadow-sm">
+        <div className="flex items-center gap-2 mb-6 pb-2 border-b border-slate-50">
+          <MapPin className="w-5 h-5 text-teal-600" />
+          <h3 className="text-base font-bold text-slate-800">
+            {language === 'te' ? 'ఈ రోజు చెక్-ఇన్ ఫీడ్ (స్థానాలు)' : "Today's Check-In Feed & Locations"}
+          </h3>
+        </div>
+
+        {todaysCheckIns.length === 0 ? (
+          <div className="py-8 text-center text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-slate-100/50 border-dashed">
+            {language === 'te' ? 'ఈ రోజు ఇంకా ఎవరూ చెక్-ఇన్ చేయలేదు.' : 'No check-ins recorded yet today.'}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {todaysCheckIns.map(({ emp, log }) => (
+              <div key={emp.id} className="p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-teal-100 text-teal-700 w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0">
+                      {emp.name.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-800">{emp.name}</h4>
+                      <p className="text-[10px] text-slate-400 font-mono">{emp.id}</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 shadow-sm">
+                    {log!.checkInTime.substring(0, 5)}
+                  </span>
+                </div>
+                
+                <div className="flex flex-col gap-2 pt-3 border-t border-slate-100/80">
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                      {log!.checkInLocation || (language === 'te' ? 'లొకేషన్ అందుబాటులో లేదు' : 'Location unavailable')}
+                    </p>
+                  </div>
+                  {log!.checkInLatLng && (
+                    <a 
+                      href={`https://www.google.com/maps/search/?api=1&query=${log!.checkInLatLng}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-teal-600 hover:text-teal-700 font-bold ml-5"
+                    >
+                      {language === 'te' ? 'మ్యాప్‌లో చూడండి' : 'View on map'} →
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

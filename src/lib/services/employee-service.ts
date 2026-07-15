@@ -14,16 +14,19 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
   const { data: leaves, error: leavesError } = await supabase.from('HRMS_leave_requests').select('*');
   const { data: balances, error: balError } = await supabase.from('HRMS_leave_balances').select('*');
   const { data: payroll, error: payError } = await supabase.from('HRMS_payroll').select('*');
+  const { data: advances, error: advError } = await supabase.from('HRMS_advance_requests').select('*');
 
   if (attError) console.error('Error fetching attendance:', attError);
   if (leavesError) console.error('Error fetching leave_requests:', leavesError);
   if (balError) console.error('Error fetching leave_balances:', balError);
   if (payError) console.error('Error fetching payroll:', payError);
+  if (advError) console.error('Error fetching advances:', advError);
 
   const attendanceList = att || [];
   const leavesList = leaves || [];
   const balancesList = balances || [];
   const payrollList = payroll || [];
+  const advancesList = advances || [];
 
   return emps.map(emp => {
     // Map leave balances
@@ -84,7 +87,9 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
           date: a.date,
           checkInTime: a.check_in_time,
           checkOutTime: a.check_out_time,
-          totalHours
+          totalHours,
+          checkInLocation: a.check_in_location || undefined,
+          checkInLatLng: a.check_in_lat_lng || undefined
         };
       });
 
@@ -124,7 +129,18 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
       leaveRequests: empLeaves,
       attendanceRecords,
       checkInLogs,
-      payslips: empPayslips
+      payslips: empPayslips,
+      advanceRequests: advancesList
+        .filter(a => a.employee_id === emp.id)
+        .map(a => ({
+          id: a.id,
+          amount: Number(a.amount),
+          reason: a.reason,
+          status: a.status as any,
+          submittedAt: a.submitted_at,
+          approvedAt: a.approved_at,
+          deductedInMonth: a.deducted_in_month
+        }))
     };
   });
 }

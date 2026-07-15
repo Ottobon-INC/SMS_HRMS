@@ -8,7 +8,7 @@ interface AdminPayrollProps {
   language: 'en' | 'te';
   employees: Employee[];
   onRunBulkPayroll: (month: string) => void;
-  onGenerateSinglePayslip: (employeeId: string, month: string, basicPay: number) => void;
+  onGenerateSinglePayslip: (employeeId: string, month: string, basicPay: number, hasExisting: boolean, approvedAdvances: { id: string, amount: number }[]) => void;
   onUpdatePayslip: (employeeId: string, updatedSlip: Payslip) => void;
 }
 
@@ -173,14 +173,18 @@ export default function AdminPayroll({
         {/* Render Selected Employee Slips */}
         {activeEmployee ? (
           <div className="pt-4 border-t border-slate-100 space-y-6">
-            {activeEmployee.payslips.length === 0 ? (
-              <div className="space-y-4">
+            {!activeEmployee.payslips.some(p => p.month === payrollMonth) && (
+              <div className="space-y-4 mb-4">
                 <p className="text-xs text-slate-400 italic">
-                  {localizedText.emptySlips}
+                  {language === 'te' 
+                    ? 'ఈ నెలకు ఎలాంటి సాలరీ స్లిప్ సృష్టించబడలేదు. మీరు మాన్యువల్‌గా క్రియేట్ చేయవచ్చు.' 
+                    : 'No payslip document has been generated for this month yet. You can generate one manually below.'}
                 </p>
                 <button
                   onClick={() => {
-                    onGenerateSinglePayslip(activeEmployee.id, payrollMonth, activeEmployee.basicSalary);
+                    const hasExisting = activeEmployee.payslips.some(p => p.month === payrollMonth);
+                    const approvedAdvances = activeEmployee.advanceRequests?.filter(a => a.status === 'approved') || [];
+                    onGenerateSinglePayslip(activeEmployee.id, payrollMonth, activeEmployee.basicSalary, hasExisting, approvedAdvances);
                     setShowNotification(language === 'te' ? 'సాలరీ స్లిప్ సృష్టించబడింది!' : 'Successfully generated individual payslip!');
                     setTimeout(() => setShowNotification(null), 3000);
                   }}
@@ -190,7 +194,9 @@ export default function AdminPayroll({
                   <span>{localizedText.btnGenerateSingle}</span>
                 </button>
               </div>
-            ) : (
+            )}
+            
+            {activeEmployee.payslips.length > 0 && (
               <div className="p-1 bg-slate-50/50 rounded-2xl border border-slate-100">
                 <PayrollModule
                   language={language}

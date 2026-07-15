@@ -11,7 +11,30 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
     if (isCurrentlyCheckedIn) {
       await attendanceService.clockOutEmployee(empId);
     } else {
-      await attendanceService.clockInEmployee(empId);
+      let locationStr: string | undefined = undefined;
+      let latLngStr: string | undefined = undefined;
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+        });
+        const { latitude, longitude } = position.coords;
+        latLngStr = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+
+        // Reverse geocoding (OpenStreetMap Nominatim)
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+        if (response.ok) {
+          const data = await response.json();
+          const city = data.address.city || data.address.town || data.address.village || data.address.county || '';
+          const state = data.address.state || '';
+          const suburb = data.address.suburb || data.address.neighbourhood || '';
+          locationStr = [suburb, city, state].filter(Boolean).join(', ');
+        }
+      } catch (err) {
+        console.warn("Could not get location:", err);
+      }
+
+      await attendanceService.clockInEmployee(empId, locationStr, latLngStr);
     }
     
     await loadData();

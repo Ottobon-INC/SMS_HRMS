@@ -3,12 +3,14 @@ import { DollarSign, Printer, Landmark, Sparkles, TrendingUp, HelpCircle, Edit2,
 import { Language, Payslip, Allowance, Deduction } from '../types';
 import { translations } from '../translations';
 import SmsLogo from './SmsLogo';
+import { numberToWords } from '../lib/utils';
 
 interface PayrollModuleProps {
   language: Language;
   payslips: Payslip[];
   employeeName?: string;
   employeeId?: string;
+  employeeEmail?: string;
   employeeDesignation?: string;
   employeeJoiningDate?: string;
   employeeExperience?: number;
@@ -20,6 +22,7 @@ export default function PayrollModule({
   payslips,
   employeeName = 'Ravi Kumar',
   employeeId = 'EMP-2026-089',
+  employeeEmail = 'employee@example.com',
   employeeDesignation = 'Software Engineer',
   employeeJoiningDate,
   employeeExperience,
@@ -206,324 +209,137 @@ export default function PayrollModule({
 
           {/* Print Button */}
           {!isEditing && (
-            <button
-              id="print-payslip-btn"
-              onClick={handlePrint}
-              className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-teal-600/10 transition-all active:scale-95 cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>{t.print}</span>
+            <button id="print-payslip-btn" onClick={handlePrint} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
+              <Printer className="w-4 h-4" /> {t.print}
             </button>
           )}
         </div>
       </div>
 
-      {/* The Payslip Document or Edit Form */}
       <div 
         id="printable-payslip" 
-        className="bg-white rounded-[32px] p-5 sm:p-8 md:p-12 shadow-sm border border-slate-100 relative overflow-hidden transition-all duration-300 print:border-0 print:shadow-none print:p-0"
+        className="bg-white p-5 sm:p-8 md:p-12 shadow-sm border border-slate-200 relative overflow-hidden transition-all duration-300 print:border-0 print:shadow-none print:p-0"
       >
-        {/* Subtle decorative background watermark (will be hidden in print) */}
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-teal-50/20 rounded-full blur-3xl pointer-events-none no-print" />
-
-        {/* Corporate Header */}
-        <div className="flex flex-col md:flex-row justify-between gap-6 border-b border-slate-100 pb-8">
-          <div>
-            <div className="flex items-center">
-              <SmsLogo textSize="text-xl font-black" subtitle={false} />
+        {!isEditing ? (
+          <div className="font-sans text-sm text-black">
+            <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
+              <div className="flex gap-6 items-center">
+                <div className="shrink-0 scale-125 origin-left pl-2">
+                  <SmsLogo textSize="text-3xl font-black" subtitle={false} />
+                </div>
+                <div className="pl-6 border-l-2 border-slate-200">
+                  <h1 className="text-2xl font-bold uppercase tracking-wider mb-2 text-teal-800">SMS DIAGNOSTICS</h1>
+                  <p className="text-xs max-w-lg mb-1 text-slate-700">#18-1-30/9, Opp. KGH OP Gate, Aditya Complex, Visakhapatnam - 530002, Andhra Pradesh</p>
+                  <p className="text-xs text-slate-700">info@smslabs.in &nbsp;&nbsp;|&nbsp;&nbsp; www.smslabs.in &nbsp;&nbsp;|&nbsp;&nbsp; Phone: 9059331954</p>
+                </div>
+              </div>
             </div>
-            <p className="text-[11px] text-slate-400 mt-2 max-w-sm whitespace-pre-line leading-relaxed">
-              #18-1-30/9, Opp. KGH OP Gate, Aditya Complex<br />
-              Visakhapatnam - 530002, Andhra Pradesh<br />
-              Email: info@smslabs.in | Web: www.smslabs.in | Phone: 9059331954
-            </p>
-          </div>
 
-          <div className="text-left md:text-right space-y-1">
-            <span className="inline-block bg-teal-50 text-teal-800 px-3 py-1 rounded-full text-xs font-bold font-mono tracking-wide">
-              {t.slipForMonth} {activeSlip.month}
-            </span>
-            <p className="text-xs text-slate-400">
-              Slip Reference: {activeSlip.id}
-            </p>
-          </div>
-        </div>
+            <div className="text-center font-bold text-lg mb-6">
+              Pay slip for the month of {new Date(activeSlip.month + '-01').toLocaleString('en-US', { month: 'long', year: 'numeric' })}
+            </div>
 
-        {/* Employee details overview */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-6 border-b border-slate-50 text-xs">
-          <div>
-            <span className="text-slate-400 block font-semibold uppercase tracking-wider">{t.employeeNameLabel}</span>
-            <span className="text-slate-800 font-bold mt-1 block">{employeeName}</span>
-          </div>
-          <div>
-            <span className="text-slate-400 block font-semibold uppercase tracking-wider">{t.employeeIdLabel}</span>
-            <span className="text-slate-800 font-mono font-bold mt-1 block">{employeeId}</span>
-          </div>
-          <div>
-            <span className="text-slate-400 block font-semibold uppercase tracking-wider">Designation</span>
-            <span className="text-slate-800 font-bold mt-1 block">{employeeDesignation}</span>
-          </div>
-          <div>
-            <span className="text-slate-400 block font-semibold uppercase tracking-wider">{t.paymentModeLabel}</span>
-            <span className="text-slate-800 font-bold mt-1 block">{t.paymentModeValue}</span>
-          </div>
-        </div>
+            <div className="grid grid-cols-2 border border-black mb-6">
+              <div className="border-r border-black flex flex-col">
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/2 p-2 border-r border-black">Employee Code</div><div className="w-1/2 p-2">: {employeeId}</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/2 p-2 border-r border-black">Base Location</div><div className="w-1/2 p-2">: N/A</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/2 p-2 border-r border-black">Date of Joining</div><div className="w-1/2 p-2">: {employeeJoiningDate ? new Date(employeeJoiningDate).toLocaleDateString('en-GB') : 'N/A'}</div></div>
+              </div>
+              <div className="flex flex-col">
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Company:</div><div className="w-2/3 p-2">SMS DIAGNOSTICS</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Name:</div><div className="w-2/3 p-2 font-bold">{employeeName}</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Designation:</div><div className="w-2/3 p-2">{employeeDesignation}</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Payslip #:</div><div className="w-2/3 p-2 font-mono text-xs">{activeSlip.id}</div></div>
+              </div>
+            </div>
 
-        {/* Breakdown Panel: Dual columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 border-b border-slate-100">
-          
-          {/* Earnings */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-teal-700 border-l-3 border-teal-500 pl-2.5 uppercase tracking-wider flex items-center justify-between">
-              <span>{t.earningsTitle}</span>
-              {isEditing && (
-                <button
-                  onClick={handleAddAllowance}
-                  className="text-[10px] text-teal-600 hover:text-teal-700 font-bold flex items-center gap-1.5 py-1 px-2.5 bg-teal-50 hover:bg-teal-100 rounded-lg transition-all cursor-pointer"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Add Allowance</span>
-                </button>
-              )}
-            </h3>
-            
-            <div className="space-y-3">
-              {/* Basic Salary edit or render */}
-              <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
-                <span className="text-slate-600 font-medium">{t.basicSalary}</span>
-                {isEditing ? (
-                  <div className="flex items-center gap-1.5 border border-slate-200 bg-slate-50 px-2 py-1 rounded-lg">
-                    <span className="text-xs text-slate-400 font-bold">₹</span>
-                    <input
-                      type="number"
-                      value={draftBasicPay}
-                      onChange={(e) => setDraftBasicPay(Number(e.target.value))}
-                      className="w-24 text-right bg-transparent text-xs font-bold font-mono focus:outline-none"
-                    />
+            <div className="border border-black mb-6">
+              <div className="grid grid-cols-2 bg-slate-100 font-bold border-b border-black">
+                <div className="p-2 border-r border-black">Earnings</div>
+                <div className="p-2">Deductions</div>
+              </div>
+              <div className="grid grid-cols-4 font-bold border-b border-black">
+                <div className="p-2 border-r border-black">Particulars</div><div className="p-2 border-r border-black text-right">Rate</div>
+                <div className="p-2 border-r border-black">Particulars</div><div className="p-2 text-right">Amount</div>
+              </div>
+              <div className="grid grid-cols-2">
+                <div className="border-r border-black flex flex-col">
+                  <div className="flex justify-between p-2"><span>Basic Salary</span><span>{activeSlip.basicPay.toLocaleString('en-IN')}</span></div>
+                  {allowancesList.map((a, i) => <div key={i} className="flex justify-between p-2"><span>{t[a.nameKey] || a.nameKey}</span><span>{a.amount.toLocaleString('en-IN')}</span></div>)}
+                </div>
+                <div className="flex flex-col">
+                  {deductionsList.map((d, i) => <div key={i} className="flex justify-between p-2"><span>{t[d.nameKey] || d.nameKey}</span><span>{d.amount.toLocaleString('en-IN')}</span></div>)}
+                  {activeSlip.advanceMoneyTaken && <div className="flex justify-between p-2 text-rose-700"><span>Advance</span><span>{activeSlip.advanceMoneyAmount?.toLocaleString('en-IN')}</span></div>}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 border-t border-black font-bold">
+                <div className="flex justify-between p-2 border-r border-black"><span>Total Earnings</span><span>{totalEarnings.toLocaleString('en-IN')}</span></div>
+                <div className="flex justify-between p-2"><span>Total Deductions</span><span>{totalDeductions.toLocaleString('en-IN')}</span></div>
+              </div>
+              <div className="border-t border-black font-bold flex justify-between p-2 bg-slate-100">
+                <span>Net Salary:</span><span>Rs. {netPay.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            <div className="text-sm mb-8 pb-4 border-b border-black">
+              <span className="font-bold">In words:</span> {numberToWords(netPay)}
+            </div>
+
+            <div className="flex justify-between items-end mt-12 pt-8">
+              <div className="text-xs italic text-slate-500">
+                This is a computer-generated payslip and does not require a signature.<br/>
+                Generated on: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </div>
+              
+              <div className="text-center">
+                <div className="border-b border-slate-800 w-48 mb-2"></div>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Authorised Signatory</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ----- EDIT MODE VIEW ----- */
+          <div className="relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 border-b border-slate-100">
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-teal-700 border-l-3 border-teal-500 pl-2.5 uppercase">Earnings</h3>
+                <div className="flex justify-between items-center text-sm border-b pb-2">
+                  <span>Basic</span>
+                  <input type="number" value={draftBasicPay} onChange={(e) => setDraftBasicPay(Number(e.target.value))} className="w-24 text-right border rounded p-1"/>
+                </div>
+                {allowancesList.map((item, index) => (
+                  <div key={index} className="flex justify-between items-center gap-2">
+                    <select value={item.nameKey} onChange={(e) => handleUpdateAllowance(index, 'nameKey', e.target.value)} className="border p-1 text-xs">
+                      <option value="hra">HRA</option><option value="medicalAllow">Medical</option><option value="specialAllow">Special</option>
+                    </select>
+                    <input type="number" value={item.amount} onChange={(e) => handleUpdateAllowance(index, 'amount', Number(e.target.value))} className="w-20 text-right border rounded p-1"/>
+                    <button onClick={() => handleRemoveAllowance(index)}><Trash2 className="w-4 h-4 text-rose-500"/></button>
                   </div>
-                ) : (
-                  <span className="font-mono font-bold text-slate-900">{formatCurrency(activeSlip.basicPay)}</span>
-                )}
+                ))}
+                <button onClick={handleAddAllowance} className="text-xs text-teal-600 font-bold">+ Add Allowance</button>
               </div>
 
-              {/* Allowances list */}
-              {allowancesList.map((item, index) => (
-                <div key={index} className="flex justify-between items-center text-sm border-b border-slate-50 pb-2 gap-2">
-                  {isEditing ? (
-                    <div className="flex items-center gap-2 w-full justify-between">
-                      <select
-                        value={item.nameKey}
-                        onChange={(e) => handleUpdateAllowance(index, 'nameKey', e.target.value)}
-                        className="text-xs font-medium border border-slate-200 bg-slate-50 rounded-lg px-2 py-1 focus:outline-none"
-                      >
-                        <option value="hra">HRA</option>
-                        <option value="medicalAllow">Medical Allowance</option>
-                        <option value="conveyanceAllow">Conveyance Allowance</option>
-                        <option value="specialAllow">Special Allowance</option>
-                      </select>
-                      
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1 border border-slate-200 bg-slate-50 px-2 py-1 rounded-lg">
-                          <span className="text-[10px] text-slate-400 font-bold">₹</span>
-                          <input
-                            type="number"
-                            value={item.amount}
-                            onChange={(e) => handleUpdateAllowance(index, 'amount', Number(e.target.value))}
-                            className="w-20 text-right bg-transparent text-xs font-bold font-mono focus:outline-none"
-                          />
-                        </div>
-                        <button
-                          onClick={() => handleRemoveAllowance(index)}
-                          className="text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="text-slate-600 font-medium">{t[item.nameKey] || item.nameKey}</span>
-                      <span className="font-mono font-bold text-slate-900">{formatCurrency(item.amount)}</span>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-between items-center text-sm font-bold text-slate-800 pt-1">
-              <span>{t.totalEarnings}</span>
-              <span className="font-mono text-base text-slate-900">{formatCurrency(totalEarnings)}</span>
-            </div>
-          </div>
-
-          {/* Deductions */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-rose-700 border-l-3 border-rose-500 pl-2.5 uppercase tracking-wider flex items-center justify-between">
-              <span>{t.deductionsTitle}</span>
-              {isEditing && (
-                <button
-                  onClick={handleAddDeduction}
-                  className="text-[10px] text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1.5 py-1 px-2.5 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all cursor-pointer"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Add Deduction</span>
-                </button>
-              )}
-            </h3>
-            
-            <div className="space-y-3">
-              {deductionsList.map((item, index) => (
-                <div key={index} className="flex justify-between items-center text-sm border-b border-slate-50 pb-2 gap-2">
-                  {isEditing ? (
-                    <div className="flex items-center gap-2 w-full justify-between">
-                      <select
-                        value={item.nameKey}
-                        onChange={(e) => handleUpdateDeduction(index, 'nameKey', e.target.value)}
-                        className="text-xs font-medium border border-slate-200 bg-slate-50 rounded-lg px-2 py-1 focus:outline-none"
-                      >
-                        <option value="providentFund">PF (Provident Fund)</option>
-                        <option value="professionalTax">Professional Tax</option>
-                        <option value="incomeTax">Income Tax (TDS)</option>
-                      </select>
-                      
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1 border border-slate-200 bg-slate-50 px-2 py-1 rounded-lg">
-                          <span className="text-[10px] text-slate-400 font-bold">₹</span>
-                          <input
-                            type="number"
-                            value={item.amount}
-                            onChange={(e) => handleUpdateDeduction(index, 'amount', Number(e.target.value))}
-                            className="w-20 text-right bg-transparent text-xs font-bold font-mono focus:outline-none"
-                          />
-                        </div>
-                        <button
-                          onClick={() => handleRemoveDeduction(index)}
-                          className="text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="text-slate-600 font-medium">{t[item.nameKey] || item.nameKey}</span>
-                      <span className="font-mono font-bold text-slate-900">{formatCurrency(item.amount)}</span>
-                    </>
-                  )}
-                </div>
-              ))}
-              
-              {/* Advance Money Deduction Row */}
-              {isEditing ? (
-                <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2 gap-2 mt-4 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-600 font-medium text-xs">
-                      <input 
-                        type="checkbox" 
-                        checked={draftAdvanceTaken}
-                        onChange={(e) => setDraftAdvanceTaken(e.target.checked)}
-                        className="w-4 h-4 text-rose-600 rounded focus:ring-rose-500"
-                      />
-                      {t.advanceMoney || 'Advance Money Deducted'}
-                    </label>
-                    {!isEligibleForAdvance && (
-                      <span className="px-1.5 py-0.5 text-[8px] uppercase tracking-wider font-bold bg-slate-100 text-slate-400 rounded">
-                        Not Eligible
-                      </span>
-                    )}
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-rose-700 border-l-3 border-rose-500 pl-2.5 uppercase">Deductions</h3>
+                {deductionsList.map((item, index) => (
+                  <div key={index} className="flex justify-between items-center gap-2">
+                    <select value={item.nameKey} onChange={(e) => handleUpdateDeduction(index, 'nameKey', e.target.value)} className="border p-1 text-xs">
+                      <option value="providentFund">PF</option><option value="professionalTax">PT</option>
+                    </select>
+                    <input type="number" value={item.amount} onChange={(e) => handleUpdateDeduction(index, 'amount', Number(e.target.value))} className="w-20 text-right border rounded p-1"/>
+                    <button onClick={() => handleRemoveDeduction(index)}><Trash2 className="w-4 h-4 text-rose-500"/></button>
                   </div>
-                  {draftAdvanceTaken && (
-                    <div className="flex items-center gap-1 border border-slate-200 bg-slate-50 px-2 py-1 rounded-lg">
-                      <span className="text-[10px] text-slate-400 font-bold">₹</span>
-                      <input
-                        type="number"
-                        value={draftAdvanceAmount}
-                        onChange={(e) => setDraftAdvanceAmount(Number(e.target.value))}
-                        className="w-20 text-right bg-transparent text-xs font-bold font-mono focus:outline-none"
-                      />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                activeSlip.advanceMoneyTaken && (
-                  <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2 gap-2 mt-4 pt-4 border-t text-rose-600">
-                    <span className="font-medium">{t.advanceMoneyRecovery || 'Advance Money Recovery'}</span>
-                    <span className="font-mono font-bold">{formatCurrency(activeSlip.advanceMoneyAmount || 0)}</span>
-                  </div>
-                )
-              )}
+                ))}
+                <button onClick={handleAddDeduction} className="text-xs text-rose-600 font-bold">+ Add Deduction</button>
+              </div>
             </div>
 
-            <div className="flex justify-between items-center text-sm font-bold text-slate-800 pt-5">
-              <span>{t.totalDeductions}</span>
-              <span className="font-mono text-base text-rose-700">{formatCurrency(totalDeductions)}</span>
+            <div className="mt-8 flex justify-end gap-3">
+              <button onClick={() => setIsEditing(false)} className="bg-slate-100 px-5 py-2.5 rounded-xl font-bold text-xs">Cancel</button>
+              <button onClick={handleSaveChanges} className="bg-teal-600 text-white px-5 py-2.5 rounded-xl font-bold text-xs">Save Changes</button>
             </div>
-          </div>
-
-        </div>
-
-        {/* Net Take-Home Highlight Panel */}
-        <div className="my-8 bg-slate-50/70 border border-slate-100 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="bg-emerald-100 text-emerald-700 p-3 rounded-xl shadow-sm">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">
-                {t.netPay}
-              </span>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
-                {t.netPayFormula}
-              </p>
-            </div>
-          </div>
-
-          <div className="text-center sm:text-right">
-            <span className="text-3xl md:text-4xl font-black font-mono text-emerald-700 tracking-tight block">
-              {formatCurrency(netPay)}
-            </span>
-          </div>
-        </div>
-
-        {/* Transparent Mathematical Explanation Card */}
-        <div className="bg-amber-50/30 border border-amber-100/50 rounded-2xl p-5 flex gap-3 text-slate-600 no-print">
-          <HelpCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider">
-              {language === 'te' ? 'నిజాయితీ గల వివరణ (Transparent Calculation)' : 'Simple & Honest Math Breakdown'}
-            </h4>
-            <p className="text-xs leading-relaxed mt-1 text-slate-600">
-              {t.netPayExplanation}
-            </p>
-          </div>
-        </div>
-
-        {/* Form Action Controls inside editor */}
-        {isEditing && (
-          <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-end gap-3 no-print">
-            <button
-              onClick={() => setIsEditing(false)}
-              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-              <span>Cancel</span>
-            </button>
-            
-            <button
-              onClick={handleSaveChanges}
-              className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-teal-600/10 transition-all cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>Save Changes</span>
-            </button>
           </div>
         )}
-
-        {/* Document Footer */}
-        <div className="mt-12 pt-6 border-t border-slate-100 text-center text-[10px] text-slate-400 uppercase tracking-wider">
-          Computer generated pay slip. No physical signature required. Confidential document issued by SMS Diagnostics.
-        </div>
-
       </div>
     </div>
   );

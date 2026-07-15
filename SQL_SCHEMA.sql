@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS "HRMS_attendance" (
     "status" VARCHAR(100) NOT NULL,
     "check_in_time" TIME WITHOUT TIME ZONE,
     "check_out_time" TIME WITHOUT TIME ZONE,
+    "check_in_location" TEXT,
+    "check_in_lat_lng" VARCHAR(50),
     "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_employee_date UNIQUE ("employee_id", "date")
 );
@@ -76,7 +78,20 @@ CREATE TABLE IF NOT EXISTS "HRMS_payroll" (
     CONSTRAINT unique_employee_payroll_month UNIQUE ("employee_id", "month")
 );
 
--- 7. Create HRMS_invoices Table
+-- 7. Create HRMS_advance_requests Table
+CREATE TABLE IF NOT EXISTS "HRMS_advance_requests" (
+    "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "amount" NUMERIC(12, 2) NOT NULL,
+    "reason" TEXT NOT NULL,
+    "status" VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK ("status" IN ('pending', 'approved', 'rejected', 'deducted')),
+    "submitted_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    "approved_at" TIMESTAMP WITH TIME ZONE,
+    "deducted_in_month" VARCHAR(7),
+    "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Create HRMS_invoices Table
 CREATE TABLE IF NOT EXISTS "HRMS_invoices" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     "invoice_number" VARCHAR(255) UNIQUE NOT NULL,
@@ -98,6 +113,7 @@ ALTER TABLE "HRMS_attendance" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "HRMS_leave_requests" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "HRMS_leave_balances" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "HRMS_payroll" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "HRMS_advance_requests" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "HRMS_invoices" DISABLE ROW LEVEL SECURITY;
 
 -- 8. FORCE REFRESH SUPABASE SCHEMA CACHE
@@ -122,4 +138,8 @@ NOTIFY pgrst, 'reload schema';
 -- ALTER TABLE "HRMS_leave_balances" ADD CONSTRAINT "HRMS_leave_balances_leave_type_check" CHECK ("leave_type" IN ('sick', 'casual', 'maternity', 'paternity'));
 
 -- ALTER TABLE "HRMS_payroll" ADD COLUMN IF NOT EXISTS "advance_money_taken" BOOLEAN DEFAULT FALSE;
+-- ALTER TABLE "HRMS_payroll" ADD COLUMN IF NOT EXISTS "advance_money_taken" BOOLEAN DEFAULT FALSE;
 -- ALTER TABLE "HRMS_payroll" ADD COLUMN IF NOT EXISTS "advance_money_amount" NUMERIC(12, 2) DEFAULT 0.00;
+
+-- ALTER TABLE "HRMS_attendance" ADD COLUMN IF NOT EXISTS "check_in_location" TEXT;
+-- ALTER TABLE "HRMS_attendance" ADD COLUMN IF NOT EXISTS "check_in_lat_lng" VARCHAR(50);
