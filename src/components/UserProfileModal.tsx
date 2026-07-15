@@ -77,32 +77,63 @@ export default function UserProfileModal({ currentUser, onClose, onUpdatePasswor
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-      <div className="bg-white rounded-[32px] w-full max-w-md p-6 sm:p-8 shadow-2xl relative animate-scaleUp overflow-hidden">
-        {/* Decorative Header */}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-teal-500 to-emerald-600 z-0" />
+      <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl relative animate-scaleUp overflow-hidden flex flex-col max-h-[90vh]">
         
-        {/* Close Button */}
+        {/* Close Button - Fixed at top right */}
         <button 
           onClick={onClose}
-          className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full backdrop-blur-md transition-colors z-20 cursor-pointer"
+          className="absolute top-6 right-6 p-2 bg-black/10 hover:bg-black/20 text-white rounded-full backdrop-blur-md transition-colors z-50 cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="relative z-10 pt-10">
-          <div className="flex justify-center mb-6">
-            <div className="w-24 h-24 bg-white rounded-full p-1.5 shadow-lg">
-              <div className="w-full h-full bg-teal-600 rounded-full flex items-center justify-center text-3xl font-black text-white">
+        <div className="relative overflow-y-auto w-full scroll-smooth scrollbar-hide">
+          {/* Decorative Header - Scrolls with content */}
+          <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-teal-500 to-emerald-600 z-0" />
+
+          <div className="relative z-10 p-6 sm:p-8 pt-10">
+            <div className="flex justify-center mb-6">
+              <div className="w-24 h-24 bg-white rounded-full p-1.5 shadow-lg">
+                <div className="w-full h-full bg-teal-600 rounded-full flex items-center justify-center text-3xl font-black text-white">
                 {currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
               </div>
             </div>
           </div>
           
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <h2 className="text-2xl font-bold text-slate-800">{currentUser.name}</h2>
             <p className="text-slate-500 text-sm mt-1">{currentUser.designation}</p>
             <div className="inline-block mt-3 px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full font-mono">
               {currentUser.id}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{language === 'te' ? 'ఈమెయిల్' : 'Email'}</span>
+              <span className="text-sm font-semibold text-slate-700 break-all">{currentUser.email}</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{language === 'te' ? 'ఫోన్' : 'Phone'}</span>
+              <span className="text-sm font-semibold text-slate-700">{currentUser.phone || '-'}</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{language === 'te' ? 'లింగం' : 'Gender'}</span>
+              <span className="text-sm font-semibold text-slate-700 capitalize">{currentUser.gender || '-'}</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{language === 'te' ? 'చేరిన తేదీ' : 'Joining Date'}</span>
+              <span className="text-sm font-semibold text-slate-700">{new Date(currentUser.joiningDate).toLocaleDateString()}</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{language === 'te' ? 'పాత్ర' : 'Role'}</span>
+              <span className="text-sm font-semibold text-slate-700 capitalize">{currentUser.role}</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{language === 'te' ? 'స్థితి' : 'Status'}</span>
+              <span className={`text-xs font-bold capitalize px-2 py-0.5 rounded-md inline-block mt-0.5 ${currentUser.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                {currentUser.status}
+              </span>
             </div>
           </div>
 
@@ -198,6 +229,7 @@ export default function UserProfileModal({ currentUser, onClose, onUpdatePasswor
             </form>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -5,11 +5,11 @@ import { translations } from '../translations';
 import PayrollModule from './PayrollModule';
 
 interface AdminPayrollProps {
-  language: Language;
+  language: 'en' | 'te';
   employees: Employee[];
   onRunBulkPayroll: (month: string) => void;
-  onGenerateSinglePayslip: (empId: string, month: string, basicPay: number) => void;
-  onUpdateEmployee: (id: string, updatedFields: Partial<Employee>) => void;
+  onGenerateSinglePayslip: (employeeId: string, month: string, basicPay: number) => void;
+  onUpdatePayslip: (employeeId: string, updatedSlip: Payslip) => void;
 }
 
 export default function AdminPayroll({
@@ -17,7 +17,7 @@ export default function AdminPayroll({
   employees,
   onRunBulkPayroll,
   onGenerateSinglePayslip,
-  onUpdateEmployee,
+  onUpdatePayslip,
 }: AdminPayrollProps) {
   const t = translations[language];
 
@@ -44,20 +44,19 @@ export default function AdminPayroll({
   // Find inspected employee
   const activeEmployee = employees.find(e => e.id === selectedEmpId);
 
-  const handleUpdatePayslip = (updatedSlip: Payslip) => {
+  const handleUpdatePayslip = async (updatedSlip: Payslip) => {
     if (!activeEmployee) return;
-    const updatedPayslips = activeEmployee.payslips.map(ps => {
-      if (ps.id === updatedSlip.id) {
-        return updatedSlip;
-      }
-      return ps;
-    });
-    onUpdateEmployee(activeEmployee.id, { payslips: updatedPayslips });
-    setShowNotification(
-      language === 'te' 
-        ? `జీతం రశీదు విజయవంతంగా సవరించబడింది!` 
-        : `Payslip updated successfully!`
-    );
+    try {
+      await onUpdatePayslip(activeEmployee.id, updatedSlip);
+      setShowNotification(
+        language === 'te' 
+          ? `జీతం రశీదు విజయవంతంగా సవరించబడింది!` 
+          : `Payslip updated successfully!`
+      );
+    } catch (error) {
+      console.error(error);
+      setShowNotification("Error saving payslip. Check console for details.");
+    }
     setTimeout(() => setShowNotification(null), 3000);
   };
 
@@ -199,6 +198,8 @@ export default function AdminPayroll({
                   employeeName={activeEmployee.name}
                   employeeId={activeEmployee.id}
                   employeeDesignation={activeEmployee.designation}
+                  employeeJoiningDate={activeEmployee.joiningDate}
+                  employeeExperience={activeEmployee.experience}
                   onUpdatePayslip={handleUpdatePayslip}
                 />
               </div>

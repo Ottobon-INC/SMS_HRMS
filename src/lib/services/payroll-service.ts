@@ -2,9 +2,14 @@ import { supabase } from '../supabase-client';
 import { Employee, Payslip } from '../../types';
 
 export async function savePayslipToSupabase(empId: string, payslip: Payslip): Promise<void> {
+  let totalDeductions = payslip.deductions.reduce((sum, d) => sum + d.amount, 0);
+  if (payslip.advanceMoneyTaken && payslip.advanceMoneyAmount) {
+    totalDeductions += payslip.advanceMoneyAmount;
+  }
+
   const netPay = payslip.basicPay + 
     payslip.allowances.reduce((sum, a) => sum + a.amount, 0) - 
-    payslip.deductions.reduce((sum, d) => sum + d.amount, 0);
+    totalDeductions;
 
   const { data: existing } = await supabase
     .from('HRMS_payroll')
@@ -19,7 +24,9 @@ export async function savePayslipToSupabase(empId: string, payslip: Payslip): Pr
     basic_pay: payslip.basicPay,
     allowances: payslip.allowances,
     deductions: payslip.deductions,
-    net_pay: netPay
+    net_pay: netPay,
+    advance_money_taken: payslip.advanceMoneyTaken || false,
+    advance_money_amount: payslip.advanceMoneyAmount || 0
   };
 
   if (existing) {
@@ -51,12 +58,16 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
       { nameKey: 'incomeTax', amount: Math.round(basic * 0.07) }
     ];
 
+    const existingPayslip = emp.payslips.find(p => p.month === month);
+
     const payslip: Payslip = {
       id: `PS-${emp.id}-${month}`,
       month,
       basicPay: basic,
       allowances,
-      deductions
+      deductions,
+      advanceMoneyTaken: existingPayslip?.advanceMoneyTaken || false,
+      advanceMoneyAmount: existingPayslip?.advanceMoneyAmount || 0
     };
 
     await savePayslipToSupabase(emp.id, payslip);

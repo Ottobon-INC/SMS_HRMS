@@ -54,6 +54,8 @@ export default function EmployeeDirectory({
   const [formPassword, setFormPassword] = useState('');
   const [formStatus, setFormStatus] = useState<'active' | 'inactive'>('active');
   const [showPassword, setShowPassword] = useState(false);
+  const [formGender, setFormGender] = useState<'male' | 'female' | 'other' | undefined>(undefined);
+  const [formExperience, setFormExperience] = useState<number>(0);
 
   const activeEmployee = employees.find(e => e.id === inspectingEmpId);
 
@@ -67,6 +69,8 @@ export default function EmployeeDirectory({
     setFormPhone('');
     setFormPassword('');
     setFormStatus('active');
+    setFormGender(undefined);
+    setFormExperience(0);
     setShowAddModal(true);
   };
 
@@ -82,6 +86,8 @@ export default function EmployeeDirectory({
     setFormPhone(emp.phone || '');
     setFormPassword(emp.password || '');
     setFormStatus(emp.status || 'active');
+    setFormGender(emp.gender || undefined);
+    setFormExperience(emp.experience || 0);
     setShowEditModal(true);
   };
 
@@ -104,7 +110,9 @@ export default function EmployeeDirectory({
         role: formRole,
         phone: formPhone,
         password: formPassword,
-        status: formStatus
+        status: formStatus,
+        gender: formGender,
+        experience: formExperience
       });
       setShowAddModal(false);
     } catch (error: any) {
@@ -125,7 +133,9 @@ export default function EmployeeDirectory({
       role: formRole,
       phone: formPhone,
       password: formPassword,
-      status: formStatus
+      status: formStatus,
+      gender: formGender,
+      experience: formExperience
     });
     setShowEditModal(false);
   };
@@ -302,6 +312,7 @@ export default function EmployeeDirectory({
                 language={language}
                 leaveBalance={activeEmployee.leaveBalance}
                 leaveRequests={activeEmployee.leaveRequests}
+                gender={activeEmployee.gender}
                 onApplyLeave={(type, from, to, reason) => onApplyEmployeeLeave(activeEmployee.id, type, from, to, reason)}
                 onApproveLeave={(reqId) => onApproveEmployeeLeave(activeEmployee.id, reqId)}
                 onRejectLeave={(reqId) => onRejectEmployeeLeave(activeEmployee.id, reqId)}
@@ -315,6 +326,8 @@ export default function EmployeeDirectory({
               <PayrollModule
                 language={language}
                 payslips={activeEmployee.payslips}
+                employeeJoiningDate={activeEmployee.joiningDate}
+                employeeExperience={activeEmployee.experience}
                 onUpdatePayslip={(payslip) => onUpdatePayslip(activeEmployee.id, payslip)}
               />
             </div>
@@ -385,7 +398,14 @@ export default function EmployeeDirectory({
 
                   {/* Designation */}
                   <td className="p-5">
-                    <span className="text-xs font-semibold text-slate-600">{emp.designation}</span>
+                    <div className="flex flex-col gap-1 items-start">
+                      <span className="text-xs font-semibold text-slate-600">{emp.designation}</span>
+                      {((emp.experience && emp.experience >= 1) || new Date(emp.joiningDate) <= new Date(new Date().setFullYear(new Date().getFullYear() - 1))) && (
+                        <span className="px-2 py-0.5 text-[9px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                          {language === 'te' ? 'అడ్వాన్స్‌కు అర్హులు' : 'Advance Eligible'}
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Joining Date */}
@@ -533,6 +553,32 @@ export default function EmployeeDirectory({
                     className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700 font-mono"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Gender</label>
+                <select
+                  value={formGender || ''}
+                  onChange={(e) => setFormGender(e.target.value as any || undefined)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700"
+                >
+                  <option value="">Select Gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Experience (Years)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  required
+                  value={formExperience}
+                  onChange={(e) => setFormExperience(Number(e.target.value))}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -687,6 +733,32 @@ export default function EmployeeDirectory({
                     className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700 font-mono"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Gender</label>
+                <select
+                  value={formGender || ''}
+                  onChange={(e) => setFormGender(e.target.value as any || undefined)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700"
+                >
+                  <option value="">Select Gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Experience (Years)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  required
+                  value={formExperience}
+                  onChange={(e) => setFormExperience(Number(e.target.value))}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">

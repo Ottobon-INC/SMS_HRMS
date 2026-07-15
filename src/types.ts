@@ -15,6 +15,8 @@ export interface Employee {
   attendanceRecords: AttendanceRecord[];
   checkInLogs: CheckInLog[];
   payslips: Payslip[];
+  gender?: 'male' | 'female' | 'other';
+  experience?: number;
 }
 
 export type Language = 'en' | 'te';
@@ -35,7 +37,7 @@ export interface AttendanceRecord {
   note?: string;
 }
 
-export type LeaveType = 'sick' | 'casual' | 'earned' | 'unpaid';
+export type LeaveType = 'sick' | 'casual' | 'maternity' | 'paternity';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 
 export interface LeaveRequest {
@@ -51,8 +53,8 @@ export interface LeaveRequest {
 export interface LeaveBalance {
   sick: { allowed: number; taken: number };
   casual: { allowed: number; taken: number };
-  earned: { allowed: number; taken: number };
-  unpaid: { allowed: number; taken: number };
+  maternity?: { allowed: number; taken: number };
+  paternity?: { allowed: number; taken: number };
 }
 
 export interface Allowance {
@@ -71,6 +73,8 @@ export interface Payslip {
   basicPay: number;
   allowances: Allowance[];
   deductions: Deduction[];
+  advanceMoneyTaken?: boolean;
+  advanceMoneyAmount?: number;
 }
 
 export interface InvoiceItem {

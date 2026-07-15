@@ -49,16 +49,76 @@ export default function App() {
 
   const t = translations[language];
 
-  // --- Dynamic Tab Navigation State ---
+  // --- Dynamic Tab Navigation State & Routing ---
   const [activeTab, setActiveTab] = useState<string>(() => {
+    const path = window.location.pathname.substring(1);
+    const pathToTab: Record<string, string> = {
+      'dashboard': 'dashboard',
+      'attendance': 'attendance',
+      'leave': 'leave',
+      'payroll': 'payroll',
+      'admin-dashboard': 'adminDashboard',
+      'directory': 'directory',
+      'team-attendance': 'attendanceOverview',
+      'leave-approvals': 'leaveApprovals',
+      'run-payroll': 'adminPayroll',
+      'invoices': 'invoice'
+    };
+    
+    if (pathToTab[path]) return pathToTab[path];
     return localStorage.getItem('hrms_active_tab') || 'dashboard';
   });
   
   const [showProfileModal, setShowProfileModal] = useState(false);
 
+  // Sync activeTab to LocalStorage and URL
   useEffect(() => {
     localStorage.setItem('hrms_active_tab', activeTab);
+    
+    const tabToPath: Record<string, string> = {
+      'dashboard': 'dashboard',
+      'attendance': 'attendance',
+      'leave': 'leave',
+      'payroll': 'payroll',
+      'adminDashboard': 'admin-dashboard',
+      'directory': 'directory',
+      'attendanceOverview': 'team-attendance',
+      'leaveApprovals': 'leave-approvals',
+      'adminPayroll': 'run-payroll',
+      'invoice': 'invoices'
+    };
+    
+    const newPath = '/' + (tabToPath[activeTab] || activeTab);
+    if (window.location.pathname !== newPath) {
+      window.history.pushState(null, '', newPath);
+    }
   }, [activeTab]);
+
+  // Handle Browser Back/Forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.substring(1);
+      const pathToTab: Record<string, string> = {
+        'dashboard': 'dashboard',
+        'attendance': 'attendance',
+        'leave': 'leave',
+        'payroll': 'payroll',
+        'admin-dashboard': 'adminDashboard',
+        'directory': 'directory',
+        'team-attendance': 'attendanceOverview',
+        'leave-approvals': 'leaveApprovals',
+        'run-payroll': 'adminPayroll',
+        'invoices': 'invoice'
+      };
+      
+      if (pathToTab[path]) {
+        setActiveTab(pathToTab[path]);
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // --- Hooks ---
   const { employees, isLoading, error, isLocalMode, loadData, addEmployee, updateEmployee, deleteEmployee, toggleStatus } = useEmployees();
@@ -190,6 +250,7 @@ export default function App() {
             language={language}
             leaveBalance={currentUser.leaveBalance}
             leaveRequests={currentUser.leaveRequests}
+            gender={currentUser.gender}
             onApplyLeave={(type, fromDate, toDate, reason) => applyLeave(currentUser.id, { type, fromDate, toDate, reason, status: 'pending', submittedAt: new Date().toISOString() })}
             onApproveLeave={approveLeave}
             onRejectLeave={rejectLeave}
@@ -203,6 +264,8 @@ export default function App() {
             employeeName={currentUser.name}
             employeeId={currentUser.id}
             employeeDesignation={currentUser.designation}
+            employeeJoiningDate={currentUser.joiningDate}
+            employeeExperience={currentUser.experience}
           />
         );
 
@@ -254,7 +317,7 @@ export default function App() {
             employees={employees}
             onRunBulkPayroll={(month) => runBulkPayroll(employees, month)}
             onGenerateSinglePayslip={generateSinglePayslip}
-            onUpdateEmployee={updateEmployee}
+            onUpdatePayslip={updatePayslip}
           />
         );
       case 'invoice':
@@ -516,23 +579,6 @@ export default function App() {
                       <Home className="w-4 h-4 shrink-0" />
                     )}
                     <span>{t.dashboard}</span>
-                  </button>
-
-                  <button
-                    id="nav-tab-checkIn"
-                    onClick={() => setActiveTab('checkIn')}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
-                      activeTab === 'checkIn'
-                        ? 'bg-teal-50 text-teal-700 font-bold'
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                    }`}
-                  >
-                    {activeTab === 'checkIn' ? (
-                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
-                    ) : (
-                      <Clock className="w-4 h-4 shrink-0" />
-                    )}
-                    <span>{t.checkIn}</span>
                   </button>
 
                   <button

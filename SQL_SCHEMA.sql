@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS "HRMS_employees" (
     "basic_pay" NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     "status" VARCHAR(50) NOT NULL DEFAULT 'active' CHECK ("status" IN ('active', 'inactive')),
     "phone" VARCHAR(50),
+    "gender" VARCHAR(10),
+    "experience" NUMERIC(4, 1) DEFAULT 0.0,
     "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -38,7 +40,7 @@ CREATE TABLE IF NOT EXISTS "HRMS_attendance" (
 CREATE TABLE IF NOT EXISTS "HRMS_leave_requests" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
-    "leave_type" VARCHAR(100) NOT NULL CHECK ("leave_type" IN ('sick', 'casual', 'earned', 'unpaid')),
+    "leave_type" VARCHAR(100) NOT NULL CHECK ("leave_type" IN ('sick', 'casual', 'maternity', 'paternity')),
     "from_date" DATE NOT NULL,
     "to_date" DATE NOT NULL,
     "reason" TEXT,
@@ -52,7 +54,7 @@ CREATE TABLE IF NOT EXISTS "HRMS_leave_requests" (
 CREATE TABLE IF NOT EXISTS "HRMS_leave_balances" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
-    "leave_type" VARCHAR(100) NOT NULL CHECK ("leave_type" IN ('sick', 'casual', 'earned', 'unpaid')),
+    "leave_type" VARCHAR(100) NOT NULL CHECK ("leave_type" IN ('sick', 'casual', 'maternity', 'paternity')),
     "total_allotted" INTEGER NOT NULL DEFAULT 0,
     "used" INTEGER NOT NULL DEFAULT 0,
     "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -68,6 +70,8 @@ CREATE TABLE IF NOT EXISTS "HRMS_payroll" (
     "allowances" JSONB NOT NULL DEFAULT '[]'::jsonb,
     "deductions" JSONB NOT NULL DEFAULT '[]'::jsonb,
     "net_pay" NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    "advance_money_taken" BOOLEAN DEFAULT FALSE,
+    "advance_money_amount" NUMERIC(12, 2) DEFAULT 0.00,
     "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_employee_payroll_month UNIQUE ("employee_id", "month")
 );
@@ -108,3 +112,14 @@ NOTIFY pgrst, 'reload schema';
 -- ====================================================================
 -- ALTER TABLE "HRMS_employees" ADD COLUMN IF NOT EXISTS "status" VARCHAR(50) NOT NULL DEFAULT 'active' CHECK ("status" IN ('active', 'inactive'));
 -- ALTER TABLE "HRMS_employees" ADD COLUMN IF NOT EXISTS "phone" VARCHAR(50);
+-- ALTER TABLE "HRMS_employees" ADD COLUMN IF NOT EXISTS "gender" VARCHAR(10);
+-- ALTER TABLE "HRMS_employees" ADD COLUMN IF NOT EXISTS "experience" NUMERIC(4, 1) DEFAULT 0.0;
+
+-- ALTER TABLE "HRMS_leave_requests" DROP CONSTRAINT IF EXISTS "HRMS_leave_requests_leave_type_check";
+-- ALTER TABLE "HRMS_leave_requests" ADD CONSTRAINT "HRMS_leave_requests_leave_type_check" CHECK ("leave_type" IN ('sick', 'casual', 'maternity', 'paternity'));
+
+-- ALTER TABLE "HRMS_leave_balances" DROP CONSTRAINT IF EXISTS "HRMS_leave_balances_leave_type_check";
+-- ALTER TABLE "HRMS_leave_balances" ADD CONSTRAINT "HRMS_leave_balances_leave_type_check" CHECK ("leave_type" IN ('sick', 'casual', 'maternity', 'paternity'));
+
+-- ALTER TABLE "HRMS_payroll" ADD COLUMN IF NOT EXISTS "advance_money_taken" BOOLEAN DEFAULT FALSE;
+-- ALTER TABLE "HRMS_payroll" ADD COLUMN IF NOT EXISTS "advance_money_amount" NUMERIC(12, 2) DEFAULT 0.00;

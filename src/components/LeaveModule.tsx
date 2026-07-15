@@ -7,6 +7,7 @@ interface LeaveModuleProps {
   language: Language;
   leaveBalance: LeaveBalance;
   leaveRequests: LeaveRequest[];
+  gender?: 'male' | 'female' | 'other';
   onApplyLeave: (type: LeaveType, fromDate: string, toDate: string, reason: string) => void;
   onApproveLeave: (id: string) => void;
   onRejectLeave: (id: string) => void;
@@ -17,6 +18,7 @@ export default function LeaveModule({
   language,
   leaveBalance,
   leaveRequests,
+  gender,
   onApplyLeave,
   onApproveLeave,
   onRejectLeave,
@@ -70,9 +72,8 @@ export default function LeaveModule({
       return;
     }
 
-    // Check if they have remaining balance for paid leaves
-    if (leaveType !== 'unpaid') {
-      const balance = leaveBalance[leaveType];
+    const balance = leaveBalance[leaveType];
+    if (balance) {
       const remaining = balance.allowed - balance.taken;
       
       // Calculate days requested
@@ -85,6 +86,21 @@ export default function LeaveModule({
             ? `క్షమించండి! మీ దగ్గర తగినన్ని సెలవులు లేవు. మీకు ${remaining} మాత్రమే మిగిలి ఉన్నాయి.`
             : `Insufficient balance! You requested ${diffDays} days but only have ${remaining} days left.`
         );
+        return;
+      }
+      
+      if ((leaveType === 'sick' || leaveType === 'casual') && diffDays > 3) {
+        setErrorMsg(
+          language === 'te'
+            ? `నిరంతర సెలవు 3 రోజులకు మించకూడదు. దయచేసి మీ అభ్యర్థనను విభజించండి.`
+            : `Continuous leave cannot exceed 3 days for this leave type.`
+        );
+        return;
+      } else if (leaveType === 'maternity' && diffDays > 90) {
+        setErrorMsg(`Maternity leave cannot exceed 90 days.`);
+        return;
+      } else if (leaveType === 'paternity' && diffDays > 7) {
+        setErrorMsg(`Paternity leave cannot exceed 7 days.`);
         return;
       }
     }
@@ -206,45 +222,49 @@ export default function LeaveModule({
           </div>
         </div>
 
-        {/* Earned Leave Card */}
-        <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
-          {onUpdateBalances && (
-             <button onClick={() => openManageModal('earned')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                <ShieldAlert className="w-4 h-4" />
-             </button>
-          )}
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.leaveEarned.split(' ')[0]}</span>
-          <div className="mt-4 flex items-baseline gap-1">
-            <span className="text-3xl font-black font-mono text-slate-800">{leaveBalance.earned.allowed - leaveBalance.earned.taken}</span>
-            <span className="text-xs text-slate-400 font-medium">/ {leaveBalance.earned.allowed} {t.leaveLeftOf.split(' ')[0]}</span>
+        {/* Maternity Leave Card */}
+        {gender === 'female' && leaveBalance.maternity && (
+          <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
+            {onUpdateBalances && (
+              <button onClick={() => openManageModal('maternity')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                  <ShieldAlert className="w-4 h-4" />
+              </button>
+            )}
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.leaveMaternity || 'Maternity Leave'}</span>
+            <div className="mt-4 flex items-baseline gap-1">
+              <span className="text-3xl font-black font-mono text-slate-800">{leaveBalance.maternity.allowed - leaveBalance.maternity.taken}</span>
+              <span className="text-xs text-slate-400 font-medium">/ {leaveBalance.maternity.allowed} {t.leaveLeftOf.split(' ')[0]}</span>
+            </div>
+            <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
+              <div 
+                className="bg-pink-400 h-full rounded-full transition-all duration-500" 
+                style={{ width: `${((leaveBalance.maternity.allowed - leaveBalance.maternity.taken) / leaveBalance.maternity.allowed) * 100}%` }}
+              />
+            </div>
           </div>
-          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
-            <div 
-              className="bg-amber-500 h-full rounded-full transition-all duration-500" 
-              style={{ width: `${((leaveBalance.earned.allowed - leaveBalance.earned.taken) / leaveBalance.earned.allowed) * 100}%` }}
-            />
-          </div>
-        </div>
+        )}
 
-        {/* Unpaid Leave Card */}
-        <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
-          {onUpdateBalances && (
-             <button onClick={() => openManageModal('unpaid')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                <ShieldAlert className="w-4 h-4" />
-             </button>
-          )}
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.leaveUnpaid.split(' ')[0]}</span>
-          <div className="mt-4 flex items-baseline gap-1">
-            <span className="text-3xl font-black font-mono text-slate-800">{leaveBalance.unpaid.allowed - leaveBalance.unpaid.taken}</span>
-            <span className="text-xs text-slate-400 font-medium">/ {leaveBalance.unpaid.allowed} {t.leaveLeftOf.split(' ')[0]}</span>
+        {/* Paternity Leave Card */}
+        {gender === 'male' && leaveBalance.paternity && (
+          <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
+            {onUpdateBalances && (
+              <button onClick={() => openManageModal('paternity')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                  <ShieldAlert className="w-4 h-4" />
+              </button>
+            )}
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.leavePaternity || 'Paternity Leave'}</span>
+            <div className="mt-4 flex items-baseline gap-1">
+              <span className="text-3xl font-black font-mono text-slate-800">{leaveBalance.paternity.allowed - leaveBalance.paternity.taken}</span>
+              <span className="text-xs text-slate-400 font-medium">/ {leaveBalance.paternity.allowed} {t.leaveLeftOf.split(' ')[0]}</span>
+            </div>
+            <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
+              <div 
+                className="bg-blue-400 h-full rounded-full transition-all duration-500" 
+                style={{ width: `${((leaveBalance.paternity.allowed - leaveBalance.paternity.taken) / leaveBalance.paternity.allowed) * 100}%` }}
+              />
+            </div>
           </div>
-          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
-            <div 
-              className="bg-rose-400 h-full rounded-full transition-all duration-500" 
-              style={{ width: `${((leaveBalance.unpaid.allowed - leaveBalance.unpaid.taken) / leaveBalance.unpaid.allowed) * 100}%` }}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Main Content Pane */}
@@ -336,8 +356,8 @@ export default function LeaveModule({
                 >
                   <option value="sick">{t.leaveSick}</option>
                   <option value="casual">{t.leaveCasual}</option>
-                  <option value="earned">{t.leaveEarned}</option>
-                  <option value="unpaid">{t.leaveUnpaid}</option>
+                  {gender === 'female' && <option value="maternity">{t.leaveMaternity || 'Maternity Leave'}</option>}
+                  {gender === 'male' && <option value="paternity">{t.leavePaternity || 'Paternity Leave'}</option>}
                 </select>
               </div>
 

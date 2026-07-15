@@ -30,10 +30,13 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
     const empBalances = balancesList.filter(b => b.employee_id === emp.id);
     const leaveBalance: LeaveBalance = {
       sick: { allowed: 6, taken: 0 },
-      casual: { allowed: 8, taken: 0 },
-      earned: { allowed: 15, taken: 0 },
-      unpaid: { allowed: 30, taken: 0 }
+      casual: { allowed: 8, taken: 0 }
     };
+    if (emp.gender === 'female') {
+      leaveBalance.maternity = { allowed: 90, taken: 0 };
+    } else if (emp.gender === 'male') {
+      leaveBalance.paternity = { allowed: 7, taken: 0 };
+    }
     empBalances.forEach(b => {
       const type = b.leave_type as LeaveType;
       if (leaveBalance[type]) {
@@ -91,14 +94,16 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
     const isCheckedIn = !!(todayRecord && todayRecord.check_in_time && !todayRecord.check_out_time);
 
     // Map payslips
-    const empPayslips: Payslip[] = payrollList
+      const empPayslips: Payslip[] = payrollList
       .filter(p => p.employee_id === emp.id)
       .map(p => ({
         id: p.id,
         month: p.month,
         basicPay: Number(p.basic_pay),
         allowances: Array.isArray(p.allowances) ? p.allowances : [],
-        deductions: Array.isArray(p.deductions) ? p.deductions : []
+        deductions: Array.isArray(p.deductions) ? p.deductions : [],
+        advanceMoneyTaken: p.advance_money_taken,
+        advanceMoneyAmount: Number(p.advance_money_amount)
       }));
 
     return {
@@ -112,6 +117,8 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
       password: emp.password,
       status: (emp.status || 'active') as 'active' | 'inactive',
       phone: emp.phone,
+      gender: emp.gender as 'male' | 'female' | 'other' | undefined,
+      experience: Number(emp.experience) || 0,
       isCheckedIn,
       leaveBalance,
       leaveRequests: empLeaves,
@@ -135,7 +142,9 @@ export async function createEmployee(emp: Omit<Employee, 'isCheckedIn' | 'leaveB
       joining_date: emp.joiningDate,
       basic_pay: emp.basicSalary,
       status: emp.status || 'active',
-      phone: emp.phone || null
+      phone: emp.phone || null,
+      gender: emp.gender || null,
+      experience: emp.experience || 0
     }]);
 
   if (error) {
@@ -149,7 +158,9 @@ export async function createEmployee(emp: Omit<Employee, 'isCheckedIn' | 'leaveB
       role: emp.role || 'employee',
       designation: emp.designation || 'Employee',
       joining_date: emp.joiningDate || new Date().toISOString().split('T')[0],
-      basic_pay: Number(emp.basicSalary) || 0
+      basic_pay: Number(emp.basicSalary) || 0,
+      gender: emp.gender || null,
+      experience: emp.experience || 0
     };
     const { error: retryError } = await supabase
       .from('HRMS_employees')
@@ -160,12 +171,15 @@ export async function createEmployee(emp: Omit<Employee, 'isCheckedIn' | 'leaveB
     }
   }
 
-  const initialBalances = [
+  const initialBalances: any[] = [
     { employee_id: emp.id, leave_type: 'sick', total_allotted: 6, used: 0 },
-    { employee_id: emp.id, leave_type: 'casual', total_allotted: 8, used: 0 },
-    { employee_id: emp.id, leave_type: 'earned', total_allotted: 15, used: 0 },
-    { employee_id: emp.id, leave_type: 'unpaid', total_allotted: 30, used: 0 }
+    { employee_id: emp.id, leave_type: 'casual', total_allotted: 8, used: 0 }
   ];
+  if (emp.gender === 'female') {
+    initialBalances.push({ employee_id: emp.id, leave_type: 'maternity', total_allotted: 90, used: 0 });
+  } else if (emp.gender === 'male') {
+    initialBalances.push({ employee_id: emp.id, leave_type: 'paternity', total_allotted: 7, used: 0 });
+  }
   await supabase.from('HRMS_leave_balances').insert(initialBalances);
 }
 
@@ -180,6 +194,8 @@ export async function updateEmployee(id: string, fields: Partial<Employee>): Pro
   if (fields.password !== undefined) updatePayload.password = fields.password;
   if (fields.status !== undefined) updatePayload.status = fields.status;
   if (fields.phone !== undefined) updatePayload.phone = fields.phone;
+  if (fields.gender !== undefined) updatePayload.gender = fields.gender;
+  if (fields.experience !== undefined) updatePayload.experience = fields.experience;
 
   if (Object.keys(updatePayload).length > 0) {
     const { error } = await supabase
@@ -190,6 +206,8 @@ export async function updateEmployee(id: string, fields: Partial<Employee>): Pro
       // Fallback: strip new columns and retry
       delete updatePayload.status;
       delete updatePayload.phone;
+      delete updatePayload.gender;
+      delete updatePayload.experience;
       if (Object.keys(updatePayload).length > 0) {
         const { error: retryError } = await supabase
           .from('HRMS_employees')
@@ -234,9 +252,7 @@ export async function seedInitialDatabase() {
     employeesToSeed.forEach(emp => {
       leaveBalancesToSeed.push(
         { employee_id: emp.id, leave_type: 'sick', total_allotted: 6, used: emp.id === 'EMP-2026-089' ? 2 : emp.id === 'EMP-2026-112' ? 1 : 0 },
-        { employee_id: emp.id, leave_type: 'casual', total_allotted: 8, used: emp.id === 'EMP-2026-089' ? 3 : emp.id === 'EMP-2026-112' ? 1 : emp.id === 'EMP-2026-145' ? 2 : 0 },
-        { employee_id: emp.id, leave_type: 'earned', total_allotted: 15, used: emp.id === 'EMP-2026-089' ? 4 : emp.id === 'EMP-2026-112' ? 2 : 0 },
-        { employee_id: emp.id, leave_type: 'unpaid', total_allotted: 30, used: emp.id === 'EMP-2026-145' ? 1 : 0 }
+        { employee_id: emp.id, leave_type: 'casual', total_allotted: 8, used: emp.id === 'EMP-2026-089' ? 3 : emp.id === 'EMP-2026-112' ? 1 : emp.id === 'EMP-2026-145' ? 2 : 0 }
       );
     });
     await supabase.from('HRMS_leave_balances').insert(leaveBalancesToSeed);
@@ -244,7 +260,6 @@ export async function seedInitialDatabase() {
     const leaveRequestsToSeed = [
       { employee_id: 'EMP-2026-089', leave_type: 'sick', from_date: '2026-06-05', to_date: '2026-06-06', reason: 'Suffering from viral fever and cold.', status: 'Approved' },
       { employee_id: 'EMP-2026-089', leave_type: 'casual', from_date: '2026-06-22', to_date: '2026-06-23', reason: 'Attending family function in hometown.', status: 'Approved' },
-      { employee_id: 'EMP-2026-089', leave_type: 'earned', from_date: '2026-07-20', to_date: '2026-07-24', reason: 'Planned vacation with family.', status: 'Pending' },
       { employee_id: 'EMP-2026-112', leave_type: 'sick', from_date: '2026-06-12', to_date: '2026-06-12', reason: 'Severe migraine headache.', status: 'Approved' }
     ];
     await supabase.from('HRMS_leave_requests').insert(leaveRequestsToSeed);

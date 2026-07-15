@@ -44,8 +44,13 @@ export default function DashboardSnapshot({
   // Calculate leave balance details
   const sickLeft = leaveBalance.sick.allowed - leaveBalance.sick.taken;
   const casualLeft = leaveBalance.casual.allowed - leaveBalance.casual.taken;
-  const earnedLeft = leaveBalance.earned.allowed - leaveBalance.earned.taken;
-  const totalLeft = sickLeft + casualLeft + earnedLeft;
+  let totalLeft = sickLeft + casualLeft;
+  if (leaveBalance.maternity) {
+    totalLeft += leaveBalance.maternity.allowed - leaveBalance.maternity.taken;
+  }
+  if (leaveBalance.paternity) {
+    totalLeft += leaveBalance.paternity.allowed - leaveBalance.paternity.taken;
+  }
 
   // Calculate cumulative today's total worked hours
   const todayWorkedSecs = logs
@@ -113,13 +118,17 @@ export default function DashboardSnapshot({
             <div className="pt-2 flex flex-wrap justify-center sm:justify-start gap-4">
               <div className="text-center bg-slate-50 px-4 py-2 rounded-xl min-w-[100px]">
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Shift Start</p>
-                <p className="text-xs font-bold text-slate-700">09:00 AM</p>
+                <p className="text-xs font-bold text-slate-700">{latestCheckIn?.checkInTime || "09:00 AM"}</p>
               </div>
               <div className="text-center bg-slate-50 px-4 py-2 rounded-xl min-w-[100px]">
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Worked Today</p>
                 <p className="text-xs font-bold text-slate-700">
                   {isCheckedIn ? "Live Running" : `${todayWorkedHrs} hrs`}
                 </p>
+              </div>
+              <div className="text-center bg-slate-50 px-4 py-2 rounded-xl min-w-[100px]">
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Shift Stops</p>
+                <p className="text-xs font-bold text-slate-700">{latestCheckIn?.checkOutTime || "Pending"}</p>
               </div>
             </div>
           </div>

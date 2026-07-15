@@ -2,6 +2,20 @@ import { supabase } from '../supabase-client';
 import { LeaveRequest, LeaveType } from '../../types';
 
 export async function submitLeaveRequest(empId: string, leave: Omit<LeaveRequest, 'id'>): Promise<void> {
+  const from = new Date(leave.fromDate);
+  const to = new Date(leave.toDate);
+  const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 3600 * 24)) + 1;
+  
+  if (leave.type === 'sick' || leave.type === 'casual') {
+    if (diffDays > 3) {
+      throw new Error("Continuous leave cannot exceed 3 days for this leave type.");
+    }
+  } else if (leave.type === 'maternity' && diffDays > 90) {
+    throw new Error("Maternity leave cannot exceed 90 days.");
+  } else if (leave.type === 'paternity' && diffDays > 7) {
+    throw new Error("Paternity leave cannot exceed 7 days.");
+  }
+
   const { error } = await supabase
     .from('HRMS_leave_requests')
     .insert([{
@@ -50,12 +64,18 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
         .update({ used: Number(balance.used || 0) + diffDays })
         .eq('id', balance.id);
     } else {
+      let allotted = 0;
+      if (request.leave_type === 'sick') allotted = 6;
+      else if (request.leave_type === 'casual') allotted = 8;
+      else if (request.leave_type === 'maternity') allotted = 90;
+      else if (request.leave_type === 'paternity') allotted = 7;
+
       await supabase
         .from('HRMS_leave_balances')
         .insert([{
           employee_id: request.employee_id,
           leave_type: request.leave_type,
-          total_allotted: request.leave_type === 'sick' ? 6 : request.leave_type === 'casual' ? 8 : request.leave_type === 'earned' ? 15 : 30,
+          total_allotted: allotted,
           used: diffDays
         }]);
     }

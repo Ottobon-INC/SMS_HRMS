@@ -90,8 +90,8 @@ export const translations: Record<Language, Record<string, string>> = {
     leaveLeftOf: "left of",
     leaveSick: "Sick Leave (Medical)",
     leaveCasual: "Casual Leave (Personal)",
-    leaveEarned: "Earned Leave (Privileged)",
-    leaveUnpaid: "Unpaid Leave (LWP)",
+    leaveMaternity: "Maternity Leave",
+    leavePaternity: "Paternity Leave",
 
     // Payroll
     payrollTitle: "Monthly Salary Slips",
@@ -163,12 +163,12 @@ export const translations: Record<Language, Record<string, string>> = {
     // Colloquial Telugu phrases to map standard keys
     "Sick Leave": "అనారోగ్య సెలవు (Sick Leave)",
     "Casual Leave": "అవసరమైన సెలవు (Casual Leave)",
-    "Earned Leave": "సంపాదించిన సెలవు (Earned Leave)",
-    "Unpaid Leave": "జీతం లేని సెలవు (Unpaid Leave)",
+    "Maternity Leave": "ప్రసూతి సెలవు (Maternity Leave)",
+    "Paternity Leave": "పితృత్వ సెలవు (Paternity Leave)",
     "Sick": "జబ్బు పడినప్పుడు",
     "Casual": "అవసరాల కోసం",
-    "Earned": "దాచుకున్నది",
-    "Unpaid": "జీతం లేకుండా",
+    "Maternity": "ప్రసూతి",
+    "Paternity": "పితృత్వ",
   },
   te: {
     // Nav & General
@@ -259,8 +259,8 @@ export const translations: Record<Language, Record<string, string>> = {
     leaveLeftOf: "మిగిలి ఉన్నాయి, మొత్తం కోటా",
     leaveSick: "అనారోగ్య సెలవు (Sick Leave)",
     leaveCasual: "వ్యక్తిగత సెలవు (Casual Leave)",
-    leaveEarned: "సంపాదించుకున్న సెలవు (Earned Leave)",
-    leaveUnpaid: "జీతం లేని సెలవు (Unpaid Leave)",
+    leaveMaternity: "ప్రసూతి సెలవు",
+    leavePaternity: "పితృత్వ సెలవు",
 
     // Payroll
     payrollTitle: "మీ నెలవారీ జీతం వివరాల రశీదు (Salary Slips)",

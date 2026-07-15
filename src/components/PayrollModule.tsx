@@ -10,6 +10,8 @@ interface PayrollModuleProps {
   employeeName?: string;
   employeeId?: string;
   employeeDesignation?: string;
+  employeeJoiningDate?: string;
+  employeeExperience?: number;
   onUpdatePayslip?: (updatedSlip: Payslip) => void;
 }
 
@@ -19,6 +21,8 @@ export default function PayrollModule({
   employeeName = 'Ravi Kumar',
   employeeId = 'EMP-2026-089',
   employeeDesignation = 'Software Engineer',
+  employeeJoiningDate,
+  employeeExperience,
   onUpdatePayslip,
 }: PayrollModuleProps) {
   const t = translations[language];
@@ -31,6 +35,8 @@ export default function PayrollModule({
   const [draftBasicPay, setDraftBasicPay] = useState<number>(0);
   const [draftAllowances, setDraftAllowances] = useState<Allowance[]>([]);
   const [draftDeductions, setDraftDeductions] = useState<Deduction[]>([]);
+  const [draftAdvanceTaken, setDraftAdvanceTaken] = useState<boolean>(false);
+  const [draftAdvanceAmount, setDraftAdvanceAmount] = useState<number>(0);
 
   const activeSlip = payslips.find(p => p.id === selectedSlipId) || payslips[0];
 
@@ -55,10 +61,24 @@ export default function PayrollModule({
   const basicPayValue = isEditing ? draftBasicPay : activeSlip.basicPay;
   const allowancesList = isEditing ? draftAllowances : activeSlip.allowances;
   const deductionsList = isEditing ? draftDeductions : activeSlip.deductions;
+  
+  const advanceTaken = isEditing ? draftAdvanceTaken : activeSlip.advanceMoneyTaken;
+  const advanceAmount = isEditing ? (draftAdvanceTaken ? draftAdvanceAmount : 0) : (activeSlip.advanceMoneyTaken ? activeSlip.advanceMoneyAmount || 0 : 0);
 
   const totalEarnings = basicPayValue + allowancesList.reduce((acc, a) => acc + a.amount, 0);
-  const totalDeductions = deductionsList.reduce((acc, d) => acc + d.amount, 0);
+  const totalDeductions = deductionsList.reduce((acc, d) => acc + d.amount, 0) + advanceAmount;
   const netPay = totalEarnings - totalDeductions;
+
+  // Advance Eligibility
+  let isEligibleForAdvance = false;
+  if (employeeExperience && employeeExperience >= 1) {
+    isEligibleForAdvance = true;
+  } else if (employeeJoiningDate) {
+    const joinDate = new Date(employeeJoiningDate);
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    isEligibleForAdvance = joinDate <= oneYearAgo;
+  }
 
   // Handle Print Action
   const handlePrint = () => {
@@ -70,6 +90,8 @@ export default function PayrollModule({
     setDraftBasicPay(activeSlip.basicPay);
     setDraftAllowances([...activeSlip.allowances]);
     setDraftDeductions([...activeSlip.deductions]);
+    setDraftAdvanceTaken(activeSlip.advanceMoneyTaken || false);
+    setDraftAdvanceAmount(activeSlip.advanceMoneyAmount || 0);
     setIsEditing(true);
   };
 
@@ -117,6 +139,8 @@ export default function PayrollModule({
         basicPay: draftBasicPay,
         allowances: draftAllowances,
         deductions: draftDeductions,
+        advanceMoneyTaken: draftAdvanceTaken,
+        advanceMoneyAmount: draftAdvanceTaken ? draftAdvanceAmount : 0,
       });
     }
     setIsEditing(false);
@@ -388,6 +412,46 @@ export default function PayrollModule({
                   )}
                 </div>
               ))}
+              
+              {/* Advance Money Deduction Row */}
+              {isEditing ? (
+                <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2 gap-2 mt-4 pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-600 font-medium text-xs">
+                      <input 
+                        type="checkbox" 
+                        checked={draftAdvanceTaken}
+                        onChange={(e) => setDraftAdvanceTaken(e.target.checked)}
+                        className="w-4 h-4 text-rose-600 rounded focus:ring-rose-500"
+                      />
+                      {t.advanceMoney || 'Advance Money Deducted'}
+                    </label>
+                    {!isEligibleForAdvance && (
+                      <span className="px-1.5 py-0.5 text-[8px] uppercase tracking-wider font-bold bg-slate-100 text-slate-400 rounded">
+                        Not Eligible
+                      </span>
+                    )}
+                  </div>
+                  {draftAdvanceTaken && (
+                    <div className="flex items-center gap-1 border border-slate-200 bg-slate-50 px-2 py-1 rounded-lg">
+                      <span className="text-[10px] text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        value={draftAdvanceAmount}
+                        onChange={(e) => setDraftAdvanceAmount(Number(e.target.value))}
+                        className="w-20 text-right bg-transparent text-xs font-bold font-mono focus:outline-none"
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                activeSlip.advanceMoneyTaken && (
+                  <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2 gap-2 mt-4 pt-4 border-t text-rose-600">
+                    <span className="font-medium">{t.advanceMoneyRecovery || 'Advance Money Recovery'}</span>
+                    <span className="font-mono font-bold">{formatCurrency(activeSlip.advanceMoneyAmount || 0)}</span>
+                  </div>
+                )
+              )}
             </div>
 
             <div className="flex justify-between items-center text-sm font-bold text-slate-800 pt-5">
