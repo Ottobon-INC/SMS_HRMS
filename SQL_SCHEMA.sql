@@ -143,3 +143,4 @@ NOTIFY pgrst, 'reload schema';
 
 -- ALTER TABLE "HRMS_attendance" ADD COLUMN IF NOT EXISTS "check_in_location" TEXT;
 -- ALTER TABLE "HRMS_attendance" ADD COLUMN IF NOT EXISTS "check_in_lat_lng" VARCHAR(50);
+-- ALTER TABLE "HRMS_attendance" ADD COLUMN IF NOT EXISTS "check_in_photo_url" TEXT;

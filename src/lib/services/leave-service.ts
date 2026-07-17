@@ -129,3 +129,32 @@ export async function updateLeaveBalances(empId: string, leaveType: LeaveType, a
     if (error) throw error;
   }
 }
+
+export async function deductPenaltyLeave(empId: string, leaveType: LeaveType, penaltyDays: number): Promise<void> {
+  const { data: balance, error: fetchErr } = await supabase
+    .from('HRMS_leave_balances')
+    .select('*')
+    .eq('employee_id', empId)
+    .eq('leave_type', leaveType)
+    .maybeSingle();
+
+  if (fetchErr) throw fetchErr;
+
+  if (balance) {
+    const { error } = await supabase
+      .from('HRMS_leave_balances')
+      .update({ used: Number(balance.used || 0) + penaltyDays })
+      .eq('id', balance.id);
+    if (error) throw error;
+  } else {
+    // If no record exists, create one with standard default allotted and the penalty as used
+    let allotted = 0;
+    if (leaveType === 'sick') allotted = 6;
+    else if (leaveType === 'casual') allotted = 8;
+    
+    const { error } = await supabase
+      .from('HRMS_leave_balances')
+      .insert([{ employee_id: empId, leave_type: leaveType, total_allotted: allotted, used: penaltyDays }]);
+    if (error) throw error;
+  }
+}

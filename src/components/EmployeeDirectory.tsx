@@ -389,13 +389,30 @@ export default function EmployeeDirectory({
                   {/* Name and ID */}
                   <td className="p-5">
                     <div className="flex items-center gap-3">
-                      <div className="bg-teal-50 text-teal-700 w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs group-hover:scale-105 transition-all">
+                      <div className="bg-teal-50 text-teal-700 min-w-[36px] w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs group-hover:scale-105 transition-all shrink-0">
                         {emp.name.split(' ').map(n => n[0]).join('')}
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-800 group-hover:text-teal-700 transition-colors">{emp.name}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{emp.id} • {emp.email}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-800 group-hover:text-teal-700 transition-colors truncate">{emp.name}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 truncate">{emp.id} • {emp.email}</p>
                       </div>
+                      
+                      {/* Mobile-only inline photo preview */}
+                      {(() => {
+                        if (!emp.isCheckedIn) return null;
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        const todayLog = emp.checkInLogs.find(log => log.date === todayStr);
+                        if (todayLog?.photoUrl) {
+                          return (
+                            <img 
+                              src={todayLog.photoUrl} 
+                              alt="Check In" 
+                              className="w-9 h-9 md:hidden object-cover rounded-lg border border-slate-200 ml-2 shrink-0"
+                            />
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </td>
 
@@ -427,12 +444,30 @@ export default function EmployeeDirectory({
                       if (!emp.isCheckedIn) return <span className="text-slate-300">-</span>;
                       const todayStr = new Date().toISOString().split('T')[0];
                       const todayLog = emp.checkInLogs.find(log => log.date === todayStr);
-                      return todayLog?.checkInLocation ? (
-                        <span className="text-[11px] text-slate-600 font-medium">
-                          <span className="mr-1">📍</span>
-                          {todayLog.checkInLocation}
-                        </span>
-                      ) : <span className="text-slate-300">-</span>;
+                      
+                      if (!todayLog) return <span className="text-slate-300">-</span>;
+
+                      return (
+                        <div className="flex items-center gap-3">
+                          {todayLog.photoUrl && (
+                            <div className="relative group cursor-pointer">
+                              <img 
+                                src={todayLog.photoUrl} 
+                                alt="Check In" 
+                                className="w-10 h-10 object-cover rounded-xl border border-slate-200 shadow-sm transition-transform group-hover:scale-[2.5] group-hover:z-50 relative origin-left"
+                              />
+                            </div>
+                          )}
+                          {todayLog.checkInLocation ? (
+                            <span className="text-[11px] text-slate-600 font-medium">
+                              <span className="mr-1">📍</span>
+                              {todayLog.checkInLocation}
+                            </span>
+                          ) : (
+                            !todayLog.photoUrl && <span className="text-slate-300">-</span>
+                          )}
+                        </div>
+                      );
                     })()}
                   </td>
 

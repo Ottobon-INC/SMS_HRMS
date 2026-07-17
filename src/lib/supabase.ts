@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { Employee, LeaveRequest, AttendanceRecord, CheckInLog, Payslip, Invoice, LeaveBalance, LeaveType, LeaveStatus, AttendanceStatus } from '../types';
 
-const SUPABASE_URL = (import.meta as any).env.VITE_SUPABASE_URL || "https://rkvsmpzghtjusqpfzybt.supabase.co";
-const SUPABASE_ANON_KEY = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || "sb_publishable_q-KLHu3f52HTWZ_5K8SEvA_ah2wVGvW";
+const SUPABASE_URL = (import.meta as any).env.VITE_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || "";
 
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -39,9 +39,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
     const empBalances = balancesList.filter(b => b.employee_id === emp.id);
     const leaveBalance: LeaveBalance = {
       sick: { allowed: 6, taken: 0 },
-      casual: { allowed: 8, taken: 0 },
-      earned: { allowed: 15, taken: 0 },
-      unpaid: { allowed: 30, taken: 0 }
+      casual: { allowed: 8, taken: 0 }
     };
     empBalances.forEach(b => {
       const type = b.leave_type as LeaveType;
@@ -129,7 +127,8 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
       leaveRequests: empLeaves,
       attendanceRecords,
       checkInLogs,
-      payslips: empPayslips
+      payslips: empPayslips,
+      advanceRequests: []
     };
   });
 }

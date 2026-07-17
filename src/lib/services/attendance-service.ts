@@ -4,7 +4,8 @@ import { AttendanceStatus } from '../../types';
 export async function clockInEmployee(
   empId: string, 
   location?: string, 
-  latLng?: string
+  latLng?: string,
+  photoUrl?: string
 ): Promise<void> {
   const todayStr = new Date().toISOString().split('T')[0];
   const timeStr = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
@@ -17,28 +18,51 @@ export async function clockInEmployee(
     .maybeSingle();
 
   if (existing) {
+    const payload: any = {
+      check_in_time: timeStr, 
+      status: 'Present',
+      check_in_location: location || null,
+      check_in_lat_lng: latLng || null
+    };
+    if (photoUrl) payload.check_in_photo_url = photoUrl;
+
     const { error } = await supabase
       .from('HRMS_attendance')
-      .update({ 
-        check_in_time: timeStr, 
-        status: 'Present',
-        check_in_location: location || null,
-        check_in_lat_lng: latLng || null
-      })
+      .update(payload)
       .eq('id', existing.id);
-    if (error) throw error;
+    
+    // Fallback if column doesn't exist
+    if (error && (error.code === '42703' || error.code === 'PGRST204') && photoUrl) {
+      console.warn("check_in_photo_url column missing, falling back to without photo");
+      delete payload.check_in_photo_url;
+      const retry = await supabase.from('HRMS_attendance').update(payload).eq('id', existing.id);
+      if (retry.error) throw retry.error;
+    } else if (error) {
+      throw error;
+    }
   } else {
+    const payload: any = {
+      employee_id: empId, 
+      date: todayStr, 
+      status: 'Present', 
+      check_in_time: timeStr,
+      check_in_location: location || null,
+      check_in_lat_lng: latLng || null
+    };
+    if (photoUrl) payload.check_in_photo_url = photoUrl;
+
     const { error } = await supabase
       .from('HRMS_attendance')
-      .insert([{ 
-        employee_id: empId, 
-        date: todayStr, 
-        status: 'Present', 
-        check_in_time: timeStr,
-        check_in_location: location || null,
-        check_in_lat_lng: latLng || null
-      }]);
-    if (error) throw error;
+      .insert([payload]);
+
+    if (error && (error.code === '42703' || error.code === 'PGRST204') && photoUrl) {
+      console.warn("check_in_photo_url column missing, falling back to without photo");
+      delete payload.check_in_photo_url;
+      const retry = await supabase.from('HRMS_attendance').insert([payload]);
+      if (retry.error) throw retry.error;
+    } else if (error) {
+      throw error;
+    }
   }
 }
 

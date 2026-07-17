@@ -277,8 +277,11 @@ export default function AttendanceModule({ language, attendanceRecords }: Attend
                 {/* Micro Dot indicator */}
                 <span className={`w-1.5 h-1.5 rounded-full ${styleProps.dot} self-end`} />
 
-                {/* Tooltip on Hover */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-slate-800 text-white text-[10px] py-1 px-2.5 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none transition-all">
+                {/* Tooltip on Hover / Click */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center bg-slate-800 text-white text-[10px] py-2 px-3 rounded-lg shadow-xl whitespace-nowrap z-50 pointer-events-none transition-all">
+                  {record?.photoUrl && (
+                    <img src={record.photoUrl} alt="Check In" className="w-16 h-16 rounded object-cover mb-2 border-2 border-slate-600" />
+                  )}
                   <p className="font-bold">{styleProps.label}</p>
                   {noteText && <p className="opacity-80 mt-0.5">{noteText}</p>}
                 </div>

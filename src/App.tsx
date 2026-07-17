@@ -168,7 +168,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-6 text-center">
         <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Syncing with Supabase backend...</p>
+        <p className="mt-4 text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Loading...</p>
       </div>
     );
   }
@@ -243,7 +243,7 @@ export default function App() {
             payslips={currentUser.payslips}
             invoices={invoices}
             setActiveTab={setActiveTab}
-            onToggleCheckIn={() => toggleCheckIn(currentUser.id, currentUser.isCheckedIn)}
+            onToggleCheckIn={(photoData?: string) => toggleCheckIn(currentUser.id, currentUser.isCheckedIn, photoData)}
           />
         );
       case 'attendance':

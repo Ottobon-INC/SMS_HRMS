@@ -30,6 +30,7 @@ export interface CheckInLog {
   totalHours: number | null; // Decimal hours
   checkInLocation?: string; // e.g. "Visakhapatnam, AP"
   checkInLatLng?: string; // e.g. "17.7,83.3"
+  photoUrl?: string; // base64 photo data
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'half-day' | 'leave' | 'holiday';
@@ -38,6 +39,7 @@ export interface AttendanceRecord {
   date: string; // YYYY-MM-DD
   status: AttendanceStatus;
   note?: string;
+  photoUrl?: string;
 }
 
 export type LeaveType = 'sick' | 'casual' | 'maternity' | 'paternity';

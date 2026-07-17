@@ -264,6 +264,19 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
             <p className="text-sm font-semibold text-slate-600 mb-4 border-b pb-2">
               {employees.find(e => e.id === editTarget.empId)?.name} • {editTarget.date}
             </p>
+
+            {(() => {
+              const rec = employees.find(e => e.id === editTarget.empId)?.attendanceRecords.find(r => r.date === editTarget.date);
+              if (rec?.photoUrl) {
+                return (
+                  <div className="mb-4">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2 text-center">Check-In Photo Proof</p>
+                    <img src={rec.photoUrl} alt="Check In Proof" className="w-full max-h-48 object-cover rounded-2xl bg-black shadow-sm" />
+                  </div>
+                );
+              }
+              return null;
+            })()}
             
             <div className="grid grid-cols-2 gap-3 mb-6">
               {(['present', 'absent', 'half-day', 'leave', 'holiday'] as AttendanceStatus[]).map(statusOption => (
