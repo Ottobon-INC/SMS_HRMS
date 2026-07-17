@@ -11,47 +11,46 @@ interface AttendanceModuleProps {
 export default function AttendanceModule({ language, attendanceRecords }: AttendanceModuleProps) {
   const t = translations[language];
 
-  // Let's support moving between June 2026 and July 2026 (our demo range)
-  // 0 = June 2026, 1 = July 2026
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(1); // Default to July 2026
+  // We use standard Date object to manage the currently displayed month
+  const [currentDate, setCurrentDate] = useState(new Date());
 
-  const monthsList = [
-    { nameEN: "June 2026", nameTE: "జూన్ 2026", year: 2026, month: 5 }, // June (0-based: 5)
-    { nameEN: "July 2026", nameTE: "జూలై 2026", year: 2026, month: 6 }  // July (0-based: 6)
+  const teluguMonths = [
+    "జనవరి", "ఫిబ్రవరి", "మార్చి", "ఏప్రిల్", "మే", "జూన్", 
+    "జూలై", "ఆగస్టు", "సెప్టెంబర్", "అక్టోబర్", "నవంబర్", "డిసెంబర్"
   ];
 
-  const currentMonthInfo = monthsList[selectedMonthIndex];
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth();
 
-  // Go previous / next
+  const monthNameEN = currentDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const monthNameTE = `${teluguMonths[currentMonth]} ${currentYear}`;
+
+  // Go previous / next infinitely
   const handlePrevMonth = () => {
-    if (selectedMonthIndex > 0) {
-      setSelectedMonthIndex(selectedMonthIndex - 1);
-    }
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   };
 
   const handleNextMonth = () => {
-    if (selectedMonthIndex < monthsList.length - 1) {
-      setSelectedMonthIndex(selectedMonthIndex + 1);
-    }
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
   // Filter records for the selected month/year
   const getRecordForDay = (dayNum: number): AttendanceRecord | undefined => {
     const formattedDay = dayNum < 10 ? '0' + dayNum : dayNum;
-    const formattedMonth = (currentMonthInfo.month + 1) < 10 ? '0' + (currentMonthInfo.month + 1) : (currentMonthInfo.month + 1);
-    const dateStr = `${currentMonthInfo.year}-${formattedMonth}-${formattedDay}`;
+    const formattedMonth = (currentMonth + 1) < 10 ? '0' + (currentMonth + 1) : (currentMonth + 1);
+    const dateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
     return attendanceRecords.find(r => r.date === dateStr);
   };
 
   // Total days in the selected month
-  const totalDaysInMonth = new Date(currentMonthInfo.year, currentMonthInfo.month + 1, 0).getDate();
+  const totalDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   // First day of week index (0 = Sun, 1 = Mon, etc.)
-  const firstDayOfWeek = new Date(currentMonthInfo.year, currentMonthInfo.month, 1).getDay();
+  const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay();
 
   // Statistics for this month
   const filteredRecords = attendanceRecords.filter(r => {
     const [yr, mn] = r.date.split('-').map(Number);
-    return yr === currentMonthInfo.year && (mn - 1) === currentMonthInfo.month;
+    return yr === currentYear && (mn - 1) === currentMonth;
   });
 
   const stats = {
@@ -129,7 +128,7 @@ export default function AttendanceModule({ language, attendanceRecords }: Attend
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
             <h2 className="text-xl font-bold font-display text-slate-800">
-              {language === 'te' ? currentMonthInfo.nameTE : currentMonthInfo.nameEN}
+              {language === 'te' ? monthNameTE : monthNameEN}
             </h2>
           </div>
           
@@ -137,12 +136,7 @@ export default function AttendanceModule({ language, attendanceRecords }: Attend
             <button
               id="prev-month-btn"
               onClick={handlePrevMonth}
-              disabled={selectedMonthIndex === 0}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                selectedMonthIndex === 0
-                  ? 'border-slate-100 text-slate-300 bg-slate-50/50 cursor-not-allowed'
-                  : 'border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 active:scale-95'
-              }`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all cursor-pointer"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
               {t.prevMonth.split('|')[0].trim()}
@@ -150,12 +144,7 @@ export default function AttendanceModule({ language, attendanceRecords }: Attend
             <button
               id="next-month-btn"
               onClick={handleNextMonth}
-              disabled={selectedMonthIndex === monthsList.length - 1}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                selectedMonthIndex === monthsList.length - 1
-                  ? 'border-slate-100 text-slate-300 bg-slate-50/50 cursor-not-allowed'
-                  : 'border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 active:scale-95'
-              }`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all cursor-pointer"
             >
               {t.nextMonth.split('|')[0].trim()}
               <ChevronRight className="w-3.5 h-3.5" />
@@ -212,7 +201,7 @@ export default function AttendanceModule({ language, attendanceRecords }: Attend
         <div className="flex items-center gap-2 mb-6 pb-2">
           <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
           <h3 className="text-lg font-bold font-display text-slate-800">
-            {t.attendTitle}
+            {t.attendTitle} - {language === 'te' ? monthNameTE : monthNameEN}
           </h3>
         </div>
 
@@ -256,13 +245,35 @@ export default function AttendanceModule({ language, attendanceRecords }: Attend
             }
 
             const record = getRecordForDay(cellValue);
-            // Default future dates of July to Holiday on Sunday/Saturday, or just transparent
-            const dayOfWeek = new Date(currentMonthInfo.year, currentMonthInfo.month, cellValue).getDay();
-            const defaultStatus: AttendanceStatus = (dayOfWeek === 0 || dayOfWeek === 6) ? 'holiday' : 'present';
             
-            const activeStatus = record ? record.status : defaultStatus;
-            const styleProps = getStatusStyles(activeStatus);
-            const noteText = record?.note || (activeStatus === 'holiday' ? 'Weekend' : '');
+            const dateObj = new Date(currentYear, currentMonth, cellValue);
+            const dayOfWeek = dateObj.getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            let activeStatus: AttendanceStatus | 'none' = 'none';
+            let noteText = record?.note || '';
+            
+            if (record) {
+              activeStatus = record.status;
+            } else if (dateObj > today) {
+              // Future dates
+              activeStatus = 'none';
+            } else if (dateObj.getTime() === today.getTime()) {
+              // Today, if no record yet, show absent/holiday
+              activeStatus = isWeekend ? 'holiday' : 'absent';
+              if (isWeekend) noteText = 'Weekend';
+            } else {
+              // Past dates before launch (before today) with no record should be blank
+              activeStatus = 'none';
+            }
+            
+            // If none, don't show any background style
+            let styleProps = activeStatus !== 'none' 
+              ? getStatusStyles(activeStatus as AttendanceStatus)
+              : { bg: 'bg-white text-slate-400 border-slate-50', dot: 'hidden', label: '' };
 
             return (
               <div
@@ -278,13 +289,15 @@ export default function AttendanceModule({ language, attendanceRecords }: Attend
                 <span className={`w-1.5 h-1.5 rounded-full ${styleProps.dot} self-end`} />
 
                 {/* Tooltip on Hover / Click */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center bg-slate-800 text-white text-[10px] py-2 px-3 rounded-lg shadow-xl whitespace-nowrap z-50 pointer-events-none transition-all">
-                  {record?.photoUrl && (
-                    <img src={record.photoUrl} alt="Check In" className="w-16 h-16 rounded object-cover mb-2 border-2 border-slate-600" />
-                  )}
-                  <p className="font-bold">{styleProps.label}</p>
-                  {noteText && <p className="opacity-80 mt-0.5">{noteText}</p>}
-                </div>
+                {activeStatus !== 'none' && (
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center bg-slate-800 text-white text-[10px] py-2 px-3 rounded-lg shadow-xl whitespace-nowrap z-50 pointer-events-none transition-all">
+                    {record?.photoUrl && (
+                      <img src={record.photoUrl} alt="Check In" className="w-16 h-16 rounded object-cover mb-2 border-2 border-slate-600" />
+                    )}
+                    <p className="font-bold">{styleProps.label}</p>
+                    {noteText && <p className="opacity-80 mt-0.5">{noteText}</p>}
+                  </div>
+                )}
               </div>
             );
           })}

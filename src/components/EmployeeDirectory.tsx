@@ -39,6 +39,7 @@ export default function EmployeeDirectory({
   const [inspectSubTab, setInspectSubTab] = useState<'attendance' | 'leave' | 'payroll'>('attendance');
   
   // Modal State
+  const [viewingPhotoUrl, setViewingPhotoUrl] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
@@ -407,7 +408,8 @@ export default function EmployeeDirectory({
                             <img 
                               src={todayLog.photoUrl} 
                               alt="Check In" 
-                              className="w-9 h-9 md:hidden object-cover rounded-lg border border-slate-200 ml-2 shrink-0"
+                              onClick={(e) => { e.stopPropagation(); setViewingPhotoUrl(todayLog.photoUrl!); }}
+                              className="w-9 h-9 md:hidden object-cover rounded-lg border border-slate-200 ml-2 shrink-0 cursor-pointer"
                             />
                           );
                         }
@@ -450,11 +452,12 @@ export default function EmployeeDirectory({
                       return (
                         <div className="flex items-center gap-3">
                           {todayLog.photoUrl && (
-                            <div className="relative group cursor-pointer">
+                            <div className="relative group">
                               <img 
                                 src={todayLog.photoUrl} 
                                 alt="Check In" 
-                                className="w-10 h-10 object-cover rounded-xl border border-slate-200 shadow-sm transition-transform group-hover:scale-[2.5] group-hover:z-50 relative origin-left"
+                                onClick={(e) => { e.stopPropagation(); setViewingPhotoUrl(todayLog.photoUrl!); }}
+                                className="w-10 h-10 object-cover rounded-xl border border-slate-200 shadow-sm transition-transform group-hover:scale-[2.5] group-hover:z-50 relative origin-left cursor-pointer"
                               />
                             </div>
                           )}
@@ -860,6 +863,21 @@ export default function EmployeeDirectory({
         </div>
       )}
 
+      {/* Photo Viewer Modal */}
+      {viewingPhotoUrl && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setViewingPhotoUrl(null)}>
+          <div className="relative max-w-3xl w-full max-h-[90vh] flex flex-col items-center" onClick={e => e.stopPropagation()}>
+            <button 
+              onClick={() => setViewingPhotoUrl(null)}
+              className="absolute -top-12 right-0 md:-right-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-6 h-6 hidden" />
+              <span className="text-xl font-bold px-2 block leading-none">×</span>
+            </button>
+            <img src={viewingPhotoUrl} alt="Check In Full" className="w-auto h-auto max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain border-4 border-white/10" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
