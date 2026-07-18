@@ -291,7 +291,7 @@ export async function seedInitialDatabase() {
     const payrollToSeed = [{
       employee_id: 'EMP-2026-089', month: '2026-06', basic_pay: 45000,
       allowances: [{ nameKey: 'hra', amount: 18000 }, { nameKey: 'medicalAllow', amount: 3000 }, { nameKey: 'conveyanceAllow', amount: 4000 }],
-      deductions: [{ nameKey: 'providentFund', amount: 5400 }, { nameKey: 'professionalTax', amount: 200 }, { nameKey: 'incomeTax', amount: 3200 }],
+      deductions: [{ nameKey: 'providentFund', amount: 5400 }, { nameKey: 'professionalTax', amount: 200 }],
       net_pay: 58200
     }];
     await supabase.from('HRMS_payroll').insert(payrollToSeed);

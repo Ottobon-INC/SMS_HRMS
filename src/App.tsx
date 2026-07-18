@@ -16,7 +16,6 @@ import { Language } from './types';
 import { translations } from './translations';
 
 import { useEmployees } from './hooks/useEmployees';
-import { useInvoices } from './hooks/useInvoices';
 import { useAuth } from './hooks/useAuth';
 import { useLeaves } from './hooks/useLeaves';
 import { useAttendance } from './hooks/useAttendance';
@@ -28,7 +27,6 @@ import CheckInModule from './components/CheckInModule';
 import AttendanceModule from './components/AttendanceModule';
 import LeaveModule from './components/LeaveModule';
 import PayrollModule from './components/PayrollModule';
-import InvoiceModule from './components/InvoiceModule';
 import LoginScreen from './components/LoginScreen';
 import AdminDashboard from './components/AdminDashboard';
 import EmployeeDirectory from './components/EmployeeDirectory';
@@ -67,8 +65,7 @@ export default function App() {
       'attendance-overview': 'attendanceOverview',
       'leave-approvals': 'leaveApprovals',
       'advance-approvals': 'advanceApprovals',
-      'run-payroll': 'adminPayroll',
-      'invoices': 'invoice'
+      'run-payroll': 'adminPayroll'
     };
     
     if (pathToTab[path]) return pathToTab[path];
@@ -92,8 +89,7 @@ export default function App() {
       'attendanceOverview': 'attendance-overview',
       'leaveApprovals': 'leave-approvals',
       'advanceApprovals': 'advance-approvals',
-      'adminPayroll': 'run-payroll',
-      'invoice': 'invoices'
+      'adminPayroll': 'run-payroll'
     };
     
     const newPath = '/' + (tabToPath[activeTab] || activeTab);
@@ -115,8 +111,7 @@ export default function App() {
         'directory': 'directory',
         'team-attendance': 'attendanceOverview',
         'leave-approvals': 'leaveApprovals',
-        'run-payroll': 'adminPayroll',
-        'invoices': 'invoice'
+        'run-payroll': 'adminPayroll'
       };
       
       if (pathToTab[path]) {
@@ -130,7 +125,6 @@ export default function App() {
 
   // --- Hooks ---
   const { employees, isLoading, error, isLocalMode, loadData, addEmployee, updateEmployee, deleteEmployee, toggleStatus } = useEmployees();
-  const { invoices, saveInvoice, deleteInvoice } = useInvoices();
   const { currentUser, currentUserId, login, logout } = useAuth(employees);
   
   const { applyLeave, approveLeave, rejectLeave, updateBalances } = useLeaves(isLocalMode, loadData);
@@ -146,7 +140,7 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     
-    const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'advanceApprovals', 'adminPayroll', 'invoice'];
+    const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'advanceApprovals', 'adminPayroll'];
     const employeeTabs = ['dashboard', 'attendance', 'leave', 'advance', 'payroll'];
 
     if (currentUser.role === 'admin' && !adminTabs.includes(activeTab)) {
@@ -241,7 +235,6 @@ export default function App() {
             attendanceRecords={currentUser.attendanceRecords}
             leaveBalance={currentUser.leaveBalance}
             payslips={currentUser.payslips}
-            invoices={invoices}
             setActiveTab={setActiveTab}
             onToggleCheckIn={(photoData?: string) => toggleCheckIn(currentUser.id, currentUser.isCheckedIn, photoData)}
           />
@@ -345,15 +338,6 @@ export default function App() {
             onRunBulkPayroll={(month) => runBulkPayroll(employees, month)}
             onGenerateSinglePayslip={generateSinglePayslip}
             onUpdatePayslip={updatePayslip}
-          />
-        );
-      case 'invoice':
-        return (
-          <InvoiceModule
-            language={language}
-            invoices={invoices}
-            onSaveInvoice={(inv) => saveInvoice(inv, currentUser.id)}
-            onDeleteInvoice={deleteInvoice}
           />
         );
 
@@ -587,23 +571,6 @@ export default function App() {
                     )}
                     <span>{language === 'te' ? 'జీతాలు రన్ చేయండి' : 'Run Payroll'}</span>
                   </button>
-
-                  <button
-                    id="nav-tab-invoice"
-                    onClick={() => setActiveTab('invoice')}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
-                      activeTab === 'invoice'
-                        ? 'bg-teal-50 text-teal-700 font-bold'
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                    }`}
-                  >
-                    {activeTab === 'invoice' ? (
-                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
-                    ) : (
-                      <Receipt className="w-4 h-4 shrink-0" />
-                    )}
-                    <span>{language === 'te' ? 'బిల్స్ & ఇన్వాయిస్లు' : 'Invoices Generator'}</span>
-                  </button>
                 </>
               ) : (
                 /* --- IF EMPLOYEE --- */
@@ -767,16 +734,6 @@ export default function App() {
             >
               <Landmark className="w-5 h-5" />
               <span className="text-[8px] font-bold uppercase mt-1 leading-none">Payroll</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('invoice')}
-              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all cursor-pointer ${
-                activeTab === 'invoice' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <Receipt className="w-5 h-5" />
-              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Invoice</span>
             </button>
           </>
         ) : (

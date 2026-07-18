@@ -54,8 +54,7 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
     ];
     const deductions = [
       { nameKey: 'providentFund', amount: Math.round(basic * 0.12) },
-      { nameKey: 'professionalTax', amount: 200 },
-      { nameKey: 'incomeTax', amount: Math.round(basic * 0.07) }
+      { nameKey: 'professionalTax', amount: 200 }
     ];
 
     const existingPayslip = emp.payslips.find(p => p.month === month);

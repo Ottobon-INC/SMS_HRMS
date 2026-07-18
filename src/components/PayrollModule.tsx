@@ -63,7 +63,7 @@ export default function PayrollModule({
   // Math Calculations (Live/Draft vs Standard)
   const basicPayValue = isEditing ? draftBasicPay : activeSlip.basicPay;
   const allowancesList = isEditing ? draftAllowances : activeSlip.allowances;
-  const deductionsList = isEditing ? draftDeductions : activeSlip.deductions;
+  const deductionsList = isEditing ? draftDeductions : activeSlip.deductions.filter(d => d.nameKey !== 'incomeTax');
   
   const advanceTaken = isEditing ? draftAdvanceTaken : activeSlip.advanceMoneyTaken;
   const advanceAmount = isEditing ? (draftAdvanceTaken ? draftAdvanceAmount : 0) : (activeSlip.advanceMoneyTaken ? activeSlip.advanceMoneyAmount || 0 : 0);
@@ -92,7 +92,7 @@ export default function PayrollModule({
   const startEditing = () => {
     setDraftBasicPay(activeSlip.basicPay);
     setDraftAllowances([...activeSlip.allowances]);
-    setDraftDeductions([...activeSlip.deductions]);
+    setDraftDeductions(activeSlip.deductions.filter(d => d.nameKey !== 'incomeTax'));
     setDraftAdvanceTaken(activeSlip.advanceMoneyTaken || false);
     setDraftAdvanceAmount(activeSlip.advanceMoneyAmount || 0);
     setIsEditing(true);

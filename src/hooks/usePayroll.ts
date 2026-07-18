@@ -49,7 +49,6 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
     const convAmt = 4000;
     const pfAmt = Math.round(basicPay * 0.12);
     const profTax = 200;
-    const incomeTax = Math.round(basicPay * 0.07);
 
     const payslip: Payslip = {
       id: `PS-${month}-${empId.slice(-3)}`,
@@ -62,8 +61,7 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
       ],
       deductions: [
         { nameKey: 'providentFund', amount: pfAmt },
-        { nameKey: 'professionalTax', amount: profTax },
-        { nameKey: 'incomeTax', amount: incomeTax }
+        { nameKey: 'professionalTax', amount: profTax }
       ],
       advanceMoneyTaken: advanceTotal > 0,
       advanceMoneyAmount: advanceTotal

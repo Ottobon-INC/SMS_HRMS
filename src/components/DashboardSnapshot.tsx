@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Sparkles, ArrowRight, Home, Calendar, Moon, Landmark, Receipt, Camera, X } from 'lucide-react';
-import { Language, CheckInLog, AttendanceRecord, LeaveBalance, Payslip, Invoice } from '../types';
+import { Language, CheckInLog, AttendanceRecord, LeaveBalance, Payslip } from '../types';
 import { translations } from '../translations';
 
 interface DashboardSnapshotProps {
@@ -10,7 +10,6 @@ interface DashboardSnapshotProps {
   attendanceRecords: AttendanceRecord[];
   leaveBalance: LeaveBalance;
   payslips: Payslip[];
-  invoices: Invoice[];
   setActiveTab: (tab: string) => void;
   onToggleCheckIn: (photoData?: string) => void;
 }
@@ -22,7 +21,6 @@ export default function DashboardSnapshot({
   attendanceRecords,
   leaveBalance,
   payslips,
-  invoices,
   setActiveTab,
   onToggleCheckIn
 }: DashboardSnapshotProps) {
@@ -250,8 +248,8 @@ export default function DashboardSnapshot({
 
       </section>
 
-      {/* 2. Second Row: Section with Attendance chart, Payroll summary, Invoices list */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* 2. Second Row: Section with Attendance chart, Payroll summary */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* CARD 1: Attendance Custom Bar widget */}
         <div className="bg-white rounded-[24px] p-6 shadow-sm border border-slate-100 flex flex-col justify-between min-h-[320px]">
@@ -327,60 +325,6 @@ export default function DashboardSnapshot({
               {language === 'te' ? "జీతం రశీదు తెరవండి" : "Open Salary Slips"}
             </button>
           </div>
-        </div>
-
-        {/* CARD 3: Invoices widget */}
-        <div className="bg-white rounded-[24px] p-6 shadow-sm border border-slate-100 flex flex-col justify-between min-h-[320px]">
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="font-black text-slate-800 uppercase tracking-wider text-xs">{t.invoice}</h4>
-              <span className="text-[10px] bg-slate-100 px-2.5 py-0.5 rounded-full text-slate-500 font-bold uppercase tracking-wider">
-                {invoices.length} TOTAL
-              </span>
-            </div>
-
-            {/* Invoices list snippet */}
-            <div className="space-y-3 mt-4">
-              {invoices.slice(0, 2).map((inv, idx) => {
-                const totalAmt = inv.items.reduce((acc, item) => acc + (item.quantity * item.rate), 0);
-                const taxAmt = Math.round(totalAmt * (inv.taxPercent / 100));
-                const finalAmt = totalAmt + taxAmt;
-                const formattedAmt = new Intl.NumberFormat('en-IN', {
-                  style: 'currency',
-                  currency: 'INR',
-                  maximumFractionDigits: 0
-                }).format(finalAmt);
-
-                return (
-                  <div 
-                    key={inv.id} 
-                    onClick={() => setActiveTab('invoice')}
-                    className="flex justify-between items-center p-2.5 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
-                        idx === 0 ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
-                      }`}>
-                        INV
-                      </div>
-                      <div className="text-[11px] leading-tight">
-                        <p className="font-bold text-slate-800">{inv.clientName.slice(0, 15)}</p>
-                        <p className="text-slate-400 mt-0.5">{inv.invoiceNumber} • {formattedAmt}</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <button 
-            onClick={() => setActiveTab('invoice')}
-            className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold mt-4 hover:shadow-sm active:scale-95 transition-all cursor-pointer text-center"
-          >
-            + {language === 'te' ? "కొత్త బిల్లు సృష్టించు" : "New Invoice"}
-          </button>
         </div>
 
       </section>
