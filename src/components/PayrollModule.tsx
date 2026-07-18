@@ -3,7 +3,7 @@ import { DollarSign, Printer, Landmark, Sparkles, TrendingUp, HelpCircle, Edit2,
 import { Language, Payslip, Allowance, Deduction } from '../types';
 import { translations } from '../translations';
 import SmsLogo from './SmsLogo';
-import { numberToWords } from '../lib/utils';
+import { numberToWords, formatMonth } from '../lib/utils';
 
 interface PayrollModuleProps {
   language: Language;
@@ -182,13 +182,9 @@ export default function PayrollModule({
               className="border border-slate-200 bg-slate-50 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-600/20 disabled:opacity-50"
             >
               {payslips.map(slip => {
-                const [yr, mn] = slip.month.split('-');
-                const monthName = language === 'te' 
-                  ? (mn === '07' ? 'జూలై' : mn === '06' ? 'జూన్' : mn === '05' ? 'మే' : 'ఏప్రిల్') 
-                  : (mn === '07' ? 'July' : mn === '06' ? 'June' : mn === '05' ? 'May' : 'April');
                 return (
                   <option key={slip.id} value={slip.id}>
-                    {monthName} {yr}
+                    {formatMonth(slip.month, language)}
                   </option>
                 );
               })}
@@ -289,11 +285,6 @@ export default function PayrollModule({
               <div className="text-xs italic text-slate-500">
                 This is a computer-generated payslip and does not require a signature.<br/>
                 Generated on: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-              </div>
-              
-              <div className="text-center">
-                <div className="border-b border-slate-800 w-48 mb-2"></div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Authorised Signatory</span>
               </div>
             </div>
           </div>

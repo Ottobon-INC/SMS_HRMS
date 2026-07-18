@@ -3,6 +3,7 @@ import { Landmark, Play, CheckCircle2, User, HelpCircle, DollarSign, Plus } from
 import { Language, Employee, Payslip } from '../types';
 import { translations } from '../translations';
 import PayrollModule from './PayrollModule';
+import { generateMonthOptions, formatMonth } from '../lib/utils';
 
 interface AdminPayrollProps {
   language: 'en' | 'te';
@@ -20,9 +21,11 @@ export default function AdminPayroll({
   onUpdatePayslip,
 }: AdminPayrollProps) {
   const t = translations[language];
+  const monthOptions = generateMonthOptions(2018, 1);
 
-  // Selected state
-  const [payrollMonth, setPayrollMonth] = useState('2026-07');
+  // Selected states
+  const [payrollMonth, setPayrollMonth] = useState(monthOptions[0] || '2026-07');
+  const [singlePayrollMonth, setSinglePayrollMonth] = useState(monthOptions[0] || '2026-07');
   const [selectedEmpId, setSelectedEmpId] = useState<string>('');
   
   // Notice Banner state
@@ -128,9 +131,11 @@ export default function AdminPayroll({
               onChange={(e) => setPayrollMonth(e.target.value)}
               className="border border-slate-200 bg-slate-50 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/10 cursor-pointer"
             >
-              <option value="2026-07">July 2026</option>
-              <option value="2026-06">June 2026</option>
-              <option value="2026-05">May 2026</option>
+              {monthOptions.map(month => (
+                <option key={month} value={month}>
+                  {formatMonth(month, language)}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -173,28 +178,47 @@ export default function AdminPayroll({
         {/* Render Selected Employee Slips */}
         {activeEmployee ? (
           <div className="pt-4 border-t border-slate-100 space-y-6">
-            {!activeEmployee.payslips.some(p => p.month === payrollMonth) && (
-              <div className="space-y-4 mb-4">
-                <p className="text-xs text-slate-400 italic">
-                  {language === 'te' 
-                    ? 'ఈ నెలకు ఎలాంటి సాలరీ స్లిప్ సృష్టించబడలేదు. మీరు మాన్యువల్‌గా క్రియేట్ చేయవచ్చు.' 
-                    : 'No payslip document has been generated for this month yet. You can generate one manually below.'}
+            {/* Generate Single Payslip Section */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              <div className="flex-1">
+                <p className="text-xs font-bold text-slate-700">
+                  {language === 'te' ? 'కొత్త సాలరీ స్లిప్ సృష్టించండి' : 'Generate New Payslip'}
                 </p>
-                <button
-                  onClick={() => {
-                    const hasExisting = activeEmployee.payslips.some(p => p.month === payrollMonth);
-                    const approvedAdvances = activeEmployee.advanceRequests?.filter(a => a.status === 'approved') || [];
-                    onGenerateSinglePayslip(activeEmployee.id, payrollMonth, activeEmployee.basicSalary, hasExisting, approvedAdvances);
-                    setShowNotification(language === 'te' ? 'సాలరీ స్లిప్ సృష్టించబడింది!' : 'Successfully generated individual payslip!');
-                    setTimeout(() => setShowNotification(null), 3000);
-                  }}
-                  className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all uppercase tracking-wide cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>{localizedText.btnGenerateSingle}</span>
-                </button>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {language === 'te' ? 'ఇంకా సృష్టించబడని నెలల కోసం.' : 'For months that have not been generated yet.'}
+                </p>
               </div>
-            )}
+              
+              <select
+                value={singlePayrollMonth}
+                onChange={(e) => setSinglePayrollMonth(e.target.value)}
+                className="border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/10 cursor-pointer min-w-[120px]"
+              >
+                {monthOptions.map(m => {
+                  const alreadyExists = activeEmployee.payslips.some(p => p.month === m);
+                  return (
+                    <option key={m} value={m} disabled={alreadyExists}>
+                      {formatMonth(m, language)} {alreadyExists ? (language === 'te' ? '(ఉంది)' : '(Exists)') : ''}
+                    </option>
+                  );
+                })}
+              </select>
+
+              <button
+                disabled={activeEmployee.payslips.some(p => p.month === singlePayrollMonth)}
+                onClick={() => {
+                  const hasExisting = activeEmployee.payslips.some(p => p.month === singlePayrollMonth);
+                  const approvedAdvances = activeEmployee.advanceRequests?.filter(a => a.status === 'approved') || [];
+                  onGenerateSinglePayslip(activeEmployee.id, singlePayrollMonth, activeEmployee.basicSalary, hasExisting, approvedAdvances);
+                  setShowNotification(language === 'te' ? 'సాలరీ స్లిప్ సృష్టించబడింది!' : 'Successfully generated individual payslip!');
+                  setTimeout(() => setShowNotification(null), 3000);
+                }}
+                className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-xs font-bold transition-all uppercase tracking-wide"
+              >
+                <Plus className="w-4 h-4 shrink-0" />
+                <span className="whitespace-nowrap">{localizedText.btnGenerateSingle}</span>
+              </button>
+            </div>
             
             {activeEmployee.payslips.length > 0 && (
               <div className="p-1 bg-slate-50/50 rounded-2xl border border-slate-100">

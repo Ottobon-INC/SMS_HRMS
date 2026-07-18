@@ -141,6 +141,20 @@ export const translations: Record<Language, Record<string, string>> = {
     invoiceFooter: "Thank you for your business!",
     invoiceEmptyItems: "Please add at least one item to generate an invoice.",
 
+    // Months
+    january: "January",
+    february: "February",
+    march: "March",
+    april: "April",
+    may: "May",
+    june: "June",
+    july: "July",
+    august: "August",
+    september: "September",
+    october: "October",
+    november: "November",
+    december: "December",
+
     // New Admin and Role-based keys
     employeeDirectory: "Employee Directory",
     adminDashboard: "Admin Dashboard",
@@ -309,6 +323,20 @@ export const translations: Record<Language, Record<string, string>> = {
     invoicePreviewTitle: "తయారైన బిల్లు ఒకసారి చూసుకోండి (Preview)",
     invoiceFooter: "మాతో వ్యాపారం చేసినందుకు ధన్యవాదాలు!",
     invoiceEmptyItems: "బిల్లు తయారు చేయడానికి కనీసం ఒక ఐటమ్ అయినా జోడించండి.",
+
+    // Months
+    january: "జనవరి",
+    february: "ఫిబ్రవరి",
+    march: "మార్చి",
+    april: "ఏప్రిల్",
+    may: "మే",
+    june: "జూన్",
+    july: "జూలై",
+    august: "ఆగస్టు",
+    september: "సెప్టెంబర్",
+    october: "అక్టోబర్",
+    november: "నవంబర్",
+    december: "డిసెంబర్",
 
     // New Admin and Role-based keys
     employeeDirectory: "ఉద్యోగుల డైరెక్టరీ",
