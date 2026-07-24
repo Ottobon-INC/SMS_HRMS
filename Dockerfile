@@ -29,8 +29,8 @@ FROM nginx:alpine
 # Copy the built assets from the build stage to Nginx
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Expose port 9620
-EXPOSE 9620
+# Expose port 80
+EXPOSE 80
 
 # Start Nginx
 CMD ["nginx", "-g", "daemon off;"]
