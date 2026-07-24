@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { CalendarDays, Send, ShieldAlert, CheckCircle, XCircle, Clock, ToggleLeft, ToggleRight, UserCheck } from 'lucide-react';
-import { Language, LeaveType, LeaveRequest, LeaveBalance } from '../types';
+import { Language, LeaveType, LeaveRequest, LeaveBalance, MonthlyLeaveQuota } from '../types';
 import { translations } from '../translations';
 
 interface LeaveModuleProps {
   language: Language;
   leaveBalance: LeaveBalance;
+  monthlyQuota: MonthlyLeaveQuota;
   leaveRequests: LeaveRequest[];
   gender?: 'male' | 'female' | 'other';
   onApplyLeave: (type: LeaveType, fromDate: string, toDate: string, reason: string) => void;
@@ -17,6 +18,7 @@ interface LeaveModuleProps {
 export default function LeaveModule({
   language,
   leaveBalance,
+  monthlyQuota,
   leaveRequests,
   gender,
   onApplyLeave,
@@ -27,7 +29,7 @@ export default function LeaveModule({
   const t = translations[language];
 
   // Local Form state
-  const [leaveType, setLeaveType] = useState<LeaveType>('sick');
+  const [leaveType, setLeaveType] = useState<LeaveType>('monthly');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [reason, setReason] = useState('');
@@ -39,14 +41,19 @@ export default function LeaveModule({
 
   // Form submission handler
   const [showManageModal, setShowManageModal] = useState(false);
-  const [manageType, setManageType] = useState<LeaveType>('sick');
+  const [manageType, setManageType] = useState<LeaveType>('monthly');
   const [manageAllotted, setManageAllotted] = useState(0);
   const [manageUsed, setManageUsed] = useState(0);
 
   const openManageModal = (type: LeaveType) => {
     setManageType(type);
-    setManageAllotted(leaveBalance[type].allowed);
-    setManageUsed(leaveBalance[type].taken);
+    if (type === 'monthly') {
+      setManageAllotted(monthlyQuota.allotted);
+      setManageUsed(monthlyQuota.used);
+    } else {
+      setManageAllotted((leaveBalance as any)[type]?.allowed || 0);
+      setManageUsed((leaveBalance as any)[type]?.taken || 0);
+    }
     setShowManageModal(true);
   };
 
@@ -182,42 +189,22 @@ export default function LeaveModule({
 
       {/* Leave Balances Header Cards */}
       <div id="leave-balances-grid" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Sick Leave Card */}
+        {/* Monthly Quota Card */}
         <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
           {onUpdateBalances && (
-             <button onClick={() => openManageModal('sick')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+             <button onClick={() => openManageModal('monthly')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                 <ShieldAlert className="w-4 h-4" />
              </button>
           )}
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.leaveSick.split(' ')[0]}</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Monthly Quota</span>
           <div className="mt-4 flex items-baseline gap-1">
-            <span className="text-3xl font-black font-mono text-slate-800">{leaveBalance.sick.allowed - leaveBalance.sick.taken}</span>
-            <span className="text-xs text-slate-400 font-medium">/ {leaveBalance.sick.allowed} {t.leaveLeftOf.split(' ')[0]}</span>
-          </div>
-          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
-            <div 
-              className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
-              style={{ width: `${((leaveBalance.sick.allowed - leaveBalance.sick.taken) / leaveBalance.sick.allowed) * 100}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Casual Leave Card */}
-        <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
-          {onUpdateBalances && (
-             <button onClick={() => openManageModal('casual')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                <ShieldAlert className="w-4 h-4" />
-             </button>
-          )}
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.leaveCasual.split(' ')[0]}</span>
-          <div className="mt-4 flex items-baseline gap-1">
-            <span className="text-3xl font-black font-mono text-slate-800">{leaveBalance.casual.allowed - leaveBalance.casual.taken}</span>
-            <span className="text-xs text-slate-400 font-medium">/ {leaveBalance.casual.allowed} {t.leaveLeftOf.split(' ')[0]}</span>
+            <span className="text-3xl font-black font-mono text-slate-800">{monthlyQuota.remaining}</span>
+            <span className="text-xs text-slate-400 font-medium">/ {monthlyQuota.allotted} {t.leaveLeftOf.split(' ')[0]}</span>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
             <div 
               className="bg-indigo-500 h-full rounded-full transition-all duration-500" 
-              style={{ width: `${((leaveBalance.casual.allowed - leaveBalance.casual.taken) / leaveBalance.casual.allowed) * 100}%` }}
+              style={{ width: `${(monthlyQuota.remaining / monthlyQuota.allotted) * 100}%` }}
             />
           </div>
         </div>
@@ -354,8 +341,7 @@ export default function LeaveModule({
                   onChange={(e) => setLeaveType(e.target.value as LeaveType)}
                   className="w-full border border-slate-200 bg-slate-50 hover:bg-slate-100/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20 focus:border-teal-600 font-medium transition-all"
                 >
-                  <option value="sick">{t.leaveSick}</option>
-                  <option value="casual">{t.leaveCasual}</option>
+                  <option value="monthly">{language === 'te' ? 'నెలవారీ సెలవు కోటా' : 'Monthly Leave Quota'}</option>
                   {gender === 'female' && <option value="maternity">{t.leaveMaternity || 'Maternity Leave'}</option>}
                   {gender === 'male' && <option value="paternity">{t.leavePaternity || 'Paternity Leave'}</option>}
                 </select>
@@ -453,7 +439,9 @@ export default function LeaveModule({
               </div>
             ) : (
               leaveRequests.slice().reverse().map((req) => {
-                const leaveTypeName = t[`leave${req.type.charAt(0).toUpperCase() + req.type.slice(1)}`] || req.type;
+                const leaveTypeName = req.type === 'monthly' 
+                  ? (language === 'te' ? 'నెలవారీ సెలవు కోటా' : 'Monthly Leave Quota')
+                  : (t[`leave${req.type.charAt(0).toUpperCase() + req.type.slice(1)}` as keyof typeof t] || req.type);
                 const isPending = req.status === 'pending';
 
                 return (

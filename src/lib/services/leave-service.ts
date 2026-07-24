@@ -6,9 +6,9 @@ export async function submitLeaveRequest(empId: string, leave: Omit<LeaveRequest
   const to = new Date(leave.toDate);
   const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 3600 * 24)) + 1;
   
-  if (leave.type === 'sick' || leave.type === 'casual') {
+  if (leave.type === 'monthly') {
     if (diffDays > 3) {
-      throw new Error("Continuous leave cannot exceed 3 days for this leave type.");
+      throw new Error("Monthly leave cannot exceed 3 days per month.");
     }
   } else if (leave.type === 'maternity' && diffDays > 90) {
     throw new Error("Maternity leave cannot exceed 90 days.");
@@ -51,12 +51,38 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
     const to = new Date(request.to_date);
     const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 3600 * 24)) + 1;
 
-    const { data: balance } = await supabase
-      .from('HRMS_leave_balances')
-      .select('*')
-      .eq('employee_id', request.employee_id)
-      .eq('leave_type', request.leave_type)
-      .maybeSingle();
+    if (request.leave_type === 'monthly') {
+      const monthStr = from.toISOString().substring(0, 7); // YYYY-MM
+      // Ensure the row exists or initialize it
+      const { data: quota } = await supabase
+        .from('HRMS_monthly_leave_quota')
+        .select('*')
+        .eq('employee_id', request.employee_id)
+        .eq('month', monthStr)
+        .maybeSingle();
+
+      if (quota) {
+        await supabase
+          .from('HRMS_monthly_leave_quota')
+          .update({ used: Number(quota.used || 0) + diffDays })
+          .eq('id', quota.id);
+      } else {
+        await supabase
+          .from('HRMS_monthly_leave_quota')
+          .insert([{
+            employee_id: request.employee_id,
+            month: monthStr,
+            allotted: 3,
+            used: diffDays
+          }]);
+      }
+    } else {
+      const { data: balance } = await supabase
+        .from('HRMS_leave_balances')
+        .select('*')
+        .eq('employee_id', request.employee_id)
+        .eq('leave_type', request.leave_type)
+        .maybeSingle();
 
     if (balance) {
       await supabase
@@ -78,6 +104,7 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
           total_allotted: allotted,
           used: diffDays
         }]);
+      }
     }
 
     let current = new Date(from);
@@ -107,6 +134,28 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
 }
 
 export async function updateLeaveBalances(empId: string, leaveType: LeaveType, allotted: number, used: number): Promise<void> {
+  if (leaveType === 'monthly') {
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    const { data: quota } = await supabase
+      .from('HRMS_monthly_leave_quota')
+      .select('id')
+      .eq('employee_id', empId)
+      .eq('month', currentMonth)
+      .maybeSingle();
+      
+    if (quota) {
+      await supabase
+        .from('HRMS_monthly_leave_quota')
+        .update({ allotted, used })
+        .eq('id', quota.id);
+    } else {
+      await supabase
+        .from('HRMS_monthly_leave_quota')
+        .insert([{ employee_id: empId, month: currentMonth, allotted, used }]);
+    }
+    return;
+  }
+
   const { data: balance, error: fetchErr } = await supabase
     .from('HRMS_leave_balances')
     .select('id')

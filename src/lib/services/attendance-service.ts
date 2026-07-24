@@ -1,11 +1,12 @@
 import { supabase } from '../supabase-client';
-import { AttendanceStatus } from '../../types';
+import { AttendanceStatus, PunchType } from '../../types';
 
 export async function clockInEmployee(
   empId: string, 
   location?: string, 
   latLng?: string,
-  photoUrl?: string
+  photoUrl?: string,
+  punchType: PunchType = 'in_office'
 ): Promise<void> {
   const todayStr = new Date().toISOString().split('T')[0];
   const timeStr = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
@@ -22,7 +23,8 @@ export async function clockInEmployee(
       check_in_time: timeStr, 
       status: 'Present',
       check_in_location: location || null,
-      check_in_lat_lng: latLng || null
+      check_in_lat_lng: latLng || null,
+      punch_type: punchType
     };
     if (photoUrl) payload.check_in_photo_url = photoUrl;
 
@@ -47,7 +49,8 @@ export async function clockInEmployee(
       status: 'Present', 
       check_in_time: timeStr,
       check_in_location: location || null,
-      check_in_lat_lng: latLng || null
+      check_in_lat_lng: latLng || null,
+      punch_type: punchType
     };
     if (photoUrl) payload.check_in_photo_url = photoUrl;
 
@@ -66,7 +69,12 @@ export async function clockInEmployee(
   }
 }
 
-export async function clockOutEmployee(empId: string): Promise<void> {
+export async function clockOutEmployee(
+  empId: string, 
+  photoUrl?: string,
+  location?: string,
+  latLng?: string
+): Promise<void> {
   const todayStr = new Date().toISOString().split('T')[0];
   const timeStr = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
 
@@ -80,15 +88,32 @@ export async function clockOutEmployee(empId: string): Promise<void> {
   if (fetchErr) throw fetchErr;
 
   if (existing) {
+    const payload: any = { 
+      check_out_time: timeStr
+    };
+    if (photoUrl) payload.check_out_photo_url = photoUrl;
+    if (location) payload.check_out_location = location;
+    if (latLng) payload.check_out_lat_lng = latLng;
+    
     const { error } = await supabase
       .from('HRMS_attendance')
-      .update({ check_out_time: timeStr })
+      .update(payload)
       .eq('id', existing.id);
     if (error) throw error;
   } else {
+    const payload: any = { 
+      employee_id: empId, 
+      date: todayStr, 
+      status: 'Present', 
+      check_out_time: timeStr
+    };
+    if (photoUrl) payload.check_out_photo_url = photoUrl;
+    if (location) payload.check_out_location = location;
+    if (latLng) payload.check_out_lat_lng = latLng;
+    
     const { error } = await supabase
       .from('HRMS_attendance')
-      .insert([{ employee_id: empId, date: todayStr, status: 'Present', check_out_time: timeStr }]);
+      .insert([payload]);
     if (error) throw error;
   }
 }

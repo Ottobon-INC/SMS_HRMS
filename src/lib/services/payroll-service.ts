@@ -1,9 +1,14 @@
 import { supabase } from '../supabase-client';
 import { Employee, Payslip } from '../../types';
+import { decrementInstallment } from './advance-service';
 
 export async function savePayslipToSupabase(empId: string, payslip: Payslip): Promise<void> {
   let totalDeductions = payslip.deductions.reduce((sum, d) => sum + d.amount, 0);
-  if (payslip.advanceMoneyTaken && payslip.advanceMoneyAmount) {
+  
+  // Only add advanceMoneyAmount to totalDeductions if it's NOT already in the deductions array.
+  // This preserves backwards compatibility with older payslips.
+  const hasAdvanceInDeductions = payslip.deductions.some(d => d.nameKey === 'advanceInstallment');
+  if (payslip.advanceMoneyTaken && payslip.advanceMoneyAmount && !hasAdvanceInDeductions) {
     totalDeductions += payslip.advanceMoneyAmount;
   }
 
@@ -45,14 +50,17 @@ export async function savePayslipToSupabase(empId: string, payslip: Payslip): Pr
 
 export async function runBulkPayrollForMonth(employees: Employee[], month: string): Promise<void> {
   for (const emp of employees) {
-    if (emp.role === 'admin') continue; // typically admins skip bulk, but optional
+    if (emp.role === 'admin') continue;
     const basic = emp.basicSalary;
+
+    // Fixed allowances per policy
     const allowances = [
-      { nameKey: 'hra', amount: Math.round(basic * 0.4) },
-      { nameKey: 'medicalAllow', amount: 3000 },
-      { nameKey: 'conveyanceAllow', amount: 4000 }
+      { nameKey: 'hra', amount: 4800 },           // Fixed ₹4,800 HRA
+      { nameKey: 'medicalAllow', amount: 2000 },   // Fixed ₹2,000 Medical
+      { nameKey: 'conveyanceAllow', amount: 1500 }
     ];
-    const deductions = [
+
+    const deductions: { nameKey: string; amount: number }[] = [
       { nameKey: 'providentFund', amount: Math.round(basic * 0.12) },
       { nameKey: 'professionalTax', amount: 200 }
     ];
@@ -60,19 +68,23 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
     const existingPayslip = emp.payslips.find(p => p.month === month);
     if (existingPayslip) continue; // Don't overwrite manually edited payslips
 
-    const approvedAdvances = emp.advanceRequests?.filter(a => a.status === 'approved') || [];
-    let advanceTotal = 0;
-    
-    for (const adv of approvedAdvances) {
-      advanceTotal += adv.amount;
-      // Mark as deducted in the DB
-      await supabase
-        .from('HRMS_advance_requests')
-        .update({ 
-          status: 'deducted', 
-          deducted_in_month: month 
-        })
-        .eq('id', adv.id);
+    // Installment-based advance deduction
+    // Only deduct active advances with installments remaining
+    const activeAdvances = (emp.advanceRequests || []).filter(
+      a => a.status === 'approved' && (a.installmentsRemaining ?? 0) > 0
+    );
+
+    let advanceInstallmentTotal = 0;
+    const advanceIds: string[] = [];
+
+    for (const adv of activeAdvances) {
+      const installment = adv.monthlyInstallment ?? Math.ceil(adv.amount / (adv.repaymentMonths ?? 2));
+      advanceInstallmentTotal += installment;
+      advanceIds.push(adv.id);
+      deductions.push({
+        nameKey: adv.advanceType === 'medical' ? 'advanceInstallment_medical' : 'advanceInstallment_salary',
+        amount: installment
+      });
     }
 
     const payslip: Payslip = {
@@ -81,10 +93,15 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
       basicPay: basic,
       allowances,
       deductions,
-      advanceMoneyTaken: advanceTotal > 0,
-      advanceMoneyAmount: advanceTotal
+      advanceMoneyTaken: advanceInstallmentTotal > 0,
+      advanceMoneyAmount: advanceInstallmentTotal
     };
 
     await savePayslipToSupabase(emp.id, payslip);
+
+    // Decrement installments counter for each active advance
+    for (const advId of advanceIds) {
+      await decrementInstallment(advId);
+    }
   }
 }

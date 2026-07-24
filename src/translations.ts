@@ -5,8 +5,9 @@ export const translations: Record<Language, Record<string, string>> = {
     // Nav & General
     appTitle: "HR Portal",
     dashboard: "Home Dashboard",
-    checkIn: "Check-In / Out",
+    checkIn: "Punch In / Out",
     attendance: "My Attendance",
+
     leave: "Leave Requests",
     payroll: "Salary Slips",
     invoice: "Bills & Invoices",
@@ -17,8 +18,9 @@ export const translations: Record<Language, Record<string, string>> = {
     roleManager: "Manager Mode",
     managerViewLabel: "View & Approve Team Leaves",
     todayStatus: "Today's Status",
-    checkedIn: "Checked In",
-    checkedOut: "Checked Out",
+    checkedIn: "Punched In",
+    checkedOut: "Punched Out",
+
     notWorking: "Not checked-in yet",
     loading: "Loading...",
     save: "Save",
@@ -38,18 +40,23 @@ export const translations: Record<Language, Record<string, string>> = {
     leavesTaken: "Leaves Used",
     halfDaysTaken: "Half Days",
 
-    // Check In/Out
+    // Check In/Out (now Punch In/Out)
     currentStatusLabel: "Your Current Status",
-    btnCheckIn: "Check In Now",
-    btnCheckOut: "Check Out Now",
+    btnCheckIn: "Punch In",
+    btnCheckOut: "Punch Out",
     workTimerLabel: "Worked Hours Today",
     logTitle: "Today's Timing Logs",
     logHeaderTime: "Log Entry",
-    logInTime: "Checked In At",
-    logOutTime: "Checked Out At",
+    logInTime: "Punched In At",
+    logOutTime: "Punched Out At",
     logDuration: "Duration",
     runningLive: "running live",
-    confirmCheckOut: "Are you sure you want to check out?",
+    confirmCheckOut: "Are you sure you want to punch out?",
+    // Punch Category
+    punchTypeInOffice: "In Office",
+    punchTypeOutOfOffice: "Out of Office (Medical Camp)",
+    selectPunchType: "Select Punch Type",
+
 
     // Attendance Module
     attendTitle: "My Attendance Sheet",
@@ -159,7 +166,8 @@ export const translations: Record<Language, Record<string, string>> = {
     employeeDirectory: "Employee Directory",
     adminDashboard: "Admin Dashboard",
     totalEmployees: "Total Employees",
-    checkedInToday: "Checked-In Today",
+    checkedInToday: "Punched In Today",
+
     pendingLeaves: "Pending Leaves",
     monthlyPayrollTotal: "This Month's Payroll",
     addEmployee: "Add Employee",
@@ -174,6 +182,17 @@ export const translations: Record<Language, Record<string, string>> = {
     allEmployees: "All Employees",
     statusLabel: "Status",
 
+    // Advance Money Repayment
+    advRepaymentTimeline: "Repayment Timeline",
+    adv2Months: "2 Months (÷2 per month)",
+    adv3Months: "3 Months (÷3 per month)",
+    adv5Months: "5 Months (÷5 per month)",
+    advMonthlyInstallment: "Monthly Installment",
+    advMaxLimit: "Max advance: ₹10,000",
+    advActiveExists: "You already have an active advance. Please clear existing installments first.",
+    advInstallmentLabel: "Advance Installment",
+    advInstallmentRemaining: "remaining",
+
     // Colloquial Telugu phrases to map standard keys
     "Sick Leave": "అనారోగ్య సెలవు (Sick Leave)",
     "Casual Leave": "అవసరమైన సెలవు (Casual Leave)",
@@ -184,11 +203,13 @@ export const translations: Record<Language, Record<string, string>> = {
     "Maternity": "ప్రసూతి",
     "Paternity": "పితృత్వ",
   },
+
   te: {
     // Nav & General
     appTitle: "ఉద్యోగి పోర్టల్",
     dashboard: "ముఖ్య పేజీ",
-    checkIn: "హాజరు నమోదు (Check-In)",
+    checkIn: "పంచ్ ఇన్ / పంచ్ అవుట్",
+
     attendance: "నా అటెండెన్స్",
     leave: "సెలవుల అప్లికేషన్లు",
     payroll: "జీతం రశీదులు (Payslips)",
@@ -200,8 +221,9 @@ export const translations: Record<Language, Record<string, string>> = {
     roleManager: "మేనేజర్ మోడ్",
     managerViewLabel: "టీమ్ సెలవులను ఆమోదించండి",
     todayStatus: "ఈరోజు మీ పరిస్థితి",
-    checkedIn: "పనిలో ఉన్నారు (Checked In)",
-    checkedOut: "పని ముగించారు (Checked Out)",
+    checkedIn: "పంచ్ ఇన్ చేశారు",
+    checkedOut: "పంచ్ అవుట్ చేశారు",
+
     notWorking: "ఇంకా హాజరు వేసుకోలేదు",
     loading: "లోడ్ అవుతోంది...",
     save: "సేవ్ చేయి",
@@ -221,18 +243,23 @@ export const translations: Record<Language, Record<string, string>> = {
     leavesTaken: "సెలవులు వాడినవి (Leave)",
     halfDaysTaken: "హాఫ్ డేస్ (Half Day)",
 
-    // Check In/Out
+    // Check In/Out (ఇప్పుడు Punch In/Out)
     currentStatusLabel: "మీ ప్రస్తుత హాజరు స్థితి",
-    btnCheckIn: "పనిలోకి రండి (Check In)",
-    btnCheckOut: "పని ముగించండి (Check Out)",
+    btnCheckIn: "పంచ్ ఇన్ చేయండి",
+    btnCheckOut: "పంచ్ అవుట్ చేయండి",
     workTimerLabel: "ఈరోజు మీరు పనిచేసిన సమయం",
     logTitle: "ఈరోజు ఎప్పుడెప్పుడు వచ్చారో టైమ్ లాగ్స్",
     logHeaderTime: "సమయం వివరాలు",
-    logInTime: "పనికి వచ్చిన సమయం",
-    logOutTime: "పని ముగించిన సమయం",
+    logInTime: "పంచ్ ఇన్ సమయం",
+    logOutTime: "పంచ్ అవుట్ సమయం",
     logDuration: "మొత్తం గంటలు",
     runningLive: "నడుస్తోంది",
-    confirmCheckOut: "నిజంగానే పని ముగించేసి బయటకు వెళ్తారా?",
+    confirmCheckOut: "నిజంగానే పంచ్ అవుట౏ చేస్తారా?",
+    // Punch Category
+    punchTypeInOffice: "ఆఫీసులో",
+    punchTypeOutOfOffice: "ఆఫీసు వెలుపల (మెడికల్ క్యాంప్)",
+    selectPunchType: "పంచ్ రకం ఎంచుకోండి",
+
 
     // Attendance Module
     attendTitle: "నా నెలవారీ హాజరు పట్టిక",
@@ -342,7 +369,8 @@ export const translations: Record<Language, Record<string, string>> = {
     employeeDirectory: "ఉద్యోగుల డైరెక్టరీ",
     adminDashboard: "అడ్మిన్ డాష్‌బోర్డ్",
     totalEmployees: "మొత్తం ఉద్యోగులు",
-    checkedInToday: "ఈరోజు హాజరు",
+    checkedInToday: "ఈరోజు పంచ్ ఇన్",
+
     pendingLeaves: "పెండింగ్ లీవులు",
     monthlyPayrollTotal: "ఈ నెల మొత్తం జీతాలు",
     addEmployee: "కొత్త ఉద్యోగిని చేర్చండి",
@@ -357,6 +385,17 @@ export const translations: Record<Language, Record<string, string>> = {
     allEmployees: "మొత్తం ఉద్యోగులు",
     statusLabel: "స్థితి",
 
+    // Advance Money Repayment
+    advRepaymentTimeline: "తిరిగి చెల్లించే నెలలు",
+    adv2Months: "2 నెలలు (÷2)",
+    adv3Months: "3 నెలలు (÷3)",
+    adv5Months: "5 నెలలు (÷5)",
+    advMonthlyInstallment: "నెలవారీ కట్టాల్సిన వాయిదా",
+    advMaxLimit: "గరిష్ట అడ్వాన్స్: ₹10,000",
+    advActiveExists: "మీకు ఇప్పటికే ఒక యాక్టివ్ అడ్వాన్స్ ఉంది. విరమించిన తర్వాత అప్లై చేయండి.",
+    advInstallmentLabel: "అడ్వాన్స్ వాయిదా",
+    advInstallmentRemaining: "మిగిలినవి",
+
     // Colloquial Telugu phrases to map standard keys
     "Sick Leave": "అనారోగ్య సెలవు (Sick Leave)",
     "Casual Leave": "అవసరమైన సెలవు (Casual Leave)",
@@ -368,3 +407,4 @@ export const translations: Record<Language, Record<string, string>> = {
     "Unpaid": "జీతం లేకుండా",
   }
 };
+

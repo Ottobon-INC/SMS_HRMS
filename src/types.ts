@@ -18,9 +18,13 @@ export interface Employee {
   advanceRequests: AdvanceRequest[];
   gender?: 'male' | 'female' | 'other';
   experience?: number;
+  monthlyQuota?: MonthlyLeaveQuota;
 }
 
 export type Language = 'en' | 'te';
+export type PunchType = 'in_office' | 'out_of_office';
+export type RepaymentTimeline = 2 | 3 | 5;
+
 
 export interface CheckInLog {
   id: string;
@@ -31,7 +35,12 @@ export interface CheckInLog {
   checkInLocation?: string; // e.g. "Visakhapatnam, AP"
   checkInLatLng?: string; // e.g. "17.7,83.3"
   photoUrl?: string; // base64 photo data
+  checkOutLocation?: string;
+  checkOutLatLng?: string;
+  checkOutPhotoUrl?: string; // check-out photo
+  punchType?: PunchType; // 'in_office' | 'out_of_office'
 }
+
 
 export type AttendanceStatus = 'present' | 'absent' | 'half-day' | 'leave' | 'holiday';
 
@@ -42,7 +51,7 @@ export interface AttendanceRecord {
   photoUrl?: string;
 }
 
-export type LeaveType = 'sick' | 'casual' | 'maternity' | 'paternity';
+export type LeaveType = 'sick' | 'casual' | 'maternity' | 'paternity' | 'monthly';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 
 export interface LeaveRequest {
@@ -56,16 +65,22 @@ export interface LeaveRequest {
 }
 
 export type AdvanceStatus = 'pending' | 'approved' | 'rejected' | 'deducted';
+export type AdvanceType = 'salary' | 'medical';
 
 export interface AdvanceRequest {
   id: string;
+  advanceType?: AdvanceType;
   amount: number;
   reason: string;
   status: AdvanceStatus;
   submittedAt: string; // ISO date string
   approvedAt?: string;
   deductedInMonth?: string; // YYYY-MM
+  repaymentMonths?: RepaymentTimeline; // 2 | 3 | 5
+  monthlyInstallment?: number; // amount / repaymentMonths
+  installmentsRemaining?: number; // countdown: starts at repaymentMonths, decrements each payroll
 }
+
 
 export interface LeaveBalance {
   sick: { allowed: number; taken: number };
@@ -112,4 +127,32 @@ export interface Invoice {
   clientDetails: string;
   items: InvoiceItem[];
   taxPercent: number;
+}
+
+export interface MonthlyLeaveQuota {
+  id: string;
+  month: string;       // "2026-07"
+  allotted: number;    // always 3
+  used: number;
+  remaining: number;   // computed: allotted - used
+}
+
+export interface OfficeLocation {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  is_active: boolean;
+}
+
+export interface SpecialLocationEvent {
+  id: string;
+  name: string;
+  eventType: 'medical_camp' | 'client_site' | 'training' | 'other';
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  fromDate: string;
+  toDate: string;
 }

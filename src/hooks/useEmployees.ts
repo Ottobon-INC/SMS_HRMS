@@ -63,9 +63,7 @@ export function useEmployees() {
         isCheckedIn: false,
         leaveBalance: {
           sick: { allowed: 6, taken: 0 },
-          casual: { allowed: 8, taken: 0 },
-          earned: { allowed: 15, taken: 0 },
-          unpaid: { allowed: 30, taken: 0 }
+          casual: { allowed: 8, taken: 0 }
         },
         leaveRequests: [],
         attendanceRecords: [],

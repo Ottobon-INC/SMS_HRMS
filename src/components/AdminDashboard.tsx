@@ -152,7 +152,7 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
           </p>
         </div>
 
-        {/* Card 2: Checked-In Today */}
+        {/* Card 2: Punched In Today */}
         <div 
           onClick={() => setActiveTab('attendanceOverview')}
           className="bg-white rounded-[24px] p-5 sm:p-6 border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 cursor-pointer hover:-translate-y-1"
@@ -366,13 +366,15 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
         <div className="flex items-center gap-2 mb-6 pb-2 border-b border-slate-50">
           <MapPin className="w-5 h-5 text-teal-600" />
           <h3 className="text-base font-bold text-slate-800">
-            {language === 'te' ? 'ఈ రోజు చెక్-ఇన్ ఫీడ్ (స్థానాలు)' : "Today's Check-In Feed & Locations"}
+            {language === 'te' ? 'ఈ రోజు పంచ్ ఇన్ ఫీడ్ (స్థానాలు)' : "Today's Punch-In Feed & Locations"}
+
           </h3>
         </div>
 
         {todaysCheckIns.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-slate-100/50 border-dashed">
-            {language === 'te' ? 'ఈ రోజు ఇంకా ఎవరూ చెక్-ఇన్ చేయలేదు.' : 'No check-ins recorded yet today.'}
+            {language === 'te' ? 'ఈ రోజు ఇంకా ఎవరూ పంచ్ ఇన్ చేయలేదు.' : 'No punch-ins recorded yet today.'}
+
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

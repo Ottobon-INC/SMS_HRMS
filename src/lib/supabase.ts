@@ -425,10 +425,11 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
     // Generate simple standard payslip
     const basic = emp.basicSalary;
     const allowances = [
-      { nameKey: 'hra', amount: Math.round(basic * 0.4) },
-      { nameKey: 'medicalAllow', amount: 3000 },
+      { nameKey: 'hra', amount: 4800 },
+      { nameKey: 'medicalAllow', amount: 2000 },
       { nameKey: 'conveyanceAllow', amount: 4000 }
     ];
+
     const deductions = [
       { nameKey: 'providentFund', amount: Math.round(basic * 0.12) },
       { nameKey: 'professionalTax', amount: 200 },
@@ -573,8 +574,9 @@ export async function seedInitialDatabase() {
         month: '2026-06',
         basic_pay: 45000,
         allowances: [
-          { nameKey: 'hra', amount: 18000 },
-          { nameKey: 'medicalAllow', amount: 3000 },
+          { nameKey: 'hra', amount: 4800 },
+          { nameKey: 'medicalAllow', amount: 2000 },
+
           { nameKey: 'conveyanceAllow', amount: 4000 }
         ],
         deductions: [

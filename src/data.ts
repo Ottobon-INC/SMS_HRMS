@@ -2,9 +2,7 @@ import { AttendanceRecord, LeaveBalance, LeaveRequest, Payslip, Invoice } from '
 
 export const initialLeaveBalance: LeaveBalance = {
   sick: { allowed: 6, taken: 2 },
-  casual: { allowed: 8, taken: 3 },
-  earned: { allowed: 15, taken: 4 },
-  unpaid: { allowed: 30, taken: 0 }
+  casual: { allowed: 8, taken: 3 }
 };
 
 export const initialLeaveRequests: LeaveRequest[] = [
@@ -28,7 +26,7 @@ export const initialLeaveRequests: LeaveRequest[] = [
   },
   {
     id: 'LV-1003',
-    type: 'earned',
+    type: 'monthly',
     fromDate: '2026-07-20',
     toDate: '2026-07-24',
     reason: 'Planned vacation with family.',

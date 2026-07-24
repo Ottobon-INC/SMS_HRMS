@@ -9,7 +9,9 @@ import {
   HeartHandshake,
   Users,
   LogOut,
-  IndianRupee
+  IndianRupee,
+  MapPin,
+  MessageSquare
 } from 'lucide-react';
 
 import { Language } from './types';
@@ -35,8 +37,11 @@ import AdminLeaveApprovals from './components/AdminLeaveApprovals';
 import AdminPayroll from './components/AdminPayroll';
 import AdvanceRequestModule from './components/AdvanceRequestModule';
 import AdminAdvanceApprovals from './components/AdminAdvanceApprovals';
+import AdminOfficeLocations from './components/AdminOfficeLocations';
+import AdminSpecialEvents from './components/AdminSpecialEvents';
 import SmsLogo from './components/SmsLogo';
 import UserProfileModal from './components/UserProfileModal';
+import { MessagingModule } from './components/MessagingModule';
 
 export default function App() {
   // --- Persistent Bilingual State ---
@@ -65,7 +70,10 @@ export default function App() {
       'attendance-overview': 'attendanceOverview',
       'leave-approvals': 'leaveApprovals',
       'advance-approvals': 'advanceApprovals',
-      'run-payroll': 'adminPayroll'
+      'run-payroll': 'adminPayroll',
+      'office-locations': 'officeLocations',
+      'special-events': 'specialEvents',
+      'messages': 'messages'
     };
     
     if (pathToTab[path]) return pathToTab[path];
@@ -89,7 +97,10 @@ export default function App() {
       'attendanceOverview': 'attendance-overview',
       'leaveApprovals': 'leave-approvals',
       'advanceApprovals': 'advance-approvals',
-      'adminPayroll': 'run-payroll'
+      'adminPayroll': 'run-payroll',
+      'officeLocations': 'office-locations',
+      'specialEvents': 'special-events',
+      'messages': 'messages'
     };
     
     const newPath = '/' + (tabToPath[activeTab] || activeTab);
@@ -111,7 +122,10 @@ export default function App() {
         'directory': 'directory',
         'team-attendance': 'attendanceOverview',
         'leave-approvals': 'leaveApprovals',
-        'run-payroll': 'adminPayroll'
+        'run-payroll': 'adminPayroll',
+        'office-locations': 'officeLocations',
+        'special-events': 'specialEvents',
+        'messages': 'messages'
       };
       
       if (pathToTab[path]) {
@@ -140,8 +154,8 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     
-    const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'advanceApprovals', 'adminPayroll'];
-    const employeeTabs = ['dashboard', 'attendance', 'leave', 'advance', 'payroll'];
+    const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'advanceApprovals', 'adminPayroll', 'officeLocations', 'specialEvents', 'messages'];
+    const employeeTabs = ['dashboard', 'attendance', 'leave', 'advance', 'payroll', 'messages'];
 
     if (currentUser.role === 'admin' && !adminTabs.includes(activeTab)) {
       setActiveTab('adminDashboard');
@@ -236,7 +250,8 @@ export default function App() {
             leaveBalance={currentUser.leaveBalance}
             payslips={currentUser.payslips}
             setActiveTab={setActiveTab}
-            onToggleCheckIn={(photoData?: string) => toggleCheckIn(currentUser.id, currentUser.isCheckedIn, photoData)}
+          onToggleCheckIn={(photoData?: string, punchType?: import('./types').PunchType) => toggleCheckIn(currentUser.id, currentUser.isCheckedIn, photoData, punchType)}
+
           />
         );
       case 'attendance':
@@ -251,6 +266,7 @@ export default function App() {
           <LeaveModule
             language={language}
             leaveBalance={currentUser.leaveBalance}
+            monthlyQuota={currentUser.monthlyQuota!}
             leaveRequests={currentUser.leaveRequests}
             gender={currentUser.gender}
             onApplyLeave={(type, fromDate, toDate, reason) => applyLeave(currentUser.id, { type, fromDate, toDate, reason, status: 'pending', submittedAt: new Date().toISOString() })}
@@ -263,8 +279,9 @@ export default function App() {
           <AdvanceRequestModule
             language={language}
             advanceRequests={currentUser.advanceRequests || []}
-            onSubmitAdvance={(amount, reason) => submitAdvance(currentUser.id, amount, reason)}
+            onSubmitAdvance={(amount, reason, repaymentMonths, type) => submitAdvance(currentUser.id, amount, reason, repaymentMonths, type)}
             isEligible={(currentUser.experience || 0) >= 1 || new Date(currentUser.joiningDate) <= new Date(new Date().setFullYear(new Date().getFullYear() - 1))}
+            employeeSalary={currentUser.basicSalary}
           />
         );
       case 'payroll':
@@ -339,6 +356,18 @@ export default function App() {
             onGenerateSinglePayslip={generateSinglePayslip}
             onUpdatePayslip={updatePayslip}
           />
+        );
+      case 'officeLocations':
+        return (
+          <AdminOfficeLocations language={language} />
+        );
+      case 'specialEvents':
+        return (
+          <AdminSpecialEvents language={language} employees={employees} />
+        );
+      case 'messages':
+        return (
+          <MessagingModule currentUser={currentUser} employees={employees} />
         );
 
       default:
@@ -571,6 +600,57 @@ export default function App() {
                     )}
                     <span>{language === 'te' ? 'జీతాలు రన్ చేయండి' : 'Run Payroll'}</span>
                   </button>
+
+                  <button
+                    id="nav-tab-office-locations"
+                    onClick={() => setActiveTab('officeLocations')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'officeLocations'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'officeLocations' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <MapPin className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'ఆఫీస్ స్థానాలు' : 'Office Locations'}</span>
+                  </button>
+
+                  <button
+                    id="nav-tab-special-events"
+                    onClick={() => setActiveTab('specialEvents')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'specialEvents'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'specialEvents' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <Calendar className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'ప్రత్యేక ఈవెంట్‌లు' : 'Special Events'}</span>
+                  </button>
+
+                  <button
+                    id="nav-tab-messages"
+                    onClick={() => setActiveTab('messages')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'messages'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'messages' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <MessageSquare className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'సందేశాలు' : 'Messages'}</span>
+                  </button>
                 </>
               ) : (
                 /* --- IF EMPLOYEE --- */
@@ -658,6 +738,23 @@ export default function App() {
                       <Landmark className="w-4 h-4 shrink-0" />
                     )}
                     <span>{t.payroll}</span>
+                  </button>
+
+                  <button
+                    id="nav-tab-messages"
+                    onClick={() => setActiveTab('messages')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'messages'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'messages' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <MessageSquare className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'సందేశాలు' : 'Messages'}</span>
                   </button>
                 </>
               )}

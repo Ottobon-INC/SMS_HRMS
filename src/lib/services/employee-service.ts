@@ -1,5 +1,5 @@
 import { supabase } from '../supabase-client';
-import { Employee, LeaveBalance, LeaveType, LeaveStatus, AttendanceRecord, AttendanceStatus, CheckInLog, Payslip } from '../../types';
+import { Employee, LeaveBalance, LeaveType, LeaveStatus, AttendanceRecord, AttendanceStatus, CheckInLog, Payslip, MonthlyLeaveQuota } from '../../types';
 
 export async function fetchAllEmployeesData(): Promise<Employee[]> {
   const { data: emps, error: empError } = await supabase
@@ -21,6 +21,12 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
   if (balError) console.error('Error fetching leave_balances:', balError);
   if (payError) console.error('Error fetching payroll:', payError);
   if (advError) console.error('Error fetching advances:', advError);
+
+  const { data: quotas, error: quotaError } = await supabase.from('HRMS_monthly_leave_quota').select('*');
+  if (quotaError) console.error('Error fetching monthly quotas:', quotaError);
+  
+  const currentMonth = new Date().toISOString().substring(0, 7);
+  const quotaList = quotas || [];
 
   const attendanceList = att || [];
   const leavesList = leaves || [];
@@ -91,8 +97,13 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
           totalHours,
           checkInLocation: a.check_in_location || undefined,
           checkInLatLng: a.check_in_lat_lng || undefined,
-          photoUrl: a.check_in_photo_url || undefined
+          photoUrl: a.check_in_photo_url || undefined,
+          checkOutLocation: a.check_out_location || undefined,
+          checkOutLatLng: a.check_out_lat_lng || undefined,
+          checkOutPhotoUrl: a.check_out_photo_url || undefined,
+          punchType: (a.punch_type || 'in_office') as import('../../types').PunchType
         };
+
       });
 
     // Determine check-in status for today
@@ -113,6 +124,28 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
         advanceMoneyAmount: Number(p.advance_money_amount)
       }));
 
+    // Map monthly quota
+    const empQuota = quotaList.find(q => q.employee_id === emp.id && q.month === currentMonth);
+    let monthlyQuota: MonthlyLeaveQuota | undefined = undefined;
+    if (empQuota) {
+      monthlyQuota = {
+        id: empQuota.id,
+        month: empQuota.month,
+        allotted: empQuota.allotted,
+        used: empQuota.used,
+        remaining: empQuota.allotted - empQuota.used
+      };
+    } else {
+      // Create an empty virtual one for the UI if not fetched/initialized yet
+      monthlyQuota = {
+        id: 'virtual',
+        month: currentMonth,
+        allotted: 3,
+        used: 0,
+        remaining: 3
+      };
+    }
+
     return {
       id: emp.id,
       name: emp.name,
@@ -128,22 +161,30 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
       experience: Number(emp.experience) || 0,
       isCheckedIn,
       leaveBalance,
+      monthlyQuota,
       leaveRequests: empLeaves,
       attendanceRecords,
       checkInLogs,
       payslips: empPayslips,
       advanceRequests: advancesList
         .filter(a => a.employee_id === emp.id)
-        .map(a => ({
-          id: a.id,
-          amount: Number(a.amount),
-          reason: a.reason,
-          status: a.status as any,
-          submittedAt: a.submitted_at,
-          approvedAt: a.approved_at,
-          deductedInMonth: a.deducted_in_month
-        }))
+        .map(a => {
+          return {
+            id: a.id,
+            advanceType: (a.advance_type || 'salary') as 'salary' | 'medical',
+            amount: Number(a.amount),
+            reason: a.reason,
+            status: a.status as any,
+            submittedAt: a.submitted_at,
+            approvedAt: a.approved_at,
+            deductedInMonth: a.deducted_in_month,
+            repaymentMonths: a.repayment_months as (2 | 3 | 5) | undefined,
+            monthlyInstallment: a.monthly_installment ? Number(a.monthly_installment) : undefined,
+            installmentsRemaining: a.installments_remaining ?? undefined
+          };
+        })
     };
+
   });
 }
 
@@ -290,7 +331,7 @@ export async function seedInitialDatabase() {
 
     const payrollToSeed = [{
       employee_id: 'EMP-2026-089', month: '2026-06', basic_pay: 45000,
-      allowances: [{ nameKey: 'hra', amount: 18000 }, { nameKey: 'medicalAllow', amount: 3000 }, { nameKey: 'conveyanceAllow', amount: 4000 }],
+      allowances: [{ nameKey: 'hra', amount: 18000 }, { nameKey: 'medicalAllow', amount: 3000 }, { nameKey: 'conveyanceAllow', amount: 1500 }],
       deductions: [{ nameKey: 'providentFund', amount: 5400 }, { nameKey: 'professionalTax', amount: 200 }],
       net_pay: 58200
     }];

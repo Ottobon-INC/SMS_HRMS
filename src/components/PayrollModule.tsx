@@ -69,7 +69,8 @@ export default function PayrollModule({
   const advanceAmount = isEditing ? (draftAdvanceTaken ? draftAdvanceAmount : 0) : (activeSlip.advanceMoneyTaken ? activeSlip.advanceMoneyAmount || 0 : 0);
 
   const totalEarnings = basicPayValue + allowancesList.reduce((acc, a) => acc + a.amount, 0);
-  const totalDeductions = deductionsList.reduce((acc, d) => acc + d.amount, 0) + advanceAmount;
+  const hasAdvanceInDeductions = deductionsList.some(d => d.nameKey.startsWith('advanceInstallment'));
+  const totalDeductions = deductionsList.reduce((acc, d) => acc + d.amount, 0) + (hasAdvanceInDeductions ? 0 : advanceAmount);
   const netPay = totalEarnings - totalDeductions;
 
   // Advance Eligibility
@@ -264,9 +265,27 @@ export default function PayrollModule({
                   {allowancesList.map((a, i) => <div key={i} className="flex justify-between p-2"><span>{t[a.nameKey] || a.nameKey}</span><span>{a.amount.toLocaleString('en-IN')}</span></div>)}
                 </div>
                 <div className="flex flex-col">
-                  {deductionsList.map((d, i) => <div key={i} className="flex justify-between p-2"><span>{t[d.nameKey] || d.nameKey}</span><span>{d.amount.toLocaleString('en-IN')}</span></div>)}
-                  {activeSlip.advanceMoneyTaken && <div className="flex justify-between p-2 text-rose-700"><span>Advance</span><span>{activeSlip.advanceMoneyAmount?.toLocaleString('en-IN')}</span></div>}
+                  {deductionsList.map((d, i) => (
+                    <div key={i} className="flex justify-between p-2">
+                      <span>
+                        {d.nameKey === 'advanceInstallment' || d.nameKey === 'advanceInstallment_salary'
+                          ? (language === 'te' ? 'జీతం అడ్వాన్స్ వాయిదా' : 'Salary Advance Installment')
+                          : d.nameKey === 'advanceInstallment_medical'
+                          ? (language === 'te' ? 'మెడికల్ ఎమర్జెన్సీ వాయిదా' : 'Medical Advance Installment')
+                          : (t[d.nameKey] || d.nameKey)
+                        }
+                      </span>
+                      <span>{d.amount.toLocaleString('en-IN')}</span>
+                    </div>
+                  ))}
+                  {!hasAdvanceInDeductions && activeSlip.advanceMoneyTaken && (
+                    <div className="flex justify-between p-2">
+                      <span>{t.advInstallmentLabel || 'Advance'}</span>
+                      <span>{activeSlip.advanceMoneyAmount?.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
                 </div>
+
               </div>
               <div className="grid grid-cols-2 border-t border-black font-bold">
                 <div className="flex justify-between p-2 border-r border-black"><span>Total Earnings</span><span>{totalEarnings.toLocaleString('en-IN')}</span></div>

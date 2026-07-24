@@ -1,48 +1,85 @@
-import { AttendanceStatus } from '../types';
+import { AttendanceStatus, PunchType } from '../types';
 import * as attendanceService from '../lib/services/attendance-service';
 import * as leaveService from '../lib/services/leave-service';
+import { checkGeofence, resolveAllowedLocations } from '../lib/geofence';
 
 export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void>) {
-  const toggleCheckIn = async (empId: string, isCurrentlyCheckedIn: boolean, photoData?: string) => {
+  const toggleCheckIn = async (empId: string, isCurrentlyCheckedIn: boolean, photoData?: string, punchType: PunchType = 'in_office') => {
+
     if (isLocalMode) {
       alert("Attendance can only be recorded in online mode.");
       return;
     }
     
     try {
-      if (isCurrentlyCheckedIn) {
-        await attendanceService.clockOutEmployee(empId);
-      } else {
         let locationStr: string | undefined = undefined;
         let latLngStr: string | undefined = undefined;
 
         try {
           const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+            navigator.geolocation.getCurrentPosition(resolve, reject, { 
+              timeout: 8000,
+              maximumAge: 60000, // Accept up to 1-minute old cached location
+              enableHighAccuracy: false // Faster lock
+            });
           });
           const { latitude, longitude } = position.coords;
           latLngStr = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
 
-          // Reverse geocoding (OpenStreetMap Nominatim)
-          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-          if (response.ok) {
-            const data = await response.json();
-            const city = data.address.city || data.address.town || data.address.village || data.address.county || '';
-            const state = data.address.state || '';
-            const suburb = data.address.suburb || data.address.neighbourhood || '';
-            locationStr = [suburb, city, state].filter(Boolean).join(', ');
+          // Reverse geocoding with strict 3-second timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          
+          try {
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+              { signal: controller.signal }
+            );
+            clearTimeout(timeoutId);
+            if (response.ok) {
+              const data = await response.json();
+              const city = data.address.city || data.address.town || data.address.village || data.address.county || '';
+              const state = data.address.state || '';
+              const suburb = data.address.suburb || data.address.neighbourhood || '';
+              locationStr = [suburb, city, state].filter(Boolean).join(', ');
+            }
+          } catch (e) {
+            console.warn("Reverse geocoding timed out or failed:", e);
+            locationStr = "Location details unavailable";
           }
+          
+          let geoCheck: any;
+          if (punchType === 'out_of_office') {
+            geoCheck = { allowed: true, matchedLocation: `Medical Camp - ${locationStr || 'Location Unknown'}`, distance: 0 };
+          } else {
+            const today = new Date().toISOString().split('T')[0];
+            const allowedLocations = await resolveAllowedLocations(empId, today);
+            geoCheck = checkGeofence(latitude, longitude, allowedLocations);
+          }
+          
+          if (!geoCheck.allowed) {
+            return { success: false, geoError: geoCheck };
+          }
+          
+          locationStr = geoCheck.matchedLocation || locationStr;
         } catch (err) {
           console.warn("Could not get location:", err);
+          return { success: false, error: "Could not get your GPS location. Please enable location services." };
         }
 
-        await attendanceService.clockInEmployee(empId, locationStr, latLngStr, photoData);
+      if (isCurrentlyCheckedIn) {
+        await attendanceService.clockOutEmployee(empId, photoData, locationStr, latLngStr);
+        await loadData();
+        return { success: true };
+      } else {
+        await attendanceService.clockInEmployee(empId, locationStr, latLngStr, photoData, punchType);
       }
       
       await loadData();
+      return { success: true };
     } catch (err: any) {
       console.error("Check-in error:", err);
-      alert("Failed to record attendance. Please try again.");
+      return { success: false, error: "Failed to record attendance. Please try again." };
     }
   };
 

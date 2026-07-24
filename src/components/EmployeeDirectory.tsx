@@ -314,6 +314,7 @@ export default function EmployeeDirectory({
               <LeaveModule
                 language={language}
                 leaveBalance={activeEmployee.leaveBalance}
+                monthlyQuota={activeEmployee.monthlyQuota!}
                 leaveRequests={activeEmployee.leaveRequests}
                 gender={activeEmployee.gender}
                 onApplyLeave={(type, from, to, reason) => onApplyEmployeeLeave(activeEmployee.id, type, from, to, reason)}
@@ -397,24 +398,6 @@ export default function EmployeeDirectory({
                         <p className="text-xs font-bold text-slate-800 group-hover:text-teal-700 transition-colors truncate">{emp.name}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5 truncate">{emp.id} • {emp.email}</p>
                       </div>
-                      
-                      {/* Mobile-only inline photo preview */}
-                      {(() => {
-                        if (!emp.isCheckedIn) return null;
-                        const todayStr = new Date().toISOString().split('T')[0];
-                        const todayLog = emp.checkInLogs.find(log => log.date === todayStr);
-                        if (todayLog?.photoUrl) {
-                          return (
-                            <img 
-                              src={todayLog.photoUrl} 
-                              alt="Check In" 
-                              onClick={(e) => { e.stopPropagation(); setViewingPhotoUrl(todayLog.photoUrl!); }}
-                              className="w-9 h-9 md:hidden object-cover rounded-lg border border-slate-200 ml-2 shrink-0 cursor-pointer"
-                            />
-                          );
-                        }
-                        return null;
-                      })()}
                     </div>
                   </td>
 
@@ -437,38 +420,64 @@ export default function EmployeeDirectory({
 
                   {/* Attendance status */}
                   <td className="p-5">
-                    {getTodayStatusBadge(emp)}
+                    <div className="flex flex-col gap-2 items-start">
+                      {getTodayStatusBadge(emp)}
+                    </div>
                   </td>
 
                   {/* Location column */}
                   <td className="p-5">
                     {(() => {
-                      if (!emp.isCheckedIn) return <span className="text-slate-300">-</span>;
                       const todayStr = new Date().toISOString().split('T')[0];
                       const todayLog = emp.checkInLogs.find(log => log.date === todayStr);
                       
                       if (!todayLog) return <span className="text-slate-300">-</span>;
 
                       return (
-                        <div className="flex items-center gap-3">
-                          {todayLog.photoUrl && (
-                            <div className="relative group">
-                              <img 
-                                src={todayLog.photoUrl} 
-                                alt="Check In" 
-                                onClick={(e) => { e.stopPropagation(); setViewingPhotoUrl(todayLog.photoUrl!); }}
-                                className="w-10 h-10 object-cover rounded-xl border border-slate-200 shadow-sm transition-transform group-hover:scale-[2.5] group-hover:z-50 relative origin-left cursor-pointer"
-                              />
+                        <div className="flex flex-col gap-3">
+                          {todayLog.photoUrl || todayLog.checkInLocation ? (
+                            <div className="flex items-start gap-2">
+                              {todayLog.photoUrl && (
+                                <img 
+                                  src={todayLog.photoUrl} 
+                                  title="Check-in Photo"
+                                  onClick={(e) => { e.stopPropagation(); setViewingPhotoUrl(todayLog.photoUrl!); }}
+                                  className="w-8 h-8 object-cover rounded border border-slate-200 cursor-pointer hover:ring-2 hover:ring-teal-500 transition-all shrink-0 mt-0.5"
+                                />
+                              )}
+                              {todayLog.checkInLocation && (
+                                <div className="text-[10px] text-slate-600 font-medium leading-tight flex items-start gap-1">
+                                  <span className="text-teal-500 shrink-0 mt-0.5">📍</span>
+                                  <span className={todayLog.checkInLocation.toLowerCase().includes('camp') ? 'text-indigo-600 font-bold' : ''}>
+                                    {todayLog.checkInLocation}
+                                  </span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                          {todayLog.checkInLocation ? (
-                            <span className="text-[11px] text-slate-600 font-medium">
-                              <span className="mr-1">📍</span>
-                              {todayLog.checkInLocation}
-                            </span>
-                          ) : (
-                            !todayLog.photoUrl && <span className="text-slate-300">-</span>
-                          )}
+                          ) : null}
+
+                          {todayLog.checkOutPhotoUrl || todayLog.checkOutLocation ? (
+                            <div className="flex items-start gap-2">
+                              {todayLog.checkOutPhotoUrl && (
+                                <img 
+                                  src={todayLog.checkOutPhotoUrl} 
+                                  title="Check-out Photo"
+                                  onClick={(e) => { e.stopPropagation(); setViewingPhotoUrl(todayLog.checkOutPhotoUrl!); }}
+                                  className="w-8 h-8 object-cover rounded border border-slate-200 cursor-pointer hover:ring-2 hover:ring-rose-400 transition-all shrink-0 mt-0.5"
+                                />
+                              )}
+                              {todayLog.checkOutLocation && (
+                                <div className="text-[10px] text-slate-600 font-medium leading-tight flex items-start gap-1">
+                                  <span className="text-rose-400 shrink-0 mt-0.5">📍</span>
+                                  <span className={todayLog.checkOutLocation.toLowerCase().includes('camp') ? 'text-indigo-600 font-bold' : ''}>
+                                    {todayLog.checkOutLocation}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+
+                          {!todayLog.checkInLocation && !todayLog.checkOutLocation && !todayLog.photoUrl && <span className="text-slate-300">-</span>}
                         </div>
                       );
                     })()}

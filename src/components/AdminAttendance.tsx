@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, UserCheck, AlertCircle, ArrowLeft, Users, Check, Moon, HelpCircle } from 'lucide-react';
+import { Calendar, UserCheck, AlertCircle, ArrowLeft, Users, Check, Moon, HelpCircle, MapPin } from 'lucide-react';
 import { Language, Employee, AttendanceStatus } from '../types';
 import { translations } from '../translations';
 
@@ -266,16 +266,65 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
             </p>
 
             {(() => {
-              const rec = employees.find(e => e.id === editTarget.empId)?.attendanceRecords.find(r => r.date === editTarget.date);
-              if (rec?.photoUrl) {
-                return (
-                  <div className="mb-4">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2 text-center">Check-In Photo Proof</p>
-                    <img src={rec.photoUrl} alt="Check In Proof" className="w-full max-h-48 object-cover rounded-2xl bg-black shadow-sm" />
+              const emp = employees.find(e => e.id === editTarget.empId);
+              const log = emp?.checkInLogs.find(l => l.date === editTarget.date);
+              
+              if (!log && !emp?.attendanceRecords.find(r => r.date === editTarget.date)?.photoUrl) return null;
+              
+              const isMedicalCamp = log?.checkInLocation?.toLowerCase().includes('camp') || log?.checkInLocation?.toLowerCase().includes('health');
+
+              return (
+                <div className="mb-4">
+                  <div className={`grid ${log?.photoUrl && log?.checkOutPhotoUrl ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
+                    
+                    {/* PUNCH IN COLUMN */}
+                    {log?.photoUrl && (
+                      <div className="bg-slate-50 p-2 rounded-xl flex flex-col items-center border border-slate-100">
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-2 text-center flex items-center justify-center gap-1">
+                          <MapPin className="w-3 h-3 text-teal-500" /> Punch-In
+                        </p>
+                        
+                        <img src={log.photoUrl} alt="Punch-In Proof" className="w-full aspect-square object-cover rounded-xl bg-black shadow-sm mb-2" />
+                        
+                        {log.checkInTime && <p className="text-[10px] text-slate-800 font-black font-mono text-center">{log.checkInTime}</p>}
+                        
+                        {log.checkInLocation && (
+                          <p className={`text-[9px] font-bold text-center mt-1 leading-tight ${isMedicalCamp ? 'text-indigo-600' : 'text-slate-500'}`}>
+                            {log.checkInLocation}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* PUNCH OUT COLUMN */}
+                    {log?.checkOutPhotoUrl && (
+                      <div className="bg-slate-50 p-2 rounded-xl flex flex-col items-center border border-slate-100">
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-2 text-center flex items-center justify-center gap-1">
+                          <MapPin className="w-3 h-3 text-rose-400" /> Punch-Out
+                        </p>
+                        
+                        <img src={log.checkOutPhotoUrl} alt="Punch-Out Proof" className="w-full aspect-square object-cover rounded-xl bg-black shadow-sm mb-2" />
+                        
+                        {log.checkOutTime && <p className="text-[10px] text-slate-800 font-black font-mono text-center">{log.checkOutTime}</p>}
+                        
+                        {log.checkOutLocation && (
+                          <p className={`text-[9px] font-bold text-center mt-1 leading-tight ${log.checkOutLocation?.toLowerCase().includes('camp') ? 'text-indigo-600' : 'text-slate-500'}`}>
+                            {log.checkOutLocation}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Fallback for old AttendanceRecord photoUrl */}
+                    {!log?.photoUrl && emp?.attendanceRecords.find(r => r.date === editTarget.date)?.photoUrl && (
+                      <div className="bg-slate-50 p-2 rounded-xl flex flex-col items-center border border-slate-100">
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 text-center">Photo Proof</p>
+                        <img src={emp.attendanceRecords.find(r => r.date === editTarget.date)?.photoUrl} alt="Proof" className="w-full max-h-48 object-cover rounded-xl bg-black shadow-sm" />
+                      </div>
+                    )}
                   </div>
-                );
-              }
-              return null;
+                </div>
+              );
             })()}
             
             <div className="grid grid-cols-2 gap-3 mb-6">

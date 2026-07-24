@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Sparkles, ArrowRight, Home, Calendar, Moon, Landmark, Receipt, Camera, X } from 'lucide-react';
+import { Sparkles, ArrowRight, Home, Calendar, Moon, Landmark, Receipt, Camera, X, MapPin } from 'lucide-react';
 import { Language, CheckInLog, AttendanceRecord, LeaveBalance, Payslip } from '../types';
 import { translations } from '../translations';
 
@@ -11,7 +11,7 @@ interface DashboardSnapshotProps {
   leaveBalance: LeaveBalance;
   payslips: Payslip[];
   setActiveTab: (tab: string) => void;
-  onToggleCheckIn: (photoData?: string) => void;
+  onToggleCheckIn: (photoData?: string, punchType?: import('../types').PunchType) => Promise<{success: boolean, geoError?: any, error?: string} | void>;
 }
 
 export default function DashboardSnapshot({
@@ -31,6 +31,9 @@ export default function DashboardSnapshot({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [geoError, setGeoError] = useState<any>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [punchType, setPunchType] = useState<import('../types').PunchType>('in_office');
 
   const startCamera = async () => {
     try {
@@ -52,7 +55,7 @@ export default function DashboardSnapshot({
       console.error("Camera access denied or unavailable", err);
       alert(language === 'te' ? "కెమెరా అందుబాటులో లేదు. ఫోటో లేకుండా హాజరు నమోదు చేయబడుతుంది." : "Camera unavailable. Checking in without photo.");
       setIsCameraOpen(false);
-      onToggleCheckIn(); // Fallback check-in
+      onToggleCheckIn(undefined, punchType); // Fallback check-in
     }
   };
 
@@ -64,30 +67,46 @@ export default function DashboardSnapshot({
     setIsCameraOpen(false);
   };
 
-  const handleCaptureAndCheckIn = () => {
+  const handleCaptureAndCheckIn = async () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      // Calculate downscaled dimensions (max 480px width)
+      const MAX_WIDTH = 480;
+      let width = video.videoWidth;
+      let height = video.videoHeight;
+      
+      if (width > MAX_WIDTH) {
+        height = Math.floor(height * (MAX_WIDTH / width));
+        width = MAX_WIDTH;
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        ctx.drawImage(video, 0, 0, width, height);
+        // Use lower quality JPEG to shrink size massively
+        const photoData = canvas.toDataURL('image/jpeg', 0.6);
         stopCamera();
-        onToggleCheckIn(photoData);
+        
+        setIsProcessing(true);
+        const result = await onToggleCheckIn(photoData, punchType);
+        setIsProcessing(false);
+        
+        if (result && !result.success) {
+          if (result.geoError) {
+            setGeoError(result.geoError);
+          } else if (result.error) {
+            alert(result.error);
+          }
+        }
       }
     }
   };
 
   const handleMainButtonClick = () => {
-    if (isCheckedIn) {
-      // Check out doesn't need photo
-      onToggleCheckIn();
-    } else {
-      // Check in needs photo
-      startCamera();
-    }
+    startCamera();
   };
 
   // Find today's date YYYY-MM-DD
@@ -208,11 +227,17 @@ export default function DashboardSnapshot({
             }`}
           >
             <span className="font-black uppercase tracking-tighter text-sm">
-              {hasCheckedOutToday ? "Completed" : isCheckedIn ? "Check Out" : "Check In"}
+              {hasCheckedOutToday ? "Completed" : isCheckedIn ? "Punch Out" : "Punch In"}
             </span>
             <span className="text-[10px] opacity-80 mt-1">
               {hasCheckedOutToday ? "పూర్తయింది" : isCheckedIn ? "వెళ్ళిపోండి" : "లోపలికి రండి"}
             </span>
+            {isProcessing && (
+              <span className="absolute -top-2 -right-2 flex h-6 w-6">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-6 w-6 bg-teal-500"></span>
+              </span>
+            )}
           </button>
         </div>
 
@@ -336,7 +361,8 @@ export default function DashboardSnapshot({
             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
                 <Camera className="w-5 h-5 text-teal-600" />
-                {language === 'te' ? "ఫోటో తీయండి" : "Photo Check-In"}
+                {language === 'te' ? "ఫోటో తీయండి" : "Photo Punch-In"}
+
               </h3>
               <button onClick={stopCamera} className="p-1 hover:bg-slate-200 rounded-full transition-colors">
                 <X className="w-5 h-5 text-slate-500" />
@@ -356,6 +382,34 @@ export default function DashboardSnapshot({
             </div>
 
             <div className="p-6 flex flex-col items-center">
+              <div className="w-full mb-6">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  {t.selectPunchType || "Punch Category"}
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setPunchType('in_office')}
+                    className={`py-3 px-2 rounded-xl text-xs font-bold border-2 transition-all ${
+                      punchType === 'in_office' 
+                        ? 'border-teal-500 bg-teal-50 text-teal-700' 
+                        : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'
+                    }`}
+                  >
+                    {t.punchTypeInOffice || "In Office"}
+                  </button>
+                  <button
+                    onClick={() => setPunchType('out_of_office')}
+                    className={`py-3 px-2 rounded-xl text-xs font-bold border-2 transition-all ${
+                      punchType === 'out_of_office' 
+                        ? 'border-teal-500 bg-teal-50 text-teal-700' 
+                        : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'
+                    }`}
+                  >
+                    {t.punchTypeOutOfOffice || "Medical Camp"}
+                  </button>
+                </div>
+              </div>
+
               <p className="text-xs text-slate-500 mb-4 text-center">
                 {language === 'te' ? "హాజరు నమోదు చేయడానికి దయచేసి మీ ఫోటో తీయండి." : "Please capture your photo to record attendance."}
               </p>
@@ -364,13 +418,39 @@ export default function DashboardSnapshot({
                 className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-teal-500/25 transition-all flex items-center gap-2 w-full justify-center active:scale-95"
               >
                 <Camera className="w-5 h-5" />
-                {language === 'te' ? "ఫోటో తీసి చెక్-ఇన్ చేయండి" : "Capture & Check In"}
+                {language === 'te' ? "ఫోటో తీసి పంచ్ ఇన్ చేయండి" : "Capture & Punch In"}
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Geo-fence Error Modal */}
+      {geoError && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fadeIn">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-4">
+            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+              <MapPin className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">Outside Allowed Area</h3>
+              <p className="text-sm text-slate-500">
+                {geoError.nearestOfficeName === "No configured locations"
+                  ? "Punch-in failed because no Office Locations have been configured in the system yet. Please configure an Office Location first."
+
+                  : `You are currently ${geoError.distance} meters away from ${geoError.nearestOfficeName}. You must be within the allowed radius to punch in.`
+                }
+              </p>
+            </div>
+            <button
+              onClick={() => setGeoError(null)}
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition-colors uppercase tracking-wider text-xs"
+            >
+              Okay
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
