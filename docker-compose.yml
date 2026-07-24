@@ -19,7 +19,7 @@ services:
     build:
       context: ./server
     ports:
-      - "3001:3001"
+      - "9640:9640"
     restart: always
     environment:
       - NODE_ENV=production

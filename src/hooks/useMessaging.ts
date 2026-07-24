@@ -39,8 +39,8 @@ export function useMessaging(channelId: string | null, userId: string | null) {
   useEffect(() => {
     // Note: In production, this should point to your deployed backend URL.
     // When using Docker compose with Nginx, it might be the same origin.
-    // For local dev, Vite runs on 3000, Backend on 3001.
-    const backendUrl = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:3001';
+    // For local dev, Vite runs on 9620, Backend on 9640.
+    const backendUrl = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:9640';
     
     const newSocket = io(backendUrl, {
       transports: ['websocket', 'polling']
