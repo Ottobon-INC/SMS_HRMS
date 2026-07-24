@@ -25,14 +25,12 @@ RUN npm run build
 # Production serving stage
 FROM nginx:alpine
 
-# Copy custom Nginx configuration for Single Page Applications
-COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy the built assets from the build stage to Nginx
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Expose port 80
-EXPOSE 80
+# Expose port 9620
+EXPOSE 9620
 
 # Start Nginx
 CMD ["nginx", "-g", "daemon off;"]

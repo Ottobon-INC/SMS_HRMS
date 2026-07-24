@@ -10,7 +10,7 @@ services:
         - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
         - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
     ports:
-      - "80:80"
+      - "9620:9620"
     restart: always
     environment:
       - NODE_ENV=production
