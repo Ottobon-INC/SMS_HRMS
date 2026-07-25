@@ -39,6 +39,7 @@ export interface CheckInLog {
   checkOutLatLng?: string;
   checkOutPhotoUrl?: string; // check-out photo
   punchType?: PunchType; // 'in_office' | 'out_of_office'
+  punchNote?: string;
 }
 
 
@@ -49,6 +50,7 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   note?: string;
   photoUrl?: string;
+  punchNote?: string;
 }
 
 export type LeaveType = 'sick' | 'casual' | 'maternity' | 'paternity' | 'monthly';

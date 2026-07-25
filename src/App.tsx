@@ -24,24 +24,27 @@ import { useAttendance } from './hooks/useAttendance';
 import { usePayroll } from './hooks/usePayroll';
 import { useAdvances } from './hooks/useAdvances';
 
-import DashboardSnapshot from './components/DashboardSnapshot';
-import CheckInModule from './components/CheckInModule';
-import AttendanceModule from './components/AttendanceModule';
-import LeaveModule from './components/LeaveModule';
-import PayrollModule from './components/PayrollModule';
 import LoginScreen from './components/LoginScreen';
-import AdminDashboard from './components/AdminDashboard';
-import EmployeeDirectory from './components/EmployeeDirectory';
-import AdminAttendance from './components/AdminAttendance';
-import AdminLeaveApprovals from './components/AdminLeaveApprovals';
-import AdminPayroll from './components/AdminPayroll';
-import AdvanceRequestModule from './components/AdvanceRequestModule';
-import AdminAdvanceApprovals from './components/AdminAdvanceApprovals';
-import AdminOfficeLocations from './components/AdminOfficeLocations';
-import AdminSpecialEvents from './components/AdminSpecialEvents';
 import SmsLogo from './components/SmsLogo';
 import UserProfileModal from './components/UserProfileModal';
-import { MessagingModule } from './components/MessagingModule';
+
+// --- LAZY LOADED MODULES ---
+const DashboardSnapshot = React.lazy(() => import('./components/DashboardSnapshot'));
+const CheckInModule = React.lazy(() => import('./components/CheckInModule'));
+const AttendanceModule = React.lazy(() => import('./components/AttendanceModule'));
+const LeaveModule = React.lazy(() => import('./components/LeaveModule'));
+const PayrollModule = React.lazy(() => import('./components/PayrollModule'));
+const AdminDashboard = React.lazy(() => import('./components/AdminDashboard'));
+const EmployeeDirectory = React.lazy(() => import('./components/EmployeeDirectory'));
+const AdminAttendance = React.lazy(() => import('./components/AdminAttendance'));
+const AdminLeaveApprovals = React.lazy(() => import('./components/AdminLeaveApprovals'));
+const AdminPayroll = React.lazy(() => import('./components/AdminPayroll'));
+const AdvanceRequestModule = React.lazy(() => import('./components/AdvanceRequestModule'));
+const AdminAdvanceApprovals = React.lazy(() => import('./components/AdminAdvanceApprovals'));
+const AdminOfficeLocations = React.lazy(() => import('./components/AdminOfficeLocations'));
+const AdminSpecialEvents = React.lazy(() => import('./components/AdminSpecialEvents'));
+const EmployeeSpecialEvents = React.lazy(() => import('./components/EmployeeSpecialEvents'));
+const MessagingModule = React.lazy(() => import('./components/MessagingModule').then(m => ({ default: m.MessagingModule })));
 
 export default function App() {
   // --- Persistent Bilingual State ---
@@ -155,7 +158,7 @@ export default function App() {
     if (!currentUser) return;
     
     const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'advanceApprovals', 'adminPayroll', 'officeLocations', 'specialEvents', 'messages'];
-    const employeeTabs = ['dashboard', 'attendance', 'leave', 'advance', 'payroll', 'messages'];
+    const employeeTabs = ['dashboard', 'attendance', 'leave', 'advance', 'payroll', 'events', 'messages'];
 
     if (currentUser.role === 'admin' && !adminTabs.includes(activeTab)) {
       setActiveTab('adminDashboard');
@@ -250,7 +253,7 @@ export default function App() {
             leaveBalance={currentUser.leaveBalance}
             payslips={currentUser.payslips}
             setActiveTab={setActiveTab}
-          onToggleCheckIn={(photoData?: string, punchType?: import('./types').PunchType) => toggleCheckIn(currentUser.id, currentUser.isCheckedIn, photoData, punchType)}
+          onToggleCheckIn={(photoData?: string, punchType?: import('./types').PunchType, punchNote?: string) => toggleCheckIn(currentUser.id, currentUser.isCheckedIn, photoData, punchType, punchNote)}
 
           />
         );
@@ -259,6 +262,13 @@ export default function App() {
           <AttendanceModule
             language={language}
             attendanceRecords={currentUser.attendanceRecords}
+          />
+        );
+      case 'events':
+        return (
+          <EmployeeSpecialEvents
+            language={language}
+            employeeId={currentUser.id}
           />
         );
       case 'leave':
@@ -741,6 +751,24 @@ export default function App() {
                   </button>
 
                   <button
+                    id="nav-tab-events"
+                    onClick={() => setActiveTab('events')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'events'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'events' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <Calendar className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'ప్రత్యేక ఈవెంట్‌లు' : 'Special Events'}</span>
+                  </button>
+
+
+                  <button
                     id="nav-tab-messages"
                     onClick={() => setActiveTab('messages')}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
@@ -772,20 +800,27 @@ export default function App() {
 
         {/* MAIN PANEL CONTENT WINDOW */}
         <main id="portal-primary-content" className="lg:col-span-9 print:col-span-12">
-          {renderActiveModule()}
+          <React.Suspense fallback={
+            <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-4">
+              <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Loading Module...</p>
+            </div>
+          }>
+            {renderActiveModule()}
+          </React.Suspense>
         </main>
 
       </div>
 
       {/* 3. MOBILE BOTTOM NAVIGATION PANEL (Visible only on Mobile - Hidden during Print mode) */}
-      <nav id="mobile-navigation" className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-xl flex items-center justify-around h-16 px-2 py-1 z-40 no-print">
+      <nav id="mobile-navigation" className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] flex items-center overflow-x-auto px-4 py-1 gap-2 z-40 no-print hide-scrollbar">
         
         {currentUser.role === 'admin' ? (
           /* --- ADMIN MOBILE BUTTONS --- */
           <>
             <button
               onClick={() => setActiveTab('adminDashboard')}
-              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all cursor-pointer ${
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'adminDashboard' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -795,7 +830,7 @@ export default function App() {
 
             <button
               onClick={() => setActiveTab('directory')}
-              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all cursor-pointer ${
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'directory' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -805,7 +840,7 @@ export default function App() {
 
             <button
               onClick={() => setActiveTab('attendanceOverview')}
-              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all cursor-pointer ${
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'attendanceOverview' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -815,7 +850,7 @@ export default function App() {
 
             <button
               onClick={() => setActiveTab('leaveApprovals')}
-              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all cursor-pointer ${
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'leaveApprovals' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -824,13 +859,53 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab('advanceApprovals')}
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'advanceApprovals' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <IndianRupee className="w-5 h-5" />
+              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Advance</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('adminPayroll')}
-              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all cursor-pointer ${
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'adminPayroll' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <Landmark className="w-5 h-5" />
               <span className="text-[8px] font-bold uppercase mt-1 leading-none">Payroll</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('officeLocations')}
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'officeLocations' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <MapPin className="w-5 h-5" />
+              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Offices</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('specialEvents')}
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'specialEvents' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Events</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('messages')}
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'messages' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <MessageSquare className="w-5 h-5" />
+              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Chat</span>
             </button>
           </>
         ) : (
@@ -838,7 +913,7 @@ export default function App() {
           <>
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all cursor-pointer ${
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'dashboard' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -846,11 +921,9 @@ export default function App() {
               <span className="text-[8px] font-bold uppercase mt-1 leading-none">{t.dashboard.slice(0, 5)}</span>
             </button>
 
-
-
             <button
               onClick={() => setActiveTab('attendance')}
-              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all cursor-pointer ${
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'attendance' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -860,7 +933,7 @@ export default function App() {
 
             <button
               onClick={() => setActiveTab('leave')}
-              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all cursor-pointer ${
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'leave' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -869,13 +942,43 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab('advance')}
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'advance' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <IndianRupee className="w-5 h-5" />
+              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Advance</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('payroll')}
-              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all cursor-pointer ${
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'payroll' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <Landmark className="w-5 h-5" />
               <span className="text-[8px] font-bold uppercase mt-1 leading-none">Salary</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('events')}
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'events' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Events</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('messages')}
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'messages' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <MessageSquare className="w-5 h-5" />
+              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Chat</span>
             </button>
           </>
         )}

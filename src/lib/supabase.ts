@@ -69,7 +69,8 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
     const attendanceRecords: AttendanceRecord[] = empAtt.map(a => ({
       date: a.date,
       status: (a.status || 'present').toLowerCase() as AttendanceStatus,
-      note: a.check_in_time ? `Checked In: ${a.check_in_time}` : undefined
+      note: a.check_in_time ? `Checked In: ${a.check_in_time}` : undefined,
+      punchNote: a.punch_note
     }));
 
     const checkInLogs: CheckInLog[] = empAtt
@@ -91,7 +92,9 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
           date: a.date,
           checkInTime: a.check_in_time,
           checkOutTime: a.check_out_time,
-          totalHours
+          totalHours,
+          punchType: a.punch_type,
+          punchNote: a.punch_note
         };
       });
 

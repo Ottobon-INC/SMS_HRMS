@@ -18,9 +18,6 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [eventType, setEventType] = useState('medical_camp');
-  const [latitude, setLatitude] = useState('');
-  const [longitude, setLongitude] = useState('');
-  const [radius, setRadius] = useState('50');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
@@ -66,21 +63,7 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
     setIsLoading(false);
   };
 
-  const handleGetCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLatitude(position.coords.latitude.toFixed(6));
-          setLongitude(position.coords.longitude.toFixed(6));
-        },
-        (error) => {
-          alert('Error getting location: ' + error.message);
-        }
-      );
-    } else {
-      alert('Geolocation is not supported by this browser.');
-    }
-  };
+
 
   const toggleEmployeeSelection = (empId: string) => {
     if (selectedEmployees.includes(empId)) {
@@ -92,7 +75,7 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !latitude || !longitude || !radius || !fromDate || !toDate) return;
+    if (!name || !fromDate || !toDate) return;
     
     setIsSubmitting(true);
     
@@ -101,9 +84,9 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
       {
         name,
         event_type: eventType,
-        latitude: parseFloat(latitude),
-        longitude: parseFloat(longitude),
-        radius_meters: parseInt(radius),
+        latitude: 0,
+        longitude: 0,
+        radius_meters: 0,
         from_date: fromDate,
         to_date: toDate
       }
@@ -133,9 +116,6 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
     
     // Reset form
     setName('');
-    setLatitude('');
-    setLongitude('');
-    setRadius('50');
     setFromDate('');
     setToDate('');
     setSelectedEmployees([]);
@@ -201,60 +181,7 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex justify-between">
-                    <span>Latitude</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    required
-                    value={latitude}
-                    onChange={e => setLatitude(e.target.value)}
-                    className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600/20 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Longitude
-                  </label>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    required
-                    value={longitude}
-                    onChange={e => setLongitude(e.target.value)}
-                    className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600/20 font-mono"
-                  />
-                </div>
-              </div>
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleGetCurrentLocation}
-                  className="px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
-                >
-                  <Navigation className="w-3.5 h-3.5" />
-                  Use My Current GPS Location
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Allowed Radius (meters)
-                </label>
-                <input
-                  type="number"
-                  required
-                  value={radius}
-                  onChange={e => setRadius(e.target.value)}
-                  min="10"
-                  max="5000"
-                  className="w-1/2 border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
-                />
-              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -362,15 +289,10 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
                     </button>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div className="bg-white p-3 rounded-xl border border-slate-100 text-xs text-slate-500 font-mono">
-                      <div className="flex justify-between"><span className="text-slate-400">Lat:</span><span className="font-semibold text-slate-700">{evt.latitude}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-400">Lng:</span><span className="font-semibold text-slate-700">{evt.longitude}</span></div>
-                      <div className="flex justify-between pt-1 mt-1 border-t border-slate-50"><span className="text-slate-400 font-sans uppercase text-[9px] font-bold">Radius:</span><span className="font-semibold text-slate-700">{evt.radius_meters}m</span></div>
-                    </div>
-                    <div className="bg-white p-3 rounded-xl border border-slate-100 text-xs text-slate-500 font-mono">
-                      <div className="flex justify-between"><span className="text-slate-400">From:</span><span className="font-semibold text-slate-700">{evt.from_date}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-400">To:</span><span className="font-semibold text-slate-700">{evt.to_date}</span></div>
+                  <div className="mb-3">
+                    <div className="bg-white p-3 rounded-xl border border-slate-100 text-xs text-slate-500 font-mono flex gap-8">
+                      <div className="flex gap-2"><span className="text-slate-400">From:</span><span className="font-semibold text-slate-700">{evt.from_date}</span></div>
+                      <div className="flex gap-2"><span className="text-slate-400">To:</span><span className="font-semibold text-slate-700">{evt.to_date}</span></div>
                     </div>
                   </div>
                   

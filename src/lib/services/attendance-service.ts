@@ -6,7 +6,8 @@ export async function clockInEmployee(
   location?: string, 
   latLng?: string,
   photoUrl?: string,
-  punchType: PunchType = 'in_office'
+  punchType: PunchType = 'in_office',
+  punchNote?: string
 ): Promise<void> {
   const todayStr = new Date().toISOString().split('T')[0];
   const timeStr = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
@@ -24,7 +25,8 @@ export async function clockInEmployee(
       status: 'Present',
       check_in_location: location || null,
       check_in_lat_lng: latLng || null,
-      punch_type: punchType
+      punch_type: punchType,
+      punch_note: punchNote || null
     };
     if (photoUrl) payload.check_in_photo_url = photoUrl;
 
@@ -50,7 +52,8 @@ export async function clockInEmployee(
       check_in_time: timeStr,
       check_in_location: location || null,
       check_in_lat_lng: latLng || null,
-      punch_type: punchType
+      punch_type: punchType,
+      punch_note: punchNote || null
     };
     if (photoUrl) payload.check_in_photo_url = photoUrl;
 

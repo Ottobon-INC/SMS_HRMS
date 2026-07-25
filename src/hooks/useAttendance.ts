@@ -4,7 +4,7 @@ import * as leaveService from '../lib/services/leave-service';
 import { checkGeofence, resolveAllowedLocations } from '../lib/geofence';
 
 export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void>) {
-  const toggleCheckIn = async (empId: string, isCurrentlyCheckedIn: boolean, photoData?: string, punchType: PunchType = 'in_office') => {
+  const toggleCheckIn = async (empId: string, isCurrentlyCheckedIn: boolean, photoData?: string, punchType: PunchType = 'in_office', punchNote?: string) => {
 
     if (isLocalMode) {
       alert("Attendance can only be recorded in online mode.");
@@ -50,7 +50,7 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
           
           let geoCheck: any;
           if (punchType === 'out_of_office') {
-            geoCheck = { allowed: true, matchedLocation: `Medical Camp - ${locationStr || 'Location Unknown'}`, distance: 0 };
+            geoCheck = { allowed: true, matchedLocation: `Out of Office - ${locationStr || 'Location Unknown'}`, distance: 0 };
           } else {
             const today = new Date().toISOString().split('T')[0];
             const allowedLocations = await resolveAllowedLocations(empId, today);
@@ -72,7 +72,7 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
         await loadData();
         return { success: true };
       } else {
-        await attendanceService.clockInEmployee(empId, locationStr, latLngStr, photoData, punchType);
+        await attendanceService.clockInEmployee(empId, locationStr, latLngStr, photoData, punchType, punchNote);
       }
       
       await loadData();

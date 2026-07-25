@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, User, Circle, Paperclip, FileText, Image as ImageIcon, X, Loader2 } from 'lucide-react';
+import { Send, User, Circle, Paperclip, FileText, Image as ImageIcon, X, Loader2, ArrowLeft } from 'lucide-react';
 import { useMessaging } from '../hooks/useMessaging';
 import { Employee } from '../types';
 import { supabase } from '../lib/supabase-client';
@@ -10,7 +10,7 @@ interface MessagingModuleProps {
 }
 
 export function MessagingModule({ currentUser, employees }: MessagingModuleProps) {
-  const [selectedUser, setSelectedUser] = useState<Employee | null>(null);
+  const [selectedUser, setSelectedUser] = useState<Employee | 'group' | null>(null);
   const [channelId, setChannelId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -27,33 +27,51 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Handle selecting a user to chat with
+  // Handle selecting a user or group to chat with
   useEffect(() => {
     async function setupChannel() {
       if (!selectedUser) return;
       
-      // We need a deterministic channel name for 1-on-1 chats based on the two user IDs
-      const participants = [currentUser.id, selectedUser.id].sort();
-      const channelName = `direct_${participants[0]}_${participants[1]}`;
-
-      // Find or create channel
-      const { data: existingChannels, error } = await supabase
-        .from('HRMS_chat_channels')
-        .select('*')
-        .eq('name', channelName);
-
-      if (existingChannels && existingChannels.length > 0) {
-        setChannelId(existingChannels[0].id);
-      } else {
-        // Create new channel
-        const { data: newChannel } = await supabase
+      if (selectedUser === 'group') {
+        const { data: existingChannels } = await supabase
           .from('HRMS_chat_channels')
-          .insert([{ name: channelName, type: 'direct' }])
-          .select()
-          .single();
+          .select('*')
+          .eq('name', 'group_all');
           
-        if (newChannel) {
-          setChannelId(newChannel.id);
+        if (existingChannels && existingChannels.length > 0) {
+          setChannelId(existingChannels[0].id);
+        } else {
+          const { data: newChannel } = await supabase
+            .from('HRMS_chat_channels')
+            .insert([{ name: 'group_all', type: 'group' }])
+            .select()
+            .single();
+          if (newChannel) setChannelId(newChannel.id);
+        }
+      } else {
+        // We need a deterministic channel name for 1-on-1 chats based on the two user IDs
+        const participants = [currentUser.id, selectedUser.id].sort();
+        const channelName = `direct_${participants[0]}_${participants[1]}`;
+
+        // Find or create channel
+        const { data: existingChannels } = await supabase
+          .from('HRMS_chat_channels')
+          .select('*')
+          .eq('name', channelName);
+
+        if (existingChannels && existingChannels.length > 0) {
+          setChannelId(existingChannels[0].id);
+        } else {
+          // Create new channel
+          const { data: newChannel } = await supabase
+            .from('HRMS_chat_channels')
+            .insert([{ name: channelName, type: 'direct' }])
+            .select()
+            .single();
+            
+          if (newChannel) {
+            setChannelId(newChannel.id);
+          }
         }
       }
     }
@@ -115,7 +133,7 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
     <div className="flex h-[calc(100vh-8rem)] bg-white/80 backdrop-blur-xl rounded-2xl border border-white/50 shadow-xl overflow-hidden mt-6">
       
       {/* Left Sidebar - Contact List */}
-      <div className="w-1/3 border-r border-slate-200/60 bg-slate-50/50 flex flex-col">
+      <div className={`border-r border-slate-200/60 bg-slate-50/50 flex-col ${selectedUser ? 'hidden md:flex md:w-1/3' : 'flex w-full md:w-1/3'}`}>
         <div className="p-4 border-b border-slate-200/60 flex items-center justify-between bg-white/50 backdrop-blur-md">
           <h2 className="text-lg font-semibold text-slate-800">Messages</h2>
           <div className="flex items-center space-x-2">
@@ -125,6 +143,35 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
         </div>
         
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {/* Company Groups Section */}
+          <div className="px-2 pt-2 pb-1">
+             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Company Groups</h3>
+          </div>
+
+          {/* Group Chat Button */}
+          <button
+            onClick={() => setSelectedUser('group')}
+            className={`w-full flex items-center space-x-4 p-3 rounded-xl transition-all duration-200 mb-2 ${
+              selectedUser === 'group' 
+                ? 'bg-blue-50 border border-blue-200/60 shadow-sm' 
+                : 'hover:bg-slate-100 border border-transparent'
+            }`}
+          >
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-100 to-purple-50 border border-purple-200 flex items-center justify-center flex-shrink-0">
+              <User className="w-5 h-5 text-purple-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <h3 className="text-sm font-semibold text-slate-800">Company Group</h3>
+              <p className="text-xs text-slate-500 capitalize">All Staff</p>
+            </div>
+          </button>
+
+          {/* Direct Messages Section */}
+          <div className="px-2 pt-4 pb-1 mt-4 border-t border-slate-100/60">
+             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Direct Messages</h3>
+          </div>
+
+          {/* Individual Contacts */}
           {contacts.map((contact) => (
             <button
               key={contact.id}
@@ -151,17 +198,23 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
       </div>
 
       {/* Right Content - Chat Area */}
-      <div className="flex-1 flex flex-col bg-white/40">
+      <div className={`flex-1 flex-col bg-white/40 ${selectedUser ? 'flex' : 'hidden md:flex'}`}>
         {selectedUser ? (
           <>
             {/* Chat Header */}
             <div className="p-4 border-b border-slate-200/60 bg-white/60 backdrop-blur-md flex items-center space-x-4">
-               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-100 to-blue-50 border border-blue-200 flex items-center justify-center">
-                <User className="w-5 h-5 text-blue-600" />
+              <button 
+                onClick={() => setSelectedUser(null)}
+                className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+               <div className={`w-10 h-10 rounded-full bg-gradient-to-tr ${selectedUser === 'group' ? 'from-purple-100 to-purple-50 border-purple-200' : 'from-blue-100 to-blue-50 border-blue-200'} border flex items-center justify-center`}>
+                <User className={`w-5 h-5 ${selectedUser === 'group' ? 'text-purple-600' : 'text-blue-600'}`} />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">{selectedUser.name}</h2>
-                <p className="text-xs text-slate-500 capitalize">{selectedUser.designation}</p>
+                <h2 className="text-lg font-semibold text-slate-800">{selectedUser === 'group' ? 'Company Group' : selectedUser.name}</h2>
+                <p className="text-xs text-slate-500 capitalize">{selectedUser === 'group' ? 'All Staff' : selectedUser.designation}</p>
               </div>
             </div>
 
@@ -186,6 +239,11 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
                             : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
                         }`}
                       >
+                        {!isMe && selectedUser === 'group' && (
+                          <div className="text-[10px] font-bold text-slate-500 mb-1">
+                            {employees.find(e => e.id === msg.sender_id)?.name || 'Unknown'}
+                          </div>
+                        )}
                         {msg.attachment_url && msg.attachment_type === 'image' && (
                           <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="block mb-2">
                             <img src={msg.attachment_url} alt={msg.attachment_name || 'attachment'} className="max-w-full rounded-lg object-contain max-h-64" />
@@ -248,7 +306,7 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="hidden p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shrink-0"
+                    className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shrink-0"
                     title="Attach file"
                   >
                     <Paperclip className="w-5 h-5" />

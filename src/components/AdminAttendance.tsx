@@ -293,6 +293,14 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
                             {log.checkInLocation}
                           </p>
                         )}
+
+                        {log.punchNote && (
+                          <div className="mt-2 w-full p-1.5 bg-amber-50 rounded border border-amber-100">
+                            <p className="text-[9px] text-amber-800 text-center font-medium italic">
+                              <span className="font-bold">Note:</span> {log.punchNote}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
 

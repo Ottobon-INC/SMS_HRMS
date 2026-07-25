@@ -6,7 +6,7 @@ import { translations } from '../translations';
 interface CheckInModuleProps {
   language: Language;
   isCheckedIn: boolean;
-  onToggleCheckIn: (photoData?: string, punchType?: PunchType) => Promise<{success: boolean, geoError?: any, error?: string} | void>;
+  onToggleCheckIn: (photoData?: string, punchType?: PunchType, punchNote?: string) => Promise<{success: boolean, geoError?: any, error?: string} | void>;
   logs: CheckInLog[];
   todayWorkedSeconds: number;
 }
@@ -23,6 +23,8 @@ export default function CheckInModule({
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [selectedPunchType, setSelectedPunchType] = useState<PunchType>('in_office');
+  const [punchNote, setPunchNote] = useState('');
+  const [showNoteInput, setShowNoteInput] = useState(false);
   const [geoError, setGeoError] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -46,7 +48,7 @@ export default function CheckInModule({
       console.error("Camera access denied or unavailable", err);
       alert(language === 'te' ? "కెమెరా అందుబాటులో లేదు. ఫోటో లేకుండా హాజరు నమోదు చేయబడుతుంది." : "Camera unavailable. Punching in without photo.");
       setIsCameraOpen(false);
-      onToggleCheckIn(undefined, selectedPunchType);
+      onToggleCheckIn(undefined, selectedPunchType, punchNote);
     }
   };
 
@@ -71,7 +73,7 @@ export default function CheckInModule({
         stopCamera();
 
         setIsProcessing(true);
-        const result = await onToggleCheckIn(photoData, selectedPunchType);
+        const result = await onToggleCheckIn(photoData, selectedPunchType, punchNote);
         setIsProcessing(false);
 
         if (result && !result.success) {
@@ -98,6 +100,21 @@ export default function CheckInModule({
 
   const handleCategorySelect = (type: PunchType) => {
     setSelectedPunchType(type);
+    if (type === 'out_of_office') {
+      setShowNoteInput(true);
+    } else {
+      setPunchNote('');
+      setIsCategoryOpen(false);
+      startCamera();
+    }
+  };
+
+  const handleNoteSubmit = () => {
+    if (!punchNote.trim()) {
+      alert(language === 'te' ? 'దయచేసి ఒక నోట్ రాయండి.' : 'Please enter a note.');
+      return;
+    }
+    setShowNoteInput(false);
     setIsCategoryOpen(false);
     startCamera();
   };
@@ -408,6 +425,42 @@ export default function CheckInModule({
                     {language === 'te' ? 'మెడికల్ క్యాంప్ లేదా ఇతర బాహ్య స్థలం నుండి' : 'At a medical camp or external field location'}
                   </p>
                 </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Note Input Modal for Out of Office */}
+      {showNoteInput && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl p-6">
+            <h3 className="font-bold text-slate-800 text-sm mb-4">
+              {language === 'te' ? 'లొకేషన్ నోట్ (తప్పనిసరి)' : 'Location Note (Required)'}
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              {language === 'te' ? 'మీరు ఎక్కడ ఉన్నారో రాయండి (ఉదా: మెడికల్ క్యాంప్, ఫీల్డ్ విజిట్).' : 'Please enter where you are punching in from.'}
+            </p>
+            <input
+              type="text"
+              value={punchNote}
+              onChange={(e) => setPunchNote(e.target.value)}
+              placeholder={language === 'te' ? 'ఇక్కడ రాయండి...' : 'Enter location note...'}
+              className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20 mb-4"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowNoteInput(false); setIsCategoryOpen(false); }}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition-colors uppercase tracking-wider text-xs"
+              >
+                {language === 'te' ? 'రద్దు' : 'Cancel'}
+              </button>
+              <button
+                onClick={handleNoteSubmit}
+                className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-colors uppercase tracking-wider text-xs"
+              >
+                {language === 'te' ? 'కొనసాగించు' : 'Proceed'}
               </button>
             </div>
           </div>

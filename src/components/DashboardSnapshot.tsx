@@ -11,7 +11,7 @@ interface DashboardSnapshotProps {
   leaveBalance: LeaveBalance;
   payslips: Payslip[];
   setActiveTab: (tab: string) => void;
-  onToggleCheckIn: (photoData?: string, punchType?: import('../types').PunchType) => Promise<{success: boolean, geoError?: any, error?: string} | void>;
+  onToggleCheckIn: (photoData?: string, punchType?: import('../types').PunchType, punchNote?: string) => Promise<{success: boolean, geoError?: any, error?: string} | void>;
 }
 
 export default function DashboardSnapshot({
@@ -34,6 +34,7 @@ export default function DashboardSnapshot({
   const [geoError, setGeoError] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [punchType, setPunchType] = useState<import('../types').PunchType>('in_office');
+  const [punchNote, setPunchNote] = useState('');
 
   const startCamera = async () => {
     try {
@@ -55,7 +56,7 @@ export default function DashboardSnapshot({
       console.error("Camera access denied or unavailable", err);
       alert(language === 'te' ? "కెమెరా అందుబాటులో లేదు. ఫోటో లేకుండా హాజరు నమోదు చేయబడుతుంది." : "Camera unavailable. Checking in without photo.");
       setIsCameraOpen(false);
-      onToggleCheckIn(undefined, punchType); // Fallback check-in
+      onToggleCheckIn(undefined, punchType, punchNote); // Fallback check-in
     }
   };
 
@@ -91,7 +92,7 @@ export default function DashboardSnapshot({
         stopCamera();
         
         setIsProcessing(true);
-        const result = await onToggleCheckIn(photoData, punchType);
+        const result = await onToggleCheckIn(photoData, punchType, punchNote);
         setIsProcessing(false);
         
         if (result && !result.success) {
@@ -410,11 +411,32 @@ export default function DashboardSnapshot({
                 </div>
               </div>
 
+              {punchType === 'out_of_office' && (
+                <div className="w-full mb-6">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    {language === 'te' ? 'లొకేషన్ నోట్ (తప్పనిసరి)' : 'Location Note (Required)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={punchNote}
+                    onChange={(e) => setPunchNote(e.target.value)}
+                    placeholder={language === 'te' ? 'మీరు ఎక్కడ ఉన్నారో రాయండి...' : 'Enter your location (e.g., Medical Camp, Field Visit)...'}
+                    className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+                  />
+                </div>
+              )}
+
               <p className="text-xs text-slate-500 mb-4 text-center">
                 {language === 'te' ? "హాజరు నమోదు చేయడానికి దయచేసి మీ ఫోటో తీయండి." : "Please capture your photo to record attendance."}
               </p>
               <button
-                onClick={handleCaptureAndCheckIn}
+                onClick={() => {
+                  if (punchType === 'out_of_office' && !punchNote.trim()) {
+                    alert(language === 'te' ? 'దయచేసి ఒక నోట్ రాయండి.' : 'Please enter a note.');
+                    return;
+                  }
+                  handleCaptureAndCheckIn();
+                }}
                 className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-teal-500/25 transition-all flex items-center gap-2 w-full justify-center active:scale-95"
               >
                 <Camera className="w-5 h-5" />

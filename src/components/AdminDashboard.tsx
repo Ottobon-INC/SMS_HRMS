@@ -402,6 +402,14 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
                       {log!.checkInLocation || (language === 'te' ? 'లొకేషన్ అందుబాటులో లేదు' : 'Location unavailable')}
                     </p>
                   </div>
+                  {log!.punchNote && (
+                    <div className="mt-1 ml-5 p-2 bg-amber-50 border border-amber-100 rounded-lg">
+                      <p className="text-[10px] text-amber-800 font-medium italic">
+                        <span className="font-bold mr-1">Note:</span>
+                        {log!.punchNote}
+                      </p>
+                    </div>
+                  )}
                   {log!.checkInLatLng && (
                     <a 
                       href={`https://www.google.com/maps/search/?api=1&query=${log!.checkInLatLng}`} 
