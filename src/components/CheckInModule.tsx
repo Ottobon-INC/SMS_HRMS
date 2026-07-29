@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, ListCollapse, LogIn, LogOut, Camera, X, MapPin, Building2, Stethoscope } from 'lucide-react';
-import { Language, CheckInLog, PunchType } from '../types';
+import { Clock, ListCollapse, LogIn, LogOut, Camera, X, MapPin, Building2, Stethoscope, Plus, AlertCircle } from 'lucide-react';
+import { Language, CheckInLog, PunchType, LocationPin, PinType } from '../types';
 import { translations } from '../translations';
+import LocationPinTimeline from './LocationPinTimeline';
 
 interface CheckInModuleProps {
   language: Language;
@@ -9,6 +10,8 @@ interface CheckInModuleProps {
   onToggleCheckIn: (photoData?: string, punchType?: PunchType, punchNote?: string) => Promise<{success: boolean, geoError?: any, error?: string} | void>;
   logs: CheckInLog[];
   todayWorkedSeconds: number;
+  pins: LocationPin[];
+  onAddPin: (pinType: PinType, label?: string, photoData?: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function CheckInModule({
@@ -16,7 +19,9 @@ export default function CheckInModule({
   isCheckedIn,
   onToggleCheckIn,
   logs,
-  todayWorkedSeconds
+  todayWorkedSeconds,
+  pins,
+  onAddPin
 }: CheckInModuleProps) {
   const t = translations[language];
   const [runningSeconds, setRunningSeconds] = useState(0);
@@ -27,16 +32,30 @@ export default function CheckInModule({
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [geoError, setGeoError] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showEndShiftConfirm, setShowEndShiftConfirm] = useState(false);
+  const [missedPunchDate, setMissedPunchDate] = useState<string | null>(null);
+  
+  // Pin states
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinType, setPinType] = useState<PinType>('field_visit');
+  const [pinLabel, setPinLabel] = useState('');
+  const [isPinCameraOpen, setIsPinCameraOpen] = useState(false);
+  const [isPinning, setIsPinning] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const startCamera = async () => {
+  const startCamera = async (isForPin: boolean = false) => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Camera API not available");
       }
-      setIsCameraOpen(true);
+      if (isForPin) {
+        setIsPinCameraOpen(true);
+      } else {
+        setIsCameraOpen(true);
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       streamRef.current = stream;
       setTimeout(() => {
@@ -46,9 +65,14 @@ export default function CheckInModule({
       }, 50);
     } catch (err) {
       console.error("Camera access denied or unavailable", err);
-      alert(language === 'te' ? "కెమెరా అందుబాటులో లేదు. ఫోటో లేకుండా హాజరు నమోదు చేయబడుతుంది." : "Camera unavailable. Punching in without photo.");
-      setIsCameraOpen(false);
-      onToggleCheckIn(undefined, selectedPunchType, punchNote);
+      alert(language === 'te' ? "కెమెరా అందుబాటులో లేదు. ఫోటో లేకుండా హాజరు నమోదు చేయబడుతుంది." : "Camera unavailable. Proceeding without photo.");
+      if (isForPin) {
+        setIsPinCameraOpen(false);
+        handlePinSubmit(undefined);
+      } else {
+        setIsCameraOpen(false);
+        onToggleCheckIn(undefined, selectedPunchType, punchNote);
+      }
     }
   };
 
@@ -58,6 +82,7 @@ export default function CheckInModule({
       streamRef.current = null;
     }
     setIsCameraOpen(false);
+    setIsPinCameraOpen(false);
   };
 
   const handleCaptureAndCheckIn = async () => {
@@ -80,9 +105,42 @@ export default function CheckInModule({
           if (result.geoError) {
             setGeoError(result.geoError);
           } else if (result.error) {
-            alert(result.error);
+            if (result.error.startsWith('missed_punchout:')) {
+              setMissedPunchDate(result.error.split(':')[1]);
+            } else {
+              alert(result.error);
+            }
           }
         }
+      }
+    }
+  };
+
+  const handlePinSubmit = async (photoData?: string) => {
+    setIsPinning(true);
+    const result = await onAddPin(pinType, pinLabel, photoData);
+    setIsPinning(false);
+    
+    if (result.success) {
+      setIsPinModalOpen(false);
+      setPinLabel('');
+    } else {
+      alert(result.error || 'Failed to pin location');
+    }
+  };
+
+  const handleCaptureAndPin = async () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        stopCamera();
+        await handlePinSubmit(photoData);
       }
     }
   };
@@ -90,8 +148,8 @@ export default function CheckInModule({
   // Main button click — for punch-in show category selector; for punch-out go directly to camera
   const handleMainButtonClick = () => {
     if (isCheckedIn) {
-      // Punch-out: go directly to camera (no category needed)
-      startCamera();
+      // Punch-out: show confirmation prompt first
+      setShowEndShiftConfirm(true);
     } else {
       // Punch-in: show category selector first
       setIsCategoryOpen(true);
@@ -285,6 +343,16 @@ export default function CheckInModule({
         <p className="text-xs text-slate-400 font-mono">
           Logged using your local timezone: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </p>
+        
+        {isCheckedIn && (
+          <button
+            onClick={() => setIsPinModalOpen(true)}
+            className="mt-6 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-8 rounded-xl transition-all active:scale-95"
+          >
+            <MapPin className="w-5 h-5 text-rose-500" />
+            {language === 'te' ? 'లొకేషన్ పిన్ చేయండి' : 'Pin Location Now'}
+          </button>
+        )}
       </div>
 
       {/* Daily Timeline Logs */}
@@ -376,6 +444,9 @@ export default function CheckInModule({
           </div>
         )}
       </div>
+
+      {/* Location Pin Timeline */}
+      <LocationPinTimeline language={language} pins={pins} />
 
       {/* === Punch Type Category Selector Modal === */}
       {isCategoryOpen && (
@@ -517,6 +588,147 @@ export default function CheckInModule({
         </div>
       )}
 
+      {/* End Shift Confirmation Modal */}
+      {showEndShiftConfirm && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl p-6 text-center">
+            <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Clock className="w-8 h-8" />
+            </div>
+            <h3 className="font-bold text-slate-800 text-lg mb-2">
+              {language === 'te' ? 'పని ముగించాలనుకుంటున్నారా?' : 'End Shift Confirmation'}
+            </h3>
+            <p className="text-xs text-slate-500 mb-6">
+              {language === 'te' 
+                ? `మీరు ఈరోజు పని చేసిన సమయం: ${formatTime(totalSecondsToday)}. దయచేసి నిర్ధారించండి.` 
+                : `You have logged ${formatTime(totalSecondsToday)} today. Are you sure you want to punch out?`}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowEndShiftConfirm(false)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition-colors uppercase tracking-wider text-xs"
+              >
+                {language === 'te' ? 'కొనసాగించు' : 'Keep Working'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowEndShiftConfirm(false);
+                  startCamera();
+                }}
+                className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl transition-colors uppercase tracking-wider text-xs"
+              >
+                {language === 'te' ? 'నిర్ధారించు' : 'Confirm End Shift'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pin Location Modal */}
+      {isPinModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-rose-500" />
+                {language === 'te' ? 'లొకేషన్ పిన్ చేయండి' : 'Pin Current Location'}
+              </h3>
+              <button onClick={() => setIsPinModalOpen(false)} className="p-1 hover:bg-slate-200 rounded-full transition-colors">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  {language === 'te' ? 'పిన్ రకం' : 'Pin Type'}
+                </label>
+                <select 
+                  value={pinType}
+                  onChange={(e) => setPinType(e.target.value as PinType)}
+                  className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+                >
+                  <option value="field_visit">Field Visit / ఫీల్డ్ విజిట్</option>
+                  <option value="medical_camp">Medical Camp / మెడికల్ క్యాంప్</option>
+                  <option value="client_site">Client Site / క్లయింట్ సైట్</option>
+                  <option value="delivery">Delivery / డెలివరీ</option>
+                  <option value="other">Other / ఇతర</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  {language === 'te' ? 'వివరాలు (ఐచ్ఛికం)' : 'Label (Optional)'}
+                </label>
+                <input
+                  type="text"
+                  value={pinLabel}
+                  onChange={(e) => setPinLabel(e.target.value)}
+                  placeholder={language === 'te' ? 'ఉదా: గాజువాక క్యాంప్' : 'e.g. Gajuwaka Medical Camp'}
+                  className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+                />
+              </div>
+
+              <div className="pt-2 flex flex-col gap-3">
+                <button
+                  onClick={() => startCamera(true)}
+                  disabled={isPinning}
+                  className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Camera className="w-4 h-4" />
+                  {isPinning ? 'Processing...' : (language === 'te' ? 'ఫోటోతో పిన్ చేయండి' : 'Capture Photo & Pin')}
+                </button>
+                <button
+                  onClick={() => handlePinSubmit(undefined)}
+                  disabled={isPinning}
+                  className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {language === 'te' ? 'ఫోటో లేకుండా పిన్ చేయండి' : 'Skip Photo & Pin'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pin Camera Modal */}
+      {isPinCameraOpen && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-md w-full shadow-2xl">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Camera className="w-5 h-5 text-teal-600" />
+                {language === 'te' ? "పిన్ ఫోటో" : "Pin Photo"}
+              </h3>
+              <button onClick={stopCamera} className="p-1 hover:bg-slate-200 rounded-full transition-colors">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="relative bg-black aspect-video flex items-center justify-center">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+              <canvas ref={canvasRef} className="hidden" />
+              <div className="absolute inset-0 border-4 border-teal-500/30 m-4 rounded-xl pointer-events-none"></div>
+            </div>
+
+            <div className="p-6 flex flex-col items-center">
+              <button
+                onClick={handleCaptureAndPin}
+                className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all flex items-center gap-2 w-full justify-center active:scale-95"
+              >
+                <Camera className="w-5 h-5" />
+                {language === 'te' ? "ఫోటో తీయండి" : "Capture & Pin"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Geo-fence Error Modal */}
       {geoError && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
@@ -539,6 +751,70 @@ export default function CheckInModule({
             >
               Okay
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Missed Punch Out Error Modal */}
+      {missedPunchDate && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-4 animate-scaleUp">
+            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">
+                {language === 'te' ? 'హాజరు అసంపూర్ణం' : 'Incomplete Attendance'}
+              </h3>
+              <p className="text-sm text-slate-500">
+                {language === 'te'
+                  ? `మీరు ${missedPunchDate} న పంచ్ అవుట్ చేయలేదు. దయచేసి అడ్మిన్‌ను సంప్రదించి సమయాన్ని మాన్యువల్‌గా అప్‌డేట్ చేయించుకోండి.`
+                  : `You did not punch out on ${missedPunchDate}. Please contact the Admin to manually close that session before you can punch in today.`
+                }
+              </p>
+            </div>
+            <button
+              onClick={() => setMissedPunchDate(null)}
+              className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl transition-colors uppercase tracking-wider text-xs shadow-md"
+            >
+              {language === 'te' ? 'అర్థమైంది' : 'Understood'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* End Shift Confirmation Modal */}
+      {showEndShiftConfirm && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-4 animate-scaleUp">
+            <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <LogOut className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800">
+              {language === 'te' ? 'పని ముగించాలనుకుంటున్నారా?' : 'End your shift?'}
+            </h3>
+            <p className="text-sm text-slate-500">
+              {language === 'te' 
+                ? 'మీరు ఇప్పుడు పంచ్ అవుట్ చేస్తే ఈ సెషన్ రికార్డ్ అవుతుంది. నిర్ధారించండి.' 
+                : 'Are you sure you want to end your shift? This will clock you out for the current session.'}
+            </p>
+            <div className="flex gap-3 pt-4">
+              <button
+                onClick={() => setShowEndShiftConfirm(false)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-xs uppercase tracking-wider"
+              >
+                {language === 'te' ? 'రద్దు' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowEndShiftConfirm(false);
+                  startCamera();
+                }}
+                className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md"
+              >
+                {language === 'te' ? 'ముగించు' : 'Check Out'}
+              </button>
+            </div>
           </div>
         </div>
       )}

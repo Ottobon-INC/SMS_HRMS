@@ -1,10 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { Sparkles, ArrowRight, Home, Calendar, Moon, Landmark, Receipt, Camera, X, MapPin } from 'lucide-react';
-import { Language, CheckInLog, AttendanceRecord, LeaveBalance, Payslip } from '../types';
+import { Language, CheckInLog, AttendanceRecord, LeaveBalance, Payslip, Employee } from '../types';
 import { translations } from '../translations';
+import LocationPinTimeline from './LocationPinTimeline';
+import TickerAlert from './TickerAlert';
 
 interface DashboardSnapshotProps {
   language: Language;
+  currentUser: Employee;
   isCheckedIn: boolean;
   logs: CheckInLog[];
   attendanceRecords: AttendanceRecord[];
@@ -12,17 +15,22 @@ interface DashboardSnapshotProps {
   payslips: Payslip[];
   setActiveTab: (tab: string) => void;
   onToggleCheckIn: (photoData?: string, punchType?: import('../types').PunchType, punchNote?: string) => Promise<{success: boolean, geoError?: any, error?: string} | void>;
+  pins: import('../types').LocationPin[];
+  onAddPin: (pinType: import('../types').PinType, label?: string, photoData?: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function DashboardSnapshot({
   language,
+  currentUser,
   isCheckedIn,
   logs,
   attendanceRecords,
   leaveBalance,
   payslips,
   setActiveTab,
-  onToggleCheckIn
+  onToggleCheckIn,
+  pins,
+  onAddPin
 }: DashboardSnapshotProps) {
   const t = translations[language];
 
@@ -36,13 +44,24 @@ export default function DashboardSnapshot({
   const [punchType, setPunchType] = useState<import('../types').PunchType>('in_office');
   const [punchNote, setPunchNote] = useState('');
 
-  const startCamera = async () => {
+  // Pin states
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinType, setPinType] = useState<import('../types').PinType>('field_visit');
+  const [pinLabel, setPinLabel] = useState('');
+  const [isPinCameraOpen, setIsPinCameraOpen] = useState(false);
+  const [isPinning, setIsPinning] = useState(false);
+
+  const startCamera = async (isForPin: boolean = false) => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Camera API not available");
       }
       // Open modal first so the video element mounts
-      setIsCameraOpen(true);
+      if (isForPin) {
+        setIsPinCameraOpen(true);
+      } else {
+        setIsCameraOpen(true);
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       streamRef.current = stream;
       
@@ -54,9 +73,14 @@ export default function DashboardSnapshot({
       }, 50);
     } catch (err) {
       console.error("Camera access denied or unavailable", err);
-      alert(language === 'te' ? "కెమెరా అందుబాటులో లేదు. ఫోటో లేకుండా హాజరు నమోదు చేయబడుతుంది." : "Camera unavailable. Checking in without photo.");
-      setIsCameraOpen(false);
-      onToggleCheckIn(undefined, punchType, punchNote); // Fallback check-in
+      alert(language === 'te' ? "కెమెరా అందుబాటులో లేదు. ఫోటో లేకుండా ముందుకు వెళ్తాము." : "Camera unavailable. Proceeding without photo.");
+      if (isForPin) {
+        setIsPinCameraOpen(false);
+        handlePinSubmit(undefined);
+      } else {
+        setIsCameraOpen(false);
+        onToggleCheckIn(undefined, punchType, punchNote); // Fallback check-in
+      }
     }
   };
 
@@ -66,6 +90,7 @@ export default function DashboardSnapshot({
       streamRef.current = null;
     }
     setIsCameraOpen(false);
+    setIsPinCameraOpen(false);
   };
 
   const handleCaptureAndCheckIn = async () => {
@@ -106,8 +131,37 @@ export default function DashboardSnapshot({
     }
   };
 
+  const handlePinSubmit = async (photoData?: string) => {
+    setIsPinning(true);
+    const result = await onAddPin(pinType, pinLabel, photoData);
+    setIsPinning(false);
+    
+    if (result.success) {
+      setIsPinModalOpen(false);
+      setPinLabel('');
+    } else {
+      alert(result.error || 'Failed to pin location');
+    }
+  };
+
+  const handleCaptureAndPin = async () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        stopCamera();
+        await handlePinSubmit(photoData);
+      }
+    }
+  };
+
   const handleMainButtonClick = () => {
-    startCamera();
+    startCamera(false);
   };
 
   // Find today's date YYYY-MM-DD
@@ -165,8 +219,11 @@ export default function DashboardSnapshot({
     : 'May Net Salary';
 
   return (
-    <div id="dashboard-snapshot-container" className="space-y-8">
+    <div id="dashboard-snapshot-container" className="space-y-6 sm:space-y-8 animate-fadeIn">
       
+      {/* Ticker Alerts for Employee */}
+      <TickerAlert employees={[currentUser]} />
+
       {/* 1. First Row: Section with Checked-In Hero & Leave Balance */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
@@ -213,6 +270,18 @@ export default function DashboardSnapshot({
                 <p className="text-xs font-bold text-slate-700">{latestCheckIn?.checkOutTime || "Pending"}</p>
               </div>
             </div>
+
+            {isCheckedIn && (
+              <div className="mt-6 flex justify-center sm:justify-start">
+                <button
+                  onClick={() => setIsPinModalOpen(true)}
+                  className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl transition-colors active:scale-95 border border-slate-200"
+                >
+                  <MapPin className="w-4 h-4 text-rose-500" />
+                  {language === 'te' ? 'లొకేషన్ పిన్ చేయండి' : 'Pin Location Now'}
+                </button>
+              </div>
+            )}
           </div>
 
           <button
@@ -241,6 +310,13 @@ export default function DashboardSnapshot({
             )}
           </button>
         </div>
+
+        {/* Location Pin History - Display below check in section if they have pins today */}
+        {pins.filter(p => p.date === todayStr).length > 0 && (
+          <div className="lg:col-span-12">
+            <LocationPinTimeline language={language} pins={pins.filter(p => p.date === todayStr)} />
+          </div>
+        )}
 
         {/* COL-SPAN-4: Solid Teal Leave Balance Box */}
         <div 
@@ -425,7 +501,6 @@ export default function DashboardSnapshot({
                   />
                 </div>
               )}
-
               <p className="text-xs text-slate-500 mb-4 text-center">
                 {language === 'te' ? "హాజరు నమోదు చేయడానికి దయచేసి మీ ఫోటో తీయండి." : "Please capture your photo to record attendance."}
               </p>
@@ -459,7 +534,6 @@ export default function DashboardSnapshot({
               <p className="text-sm text-slate-500">
                 {geoError.nearestOfficeName === "No configured locations"
                   ? "Punch-in failed because no Office Locations have been configured in the system yet. Please configure an Office Location first."
-
                   : `You are currently ${geoError.distance} meters away from ${geoError.nearestOfficeName}. You must be within the allowed radius to punch in.`
                 }
               </p>
@@ -470,6 +544,111 @@ export default function DashboardSnapshot({
             >
               Okay
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pin Location Modal */}
+      {isPinModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-rose-500" />
+                {language === 'te' ? 'లొకేషన్ పిన్ చేయండి' : 'Pin Current Location'}
+              </h3>
+              <button onClick={() => setIsPinModalOpen(false)} className="p-1 hover:bg-slate-200 rounded-full transition-colors">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  {language === 'te' ? 'పిన్ రకం' : 'Pin Type'}
+                </label>
+                <select 
+                  value={pinType}
+                  onChange={(e) => setPinType(e.target.value as import('../types').PinType)}
+                  className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+                >
+                  <option value="field_visit">Field Visit / ఫీల్డ్ విజిట్</option>
+                  <option value="medical_camp">Medical Camp / మెడికల్ క్యాంప్</option>
+                  <option value="client_site">Client Site / క్లయింట్ సైట్</option>
+                  <option value="delivery">Delivery / డెలివరీ</option>
+                  <option value="other">Other / ఇతర</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  {language === 'te' ? 'వివరాలు (ఐచ్ఛికం)' : 'Label (Optional)'}
+                </label>
+                <input
+                  type="text"
+                  value={pinLabel}
+                  onChange={(e) => setPinLabel(e.target.value)}
+                  placeholder={language === 'te' ? 'ఉదా: గాజువాక క్యాంప్' : 'e.g. Gajuwaka Medical Camp'}
+                  className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+                />
+              </div>
+
+              <div className="pt-2 flex flex-col gap-3">
+                <button
+                  onClick={() => startCamera(true)}
+                  disabled={isPinning}
+                  className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Camera className="w-4 h-4" />
+                  {isPinning ? 'Processing...' : (language === 'te' ? 'ఫోటోతో పిన్ చేయండి' : 'Capture Photo & Pin')}
+                </button>
+                <button
+                  onClick={() => handlePinSubmit(undefined)}
+                  disabled={isPinning}
+                  className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {language === 'te' ? 'ఫోటో లేకుండా పిన్ చేయండి' : 'Skip Photo & Pin'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pin Camera Modal */}
+      {isPinCameraOpen && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-md w-full shadow-2xl">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Camera className="w-5 h-5 text-teal-600" />
+                {language === 'te' ? "పిన్ ఫోటో" : "Pin Photo"}
+              </h3>
+              <button onClick={stopCamera} className="p-1 hover:bg-slate-200 rounded-full transition-colors">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="relative bg-black aspect-video flex items-center justify-center">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+              <canvas ref={canvasRef} className="hidden" />
+              <div className="absolute inset-0 border-4 border-teal-500/30 m-4 rounded-xl pointer-events-none"></div>
+            </div>
+
+            <div className="p-6 flex flex-col items-center">
+              <button
+                onClick={handleCaptureAndPin}
+                className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all flex items-center gap-2 w-full justify-center active:scale-95"
+              >
+                <Camera className="w-5 h-5" />
+                {language === 'te' ? "ఫోటో తీయండి" : "Capture & Pin"}
+              </button>
+            </div>
           </div>
         </div>
       )}

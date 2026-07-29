@@ -11,7 +11,9 @@ import {
   LogOut,
   IndianRupee,
   MapPin,
-  MessageSquare
+  MessageSquare,
+  Settings,
+  CalendarDays
 } from 'lucide-react';
 
 import { Language } from './types';
@@ -23,6 +25,7 @@ import { useLeaves } from './hooks/useLeaves';
 import { useAttendance } from './hooks/useAttendance';
 import { usePayroll } from './hooks/usePayroll';
 import { useAdvances } from './hooks/useAdvances';
+import { useLocationPins } from './hooks/useLocationPins';
 
 import LoginScreen from './components/LoginScreen';
 import SmsLogo from './components/SmsLogo';
@@ -45,6 +48,9 @@ const AdminOfficeLocations = React.lazy(() => import('./components/AdminOfficeLo
 const AdminSpecialEvents = React.lazy(() => import('./components/AdminSpecialEvents'));
 const EmployeeSpecialEvents = React.lazy(() => import('./components/EmployeeSpecialEvents'));
 const MessagingModule = React.lazy(() => import('./components/MessagingModule').then(m => ({ default: m.MessagingModule })));
+const AdminSettings = React.lazy(() => import('./components/AdminSettings'));
+const DutyRosterModule = React.lazy(() => import('./components/DutyRosterModule'));
+const EmployeeRoster = React.lazy(() => import('./components/EmployeeRoster'));
 
 export default function App() {
   // --- Persistent Bilingual State ---
@@ -76,7 +82,8 @@ export default function App() {
       'run-payroll': 'adminPayroll',
       'office-locations': 'officeLocations',
       'special-events': 'specialEvents',
-      'messages': 'messages'
+      'messages': 'messages',
+      'admin-settings': 'adminSettings'
     };
     
     if (pathToTab[path]) return pathToTab[path];
@@ -103,7 +110,8 @@ export default function App() {
       'adminPayroll': 'run-payroll',
       'officeLocations': 'office-locations',
       'specialEvents': 'special-events',
-      'messages': 'messages'
+      'messages': 'messages',
+      'adminSettings': 'admin-settings'
     };
     
     const newPath = '/' + (tabToPath[activeTab] || activeTab);
@@ -128,7 +136,8 @@ export default function App() {
         'run-payroll': 'adminPayroll',
         'office-locations': 'officeLocations',
         'special-events': 'specialEvents',
-        'messages': 'messages'
+        'messages': 'messages',
+        'admin-settings': 'adminSettings'
       };
       
       if (pathToTab[path]) {
@@ -145,9 +154,10 @@ export default function App() {
   const { currentUser, currentUserId, login, logout } = useAuth(employees);
   
   const { applyLeave, approveLeave, rejectLeave, updateBalances } = useLeaves(isLocalMode, loadData);
-  const { toggleCheckIn, updateAttendance } = useAttendance(isLocalMode, loadData);
+  const { toggleCheckIn, updateAttendance, forceCloseSession } = useAttendance(isLocalMode, loadData);
   const { runBulkPayroll, updatePayslip, generateSinglePayslip } = usePayroll(isLocalMode, loadData);
   const { submitAdvance, approveAdvance, rejectAdvance } = useAdvances(isLocalMode, loadData);
+  const { addPin } = useLocationPins(currentUser?.id, isLocalMode);
 
   useEffect(() => {
     loadData();
@@ -157,8 +167,8 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     
-    const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'advanceApprovals', 'adminPayroll', 'officeLocations', 'specialEvents', 'messages'];
-    const employeeTabs = ['dashboard', 'attendance', 'leave', 'advance', 'payroll', 'events', 'messages'];
+    const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'advanceApprovals', 'adminPayroll', 'officeLocations', 'specialEvents', 'messages', 'adminSettings', 'dutyRoster'];
+    const employeeTabs = ['dashboard', 'attendance', 'leave', 'advance', 'payroll', 'events', 'messages', 'myRoster'];
 
     if (currentUser.role === 'admin' && !adminTabs.includes(activeTab)) {
       setActiveTab('adminDashboard');
@@ -247,14 +257,16 @@ export default function App() {
         return (
           <DashboardSnapshot
             language={language}
+            currentUser={currentUser}
             isCheckedIn={currentUser.isCheckedIn}
             logs={currentUser.checkInLogs}
             attendanceRecords={currentUser.attendanceRecords}
             leaveBalance={currentUser.leaveBalance}
             payslips={currentUser.payslips}
             setActiveTab={setActiveTab}
-          onToggleCheckIn={(photoData?: string, punchType?: import('./types').PunchType, punchNote?: string) => toggleCheckIn(currentUser.id, currentUser.isCheckedIn, photoData, punchType, punchNote)}
-
+            onToggleCheckIn={(photoData?: string, punchType?: import('./types').PunchType, punchNote?: string) => toggleCheckIn(currentUser.id, currentUser.isCheckedIn, photoData, punchType, punchNote)}
+            pins={currentUser.locationPins || []}
+            onAddPin={addPin}
           />
         );
       case 'attendance':
@@ -267,6 +279,13 @@ export default function App() {
       case 'events':
         return (
           <EmployeeSpecialEvents
+            language={language}
+            employeeId={currentUser.id}
+          />
+        );
+      case 'myRoster':
+        return (
+          <EmployeeRoster 
             language={language}
             employeeId={currentUser.id}
           />
@@ -337,6 +356,7 @@ export default function App() {
             language={language}
             employees={employees}
             onUpdateAttendance={updateAttendance}
+            onForceCloseSession={forceCloseSession}
           />
         );
       case 'leaveApprovals':
@@ -365,6 +385,7 @@ export default function App() {
             onRunBulkPayroll={(month) => runBulkPayroll(employees, month)}
             onGenerateSinglePayslip={generateSinglePayslip}
             onUpdatePayslip={updatePayslip}
+            onUpdateEmployee={updateEmployee}
           />
         );
       case 'officeLocations':
@@ -378,6 +399,14 @@ export default function App() {
       case 'messages':
         return (
           <MessagingModule currentUser={currentUser} employees={employees} />
+        );
+      case 'adminSettings':
+        return (
+          <AdminSettings language={language} />
+        );
+      case 'dutyRoster':
+        return (
+          <DutyRosterModule language={language} employees={employees} />
         );
 
       default:
@@ -612,6 +641,23 @@ export default function App() {
                   </button>
 
                   <button
+                    id="nav-tab-duty-roster"
+                    onClick={() => setActiveTab('dutyRoster')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'dutyRoster'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'dutyRoster' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <CalendarDays className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'డ్యూటీ రోస్టర్' : 'Duty Roster'}</span>
+                  </button>
+
+                  <button
                     id="nav-tab-office-locations"
                     onClick={() => setActiveTab('officeLocations')}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
@@ -660,6 +706,23 @@ export default function App() {
                       <MessageSquare className="w-4 h-4 shrink-0" />
                     )}
                     <span>{language === 'te' ? 'సందేశాలు' : 'Messages'}</span>
+                  </button>
+
+                  <button
+                    id="nav-tab-admin-settings"
+                    onClick={() => setActiveTab('adminSettings')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'adminSettings'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'adminSettings' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <Settings className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'సెట్టింగ్‌లు' : 'Settings'}</span>
                   </button>
                 </>
               ) : (
@@ -765,6 +828,23 @@ export default function App() {
                       <Calendar className="w-4 h-4 shrink-0" />
                     )}
                     <span>{language === 'te' ? 'ప్రత్యేక ఈవెంట్‌లు' : 'Special Events'}</span>
+                  </button>
+
+                  <button
+                    id="nav-tab-my-roster"
+                    onClick={() => setActiveTab('myRoster')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'myRoster'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'myRoster' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <CalendarDays className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'నా రోస్టర్' : 'My Roster'}</span>
                   </button>
 
 

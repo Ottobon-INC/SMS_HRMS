@@ -2,6 +2,7 @@ import { AttendanceStatus, PunchType } from '../types';
 import * as attendanceService from '../lib/services/attendance-service';
 import * as leaveService from '../lib/services/leave-service';
 import { checkGeofence, resolveAllowedLocations } from '../lib/geofence';
+import { supabase } from '../lib/supabase-client';
 
 export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void>) {
   const toggleCheckIn = async (empId: string, isCurrentlyCheckedIn: boolean, photoData?: string, punchType: PunchType = 'in_office', punchNote?: string) => {
@@ -72,6 +73,10 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
         await loadData();
         return { success: true };
       } else {
+        const missedDate = await attendanceService.checkMissedPunchOut(empId);
+        if (missedDate) {
+          return { success: false, error: `missed_punchout:${missedDate}` };
+        }
         await attendanceService.clockInEmployee(empId, locationStr, latLngStr, photoData, punchType, punchNote);
       }
       
@@ -103,8 +108,37 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
     await loadData();
   };
 
+  const forceCloseSession = async (empId: string, date: string, time?: string) => {
+    if (isLocalMode) {
+      alert("Attendance can only be edited in online mode.");
+      return;
+    }
+    
+    const timeStr = time || '18:00:00'; // Default to 6 PM if not provided
+    
+    // Find active session for that date
+    const { data: activeSessions, error: fetchErr } = await supabase
+      .from('HRMS_attendance')
+      .select('id')
+      .eq('employee_id', empId)
+      .eq('date', date)
+      .is('check_out_time', null);
+      
+    if (fetchErr || !activeSessions || activeSessions.length === 0) return;
+    
+    for (const session of activeSessions) {
+      await supabase
+        .from('HRMS_attendance')
+        .update({ check_out_time: timeStr, punch_note: 'Forced close by Admin' })
+        .eq('id', session.id);
+    }
+    
+    await loadData();
+  };
+
   return {
     toggleCheckIn,
-    updateAttendance
+    updateAttendance,
+    forceCloseSession
   };
 }

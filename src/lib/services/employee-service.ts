@@ -15,12 +15,14 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
   const { data: balances, error: balError } = await supabase.from('HRMS_leave_balances').select('*');
   const { data: payroll, error: payError } = await supabase.from('HRMS_payroll').select('*');
   const { data: advances, error: advError } = await supabase.from('HRMS_advance_requests').select('*');
+  const { data: pins, error: pinsError } = await supabase.from('HRMS_location_pins').select('*');
 
   if (attError) console.error('Error fetching attendance:', attError);
   if (leavesError) console.error('Error fetching leave_requests:', leavesError);
   if (balError) console.error('Error fetching leave_balances:', balError);
   if (payError) console.error('Error fetching payroll:', payError);
   if (advError) console.error('Error fetching advances:', advError);
+  if (pinsError) console.error('Error fetching location_pins:', pinsError);
 
   const { data: quotas, error: quotaError } = await supabase.from('HRMS_monthly_leave_quota').select('*');
   if (quotaError) console.error('Error fetching monthly quotas:', quotaError);
@@ -33,6 +35,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
   const balancesList = balances || [];
   const payrollList = payroll || [];
   const advancesList = advances || [];
+  const pinsList = pins || [];
 
   return emps.map(emp => {
     // Map leave balances
@@ -101,10 +104,26 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
           checkOutLocation: a.check_out_location || undefined,
           checkOutLatLng: a.check_out_lat_lng || undefined,
           checkOutPhotoUrl: a.check_out_photo_url || undefined,
-          punchType: (a.punch_type || 'in_office') as import('../../types').PunchType
+          punchType: (a.punch_type || 'in_office') as import('../../types').PunchType,
+          punchNote: a.punch_note || undefined,
+          sessionNumber: a.session_number || 1
         };
 
       });
+
+    const locationPins = pinsList
+      .filter(p => p.employee_id === emp.id)
+      .map(p => ({
+        id: p.id,
+        date: p.date,
+        pinnedAt: p.pinned_at,
+        label: p.label || undefined,
+        latitude: p.latitude ? Number(p.latitude) : undefined,
+        longitude: p.longitude ? Number(p.longitude) : undefined,
+        locationName: p.location_name || undefined,
+        photoUrl: p.photo_url || undefined,
+        pinType: (p.pin_type || 'other') as import('../../types').PinType
+      }));
 
     // Determine check-in status for today
     const todayStr = new Date().toISOString().split('T')[0];
@@ -121,7 +140,10 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
         allowances: Array.isArray(p.allowances) ? p.allowances : [],
         deductions: Array.isArray(p.deductions) ? p.deductions : [],
         advanceMoneyTaken: p.advance_money_taken,
-        advanceMoneyAmount: Number(p.advance_money_amount)
+        advanceMoneyAmount: Number(p.advance_money_amount),
+        workingDays: p.working_days ? Number(p.working_days) : undefined,
+        daysPresent: p.days_present ? Number(p.days_present) : undefined,
+        leavesTaken: p.leaves_taken ? Number(p.leaves_taken) : undefined
       }));
 
     // Map monthly quota
@@ -159,6 +181,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
       phone: emp.phone,
       gender: emp.gender as 'male' | 'female' | 'other' | undefined,
       experience: Number(emp.experience) || 0,
+      bankDetails: emp.bank_details as any,
       isCheckedIn,
       leaveBalance,
       monthlyQuota,
@@ -166,6 +189,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
       attendanceRecords,
       checkInLogs,
       payslips: empPayslips,
+      locationPins,
       advanceRequests: advancesList
         .filter(a => a.employee_id === emp.id)
         .map(a => {
@@ -203,7 +227,8 @@ export async function createEmployee(emp: Omit<Employee, 'isCheckedIn' | 'leaveB
       status: emp.status || 'active',
       phone: emp.phone || null,
       gender: emp.gender || null,
-      experience: emp.experience || 0
+      experience: emp.experience || 0,
+      bank_details: emp.bankDetails || null
     }]);
 
   if (error) {
@@ -255,6 +280,7 @@ export async function updateEmployee(id: string, fields: Partial<Employee>): Pro
   if (fields.phone !== undefined) updatePayload.phone = fields.phone;
   if (fields.gender !== undefined) updatePayload.gender = fields.gender;
   if (fields.experience !== undefined) updatePayload.experience = fields.experience;
+  if (fields.bankDetails !== undefined) updatePayload.bank_details = fields.bankDetails;
 
   if (Object.keys(updatePayload).length > 0) {
     const { error } = await supabase
@@ -267,6 +293,7 @@ export async function updateEmployee(id: string, fields: Partial<Employee>): Pro
       delete updatePayload.phone;
       delete updatePayload.gender;
       delete updatePayload.experience;
+      delete updatePayload.bank_details;
       if (Object.keys(updatePayload).length > 0) {
         const { error: retryError } = await supabase
           .from('HRMS_employees')

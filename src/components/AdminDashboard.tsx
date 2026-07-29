@@ -1,7 +1,8 @@
-import React from 'react';
-import { ArrowRight, Users, CheckCircle, Clock, Landmark, AlertCircle, MapPin } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, Users, CheckCircle, Clock, Landmark, AlertCircle, MapPin, ChevronRight, IndianRupee } from 'lucide-react';
 import { Language, Employee, LeaveRequest } from '../types';
 import { translations } from '../translations';
+import TickerAlert from './TickerAlert';
 
 interface AdminDashboardProps {
   language: Language;
@@ -11,6 +12,14 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ language, employees, setActiveTab }: AdminDashboardProps) {
   const t = translations[language];
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick(t => t + 1);
+    }, 60000); // refresh every minute
+    return () => clearInterval(timer);
+  }, []);
 
   // Calculate snapshot metrics
   const totalEmployees = employees.length;
@@ -100,6 +109,9 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
   return (
     <div id="admin-dashboard-container" className="space-y-8 animate-fadeIn">
       
+      {/* Ticker Alerts */}
+      <TickerAlert employees={employees} />
+
       {/* 1. Header Hero Panel */}
       <div className="bg-white rounded-[32px] p-6 sm:p-8 md:p-10 border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-2 text-center md:text-left z-10">
@@ -390,9 +402,27 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
                       <p className="text-[10px] text-slate-400 font-mono">{emp.id}</p>
                     </div>
                   </div>
-                  <span className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 shadow-sm">
-                    {log!.checkInTime.substring(0, 5)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 shadow-sm">
+                      {log!.checkInTime.substring(0, 5)}
+                    </span>
+                    {!log!.checkOutTime && (
+                      <span className="px-2 py-1 bg-teal-50 border border-teal-100 rounded-lg text-[10px] font-bold text-teal-700 shadow-sm flex items-center gap-1">
+                        <Clock className="w-3 h-3 animate-pulse" />
+                        {(() => {
+                          const [h, m, s] = log!.checkInTime.split(':').map(Number);
+                          const checkInDate = new Date();
+                          checkInDate.setHours(h, m, s, 0);
+                          let diffMs = new Date().getTime() - checkInDate.getTime();
+                          if (diffMs < 0) diffMs = 0;
+                          const totalSecs = Math.floor(diffMs / 1000);
+                          const hrs = Math.floor(totalSecs / 3600);
+                          const mins = Math.floor((totalSecs % 3600) / 60);
+                          return `${hrs}h ${mins}m`;
+                        })()}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="flex flex-col gap-2 pt-3 border-t border-slate-100/80">

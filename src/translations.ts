@@ -122,7 +122,14 @@ export const translations: Record<Language, Record<string, string>> = {
     employeeIdLabel: "Employee ID",
     paymentModeLabel: "Payment Mode",
     paymentModeValue: "Bank Transfer",
-
+    workingDays: "Working Days",
+    daysPresent: "Days Present",
+    bankName: "Bank Name",
+    bankAccountNo: "Account No",
+    bankIfsc: "IFSC Code",
+    bankAccountType: "Account Type",
+    attendanceSummary: "Attendance Summary",
+    bankDetails: "Bank Details",
     // Invoice
     invoiceTitle: "Quick Bill / Invoice Generator",
     invNumber: "Invoice Number",
@@ -325,7 +332,14 @@ export const translations: Record<Language, Record<string, string>> = {
     employeeIdLabel: "ఉద్యోగి ఐడి",
     paymentModeLabel: "చెల్లింపు విధానం",
     paymentModeValue: "బ్యాంకు బదిలీ (Direct Bank Transfer)",
-
+    workingDays: "పని దినాలు",
+    daysPresent: "హాజరైన రోజులు",
+    bankName: "బ్యాంకు పేరు",
+    bankAccountNo: "ఖాతా నంబరు",
+    bankIfsc: "IFSC కోడ్",
+    bankAccountType: "ఖాతా రకం",
+    attendanceSummary: "హాజరు సారాంశం",
+    bankDetails: "బ్యాంకు వివరాలు",
     // Invoice
     invoiceTitle: "సులభమైన బిల్లు / ఇన్‌వాయిస్ తయారీ (Invoice Generator)",
     invNumber: "బిల్లు నంబరు (Invoice No)",

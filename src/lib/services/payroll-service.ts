@@ -1,6 +1,8 @@
 import { supabase } from '../supabase-client';
 import { Employee, Payslip } from '../../types';
 import { decrementInstallment } from './advance-service';
+import { fetchPayrollConfig } from './payroll-config-service';
+import { computeAttendanceStats } from '../utils/attendance-stats';
 
 export async function savePayslipToSupabase(empId: string, payslip: Payslip): Promise<void> {
   let totalDeductions = payslip.deductions.reduce((sum, d) => sum + d.amount, 0);
@@ -31,7 +33,10 @@ export async function savePayslipToSupabase(empId: string, payslip: Payslip): Pr
     deductions: payslip.deductions,
     net_pay: netPay,
     advance_money_taken: payslip.advanceMoneyTaken || false,
-    advance_money_amount: payslip.advanceMoneyAmount || 0
+    advance_money_amount: payslip.advanceMoneyAmount || 0,
+    working_days: payslip.workingDays ?? null,
+    days_present: payslip.daysPresent ?? null,
+    leaves_taken: payslip.leavesTaken ?? null
   };
 
   if (existing) {
@@ -49,25 +54,34 @@ export async function savePayslipToSupabase(empId: string, payslip: Payslip): Pr
 }
 
 export async function runBulkPayrollForMonth(employees: Employee[], month: string): Promise<void> {
+  // Fetch dynamic config from DB (or use defaults on failure)
+  const config = await fetchPayrollConfig();
+
   for (const emp of employees) {
     if (emp.role === 'admin') continue;
     const basic = emp.basicSalary;
 
-    // Fixed allowances per policy
+    // Use dynamic allowances per policy
     const allowances = [
-      { nameKey: 'hra', amount: 4800 },           // Fixed ₹4,800 HRA
-      { nameKey: 'medicalAllow', amount: 2000 },   // Fixed ₹2,000 Medical
-      { nameKey: 'conveyanceAllow', amount: 1500 }
+      { nameKey: 'hra', amount: config.hra_fixed },
+      { nameKey: 'medicalAllow', amount: config.medical_allowance },
+      { nameKey: 'conveyanceAllow', amount: config.conveyance_allowance }
     ];
 
     const deductions: { nameKey: string; amount: number }[] = [
-      { nameKey: 'providentFund', amount: Math.round(basic * 0.12) },
-      { nameKey: 'professionalTax', amount: 200 }
+      { nameKey: 'providentFund', amount: Math.round(basic * (config.pf_percent / 100)) },
+      { nameKey: 'professionalTax', amount: config.professional_tax }
     ];
 
     const existingPayslip = emp.payslips.find(p => p.month === month);
-    if (existingPayslip) continue; // Don't overwrite manually edited payslips
-
+    if (existingPayslip) {
+      // If the existing payslip is missing the new attendance stats, automatically regenerate it
+      if (existingPayslip.workingDays === undefined || existingPayslip.workingDays === null) {
+        console.log(`Regenerating incomplete payslip for ${emp.name}`);
+      } else {
+        continue; // Don't overwrite manually edited payslips that are complete
+      }
+    }
     // Installment-based advance deduction
     // Only deduct active advances with installments remaining
     const activeAdvances = (emp.advanceRequests || []).filter(
@@ -87,6 +101,8 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
       });
     }
 
+    const stats = computeAttendanceStats(month, emp.attendanceRecords || [], emp.leaveRequests || []);
+
     const payslip: Payslip = {
       id: `PS-${emp.id}-${month}`,
       month,
@@ -94,7 +110,10 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
       allowances,
       deductions,
       advanceMoneyTaken: advanceInstallmentTotal > 0,
-      advanceMoneyAmount: advanceInstallmentTotal
+      advanceMoneyAmount: advanceInstallmentTotal,
+      workingDays: stats.workingDays,
+      daysPresent: stats.daysPresent,
+      leavesTaken: stats.leavesTaken
     };
 
     await savePayslipToSupabase(emp.id, payslip);

@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
-import { Calendar, UserCheck, AlertCircle, ArrowLeft, Users, Check, Moon, HelpCircle, MapPin } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, UserCheck, AlertCircle, ArrowLeft, Users, Check, Moon, HelpCircle, MapPin, Clock } from 'lucide-react';
 import { Language, Employee, AttendanceStatus } from '../types';
 import { translations } from '../translations';
+import LocationPinTimeline from './LocationPinTimeline';
 
 interface AdminAttendanceProps {
   language: Language;
   employees: Employee[];
   onUpdateAttendance: (empId: string, date: string, status: AttendanceStatus) => void;
+  onForceCloseSession?: (empId: string, date: string, time?: string) => void;
 }
 
-export default function AdminAttendance({ language, employees, onUpdateAttendance }: AdminAttendanceProps) {
+export default function AdminAttendance({ language, employees, onUpdateAttendance, onForceCloseSession }: AdminAttendanceProps) {
   const t = translations[language];
 
   // Filters
@@ -17,6 +19,49 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
   const [editTarget, setEditTarget] = useState<{empId: string, date: string, status: AttendanceStatus | 'blank'} | null>(null);
 
   const todayStr = new Date().toISOString().split('T')[0];
+
+  // Live timer for tracking hours today
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000); // update every minute
+    return () => clearInterval(timer);
+  }, []);
+
+  const calculateLiveHours = (emp: Employee) => {
+    const todayLogs = emp.checkInLogs?.filter(l => l.date === todayStr) || [];
+    if (todayLogs.length === 0) return null;
+    
+    let totalSecs = 0;
+    let isCurrentlyActive = false;
+    
+    todayLogs.forEach(log => {
+      if (log.checkInTime) {
+        const [h1, m1, s1] = log.checkInTime.split(':').map(Number);
+        const sec1 = h1*3600 + m1*60 + s1;
+        let sec2 = 0;
+        if (log.checkOutTime) {
+          const [h2, m2, s2] = log.checkOutTime.split(':').map(Number);
+          sec2 = h2*3600 + m2*60 + s2;
+        } else {
+          isCurrentlyActive = true;
+          sec2 = now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds();
+        }
+        if (sec2 > sec1) {
+          totalSecs += (sec2 - sec1);
+        }
+      }
+    });
+
+    if (totalSecs <= 0) return null;
+
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    
+    return {
+      text: `${h}h ${m}m`,
+      isActive: isCurrentlyActive
+    };
+  };
 
   // Calculate statistics for today across the team
   const totalEmployees = employees.filter(e => e.role !== 'admin').length;
@@ -186,7 +231,15 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
                 .map(emp => (
                   <tr key={emp.id} className="hover:bg-slate-50/50">
                     <td className="p-4 truncate">
-                      <p className="text-xs font-bold text-slate-800 leading-none">{emp.name}</p>
+                      <p className="text-xs font-bold text-slate-800 leading-none flex items-center gap-2">
+                        {emp.name}
+                        {calculateLiveHours(emp) && (
+                          <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border ${calculateLiveHours(emp)?.isActive ? 'bg-teal-50 text-teal-600 border-teal-100 animate-pulse' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                            <Clock className="w-2.5 h-2.5" />
+                            {calculateLiveHours(emp)?.text}
+                          </span>
+                        )}
+                      </p>
                       <span className="text-[9px] text-slate-400 font-medium font-mono mt-1 block">{emp.id}</span>
                     </td>
                     
@@ -272,6 +325,7 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
               if (!log && !emp?.attendanceRecords.find(r => r.date === editTarget.date)?.photoUrl) return null;
               
               const isMedicalCamp = log?.checkInLocation?.toLowerCase().includes('camp') || log?.checkInLocation?.toLowerCase().includes('health');
+              const isOpenSession = log && log.checkInTime && !log.checkOutTime;
 
               return (
                 <div className="mb-4">
@@ -319,6 +373,26 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
                           <p className={`text-[9px] font-bold text-center mt-1 leading-tight ${log.checkOutLocation?.toLowerCase().includes('camp') ? 'text-indigo-600' : 'text-slate-500'}`}>
                             {log.checkOutLocation}
                           </p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* OPEN SESSION FALLBACK */}
+                    {isOpenSession && (
+                      <div className="bg-amber-50 p-3 rounded-xl flex flex-col items-center justify-center border border-amber-100 text-center">
+                        <AlertCircle className="w-5 h-5 text-amber-500 mb-2" />
+                        <p className="text-[10px] text-amber-800 font-bold mb-2">Incomplete Session</p>
+                        <p className="text-[9px] text-amber-700 leading-tight mb-3">No punch-out recorded.</p>
+                        {onForceCloseSession && (
+                          <button
+                            onClick={() => {
+                              onForceCloseSession(editTarget.empId, editTarget.date);
+                              setEditTarget(null);
+                            }}
+                            className="bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-bold px-3 py-1.5 rounded-lg transition-colors w-full"
+                          >
+                            Force Close (6:00 PM)
+                          </button>
                         )}
                       </div>
                     )}

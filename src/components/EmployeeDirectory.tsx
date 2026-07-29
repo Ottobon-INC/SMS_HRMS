@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Plus, Edit3, Trash2, ArrowLeft, Calendar, Moon, Landmark, User, Mail, IndianRupee, CalendarDays, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, Edit3, Trash2, ArrowLeft, Calendar, Moon, Landmark, User, Mail, IndianRupee, CalendarDays, Eye, EyeOff, Power, FileText, Printer } from 'lucide-react';
 import { Language, Employee, LeaveType } from '../types';
 import { translations } from '../translations';
 import AttendanceModule from './AttendanceModule';
 import LeaveModule from './LeaveModule';
 import PayrollModule from './PayrollModule';
+import ExperienceLetter from './ExperienceLetter';
 
 interface EmployeeDirectoryProps {
   language: Language;
@@ -36,10 +37,23 @@ export default function EmployeeDirectory({
 
   // UI state
   const [inspectingEmpId, setInspectingEmpId] = useState<string | null>(null);
-  const [inspectSubTab, setInspectSubTab] = useState<'attendance' | 'leave' | 'payroll'>('attendance');
+  const [inspectSubTab, setInspectSubTab] = useState<'attendance' | 'leave' | 'payroll' | 'docs'>('attendance');
+  const [viewingPhotoUrl, setViewingPhotoUrl] = useState<string | null>(null);
+
+  const letterRef = useRef<HTMLDivElement>(null);
+
+  const handlePrintLetter = () => {
+    if (letterRef.current) {
+      const originalContents = document.body.innerHTML;
+      const printContents = letterRef.current.innerHTML;
+      document.body.innerHTML = printContents;
+      window.print();
+      document.body.innerHTML = originalContents;
+      window.location.reload(); // Quick reset of the SPA state
+    }
+  };
   
   // Modal State
-  const [viewingPhotoUrl, setViewingPhotoUrl] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
@@ -57,6 +71,10 @@ export default function EmployeeDirectory({
   const [showPassword, setShowPassword] = useState(false);
   const [formGender, setFormGender] = useState<'male' | 'female' | 'other' | undefined>(undefined);
   const [formExperience, setFormExperience] = useState<number>(0);
+  const [formBankAccountNo, setFormBankAccountNo] = useState('');
+  const [formBankName, setFormBankName] = useState('');
+  const [formBankIfsc, setFormBankIfsc] = useState('');
+  const [formBankAccountType, setFormBankAccountType] = useState<'savings' | 'current'>('savings');
 
   const activeEmployee = employees.find(e => e.id === inspectingEmpId);
 
@@ -72,6 +90,10 @@ export default function EmployeeDirectory({
     setFormStatus('active');
     setFormGender(undefined);
     setFormExperience(0);
+    setFormBankAccountNo('');
+    setFormBankName('');
+    setFormBankIfsc('');
+    setFormBankAccountType('savings');
     setShowAddModal(true);
   };
 
@@ -89,6 +111,10 @@ export default function EmployeeDirectory({
     setFormStatus(emp.status || 'active');
     setFormGender(emp.gender || undefined);
     setFormExperience(emp.experience || 0);
+    setFormBankAccountNo(emp.bankDetails?.accountNumber || '');
+    setFormBankName(emp.bankDetails?.bankName || '');
+    setFormBankIfsc(emp.bankDetails?.ifsc || '');
+    setFormBankAccountType(emp.bankDetails?.accountType || 'savings');
     setShowEditModal(true);
   };
 
@@ -113,7 +139,13 @@ export default function EmployeeDirectory({
         password: formPassword,
         status: formStatus,
         gender: formGender,
-        experience: formExperience
+        experience: formExperience,
+        bankDetails: {
+          accountNumber: formBankAccountNo,
+          bankName: formBankName,
+          ifsc: formBankIfsc,
+          accountType: formBankAccountType
+        }
       });
       setShowAddModal(false);
     } catch (error: any) {
@@ -136,21 +168,47 @@ export default function EmployeeDirectory({
       password: formPassword,
       status: formStatus,
       gender: formGender,
-      experience: formExperience
+      experience: formExperience,
+      bankDetails: {
+        accountNumber: formBankAccountNo,
+        bankName: formBankName,
+        ifsc: formBankIfsc,
+        accountType: formBankAccountType
+      }
     });
     setShowEditModal(false);
   };
 
-  const handleDelete = (id: string, name: string, e: React.MouseEvent) => {
+  const handleToggleStatus = (id: string, name: string, currentStatus: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const isDeactivating = currentStatus !== 'inactive';
     const confirmed = confirm(
       language === 'te' 
-        ? `${name}ని ఉద్యోగుల లిస్ట్ నుండి తొలగించాలనుకుంటున్నారా?` 
-        : `Are you sure you want to remove ${name} from the roster?`
+        ? (isDeactivating ? `${name} అకౌంట్ నిలిపివేయాలనుకుంటున్నారా?` : `${name} అకౌంట్ తిరిగి యాక్టివేట్ చేయాలనుకుంటున్నారా?`)
+        : (isDeactivating ? `Deactivate ${name}'s account? They will not be able to log in.` : `Reactivate ${name}'s account?`)
     );
     if (confirmed) {
-      onDeleteEmployee(id);
-      if (inspectingEmpId === id) setInspectingEmpId(null);
+      onUpdateEmployee(id, { status: isDeactivating ? 'inactive' : 'active' });
+    }
+  };
+
+  const handlePermanentDelete = () => {
+    if (!editTargetId) return;
+    const emp = employees.find(e => e.id === editTargetId);
+    if (!emp) return;
+
+    const inputName = prompt(
+      language === 'te' 
+        ? `శాశ్వతంగా తొలగించడానికి దయచేసి ఉద్యోగి పేరు "${emp.name}" ని టైప్ చేయండి:` 
+        : `To permanently delete, please type the employee's name "${emp.name}":`
+    );
+
+    if (inputName === emp.name) {
+      onDeleteEmployee(editTargetId);
+      setShowEditModal(false);
+      if (inspectingEmpId === editTargetId) setInspectingEmpId(null);
+    } else if (inputName !== null) {
+      alert(language === 'te' ? 'పేరు సరిపోలలేదు. తొలగింపు రద్దు చేయబడింది.' : 'Name did not match. Deletion cancelled.');
     }
   };
 
@@ -204,6 +262,7 @@ export default function EmployeeDirectory({
       tabAttend: "హాజరు పట్టిక",
       tabLeave: "సెలవుల నిల్వ",
       tabPayroll: "జీతం రశీదులు",
+      tabDocs: "పత్రాలు",
       deleteEmployee: "ఉద్యోగిని తొలగించండి",
     }
   }[language];
@@ -295,6 +354,15 @@ export default function EmployeeDirectory({
               <Landmark className="w-3.5 h-3.5" />
               <span>{dirText.tabPayroll}</span>
             </button>
+            <button
+              onClick={() => setInspectSubTab('docs')}
+              className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${
+                inspectSubTab === 'docs' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>{language === 'te' ? 'పత్రాలు' : 'Documents'}</span>
+            </button>
           </div>
         </div>
 
@@ -332,8 +400,27 @@ export default function EmployeeDirectory({
                 payslips={activeEmployee.payslips}
                 employeeJoiningDate={activeEmployee.joiningDate}
                 employeeExperience={activeEmployee.experience}
+                employeeBankDetails={activeEmployee.bankDetails}
                 onUpdatePayslip={(payslip) => onUpdatePayslip(activeEmployee.id, payslip)}
+                onUpdateBankDetails={(bankDetails) => onUpdateEmployee(activeEmployee.id, { bankDetails })}
               />
+            </div>
+          )}
+
+          {inspectSubTab === 'docs' && (
+            <div className="p-4 sm:p-6 flex flex-col items-center">
+              <div className="w-full flex justify-end mb-6">
+                <button
+                  onClick={handlePrintLetter}
+                  className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-teal-600/15 transition-all"
+                >
+                  <Printer className="w-4 h-4" />
+                  {language === 'te' ? 'అనుభవ పత్రాన్ని ముద్రించండి' : 'Print Experience Letter'}
+                </button>
+              </div>
+              <div className="w-full overflow-x-auto bg-slate-50 p-4 sm:p-8 rounded-2xl border border-slate-200">
+                <ExperienceLetter ref={letterRef} employee={activeEmployee} language={language} />
+              </div>
             </div>
           )}
         </div>
@@ -386,16 +473,19 @@ export default function EmployeeDirectory({
                   key={emp.id}
                   id={`roster-row-${emp.id}`}
                   onClick={() => setInspectingEmpId(emp.id)}
-                  className="hover:bg-slate-50/50 cursor-pointer transition-all group"
+                  className={`hover:bg-slate-50/50 cursor-pointer transition-all group ${emp.status === 'inactive' ? 'opacity-50 grayscale' : ''}`}
                 >
                   {/* Name and ID */}
                   <td className="p-5">
                     <div className="flex items-center gap-3">
-                      <div className="bg-teal-50 text-teal-700 min-w-[36px] w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs group-hover:scale-105 transition-all shrink-0">
+                      <div className={`min-w-[36px] w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs group-hover:scale-105 transition-all shrink-0 ${emp.status === 'inactive' ? 'bg-slate-200 text-slate-500' : 'bg-teal-50 text-teal-700'}`}>
                         {emp.name.split(' ').map(n => n[0]).join('')}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-slate-800 group-hover:text-teal-700 transition-colors truncate">{emp.name}</p>
+                        <p className="text-xs font-bold text-slate-800 group-hover:text-teal-700 transition-colors truncate">
+                          {emp.name}
+                          {emp.status === 'inactive' && <span className="ml-2 px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[9px] rounded uppercase font-bold">Inactive</span>}
+                        </p>
                         <p className="text-[10px] text-slate-400 mt-0.5 truncate">{emp.id} • {emp.email}</p>
                       </div>
                     </div>
@@ -496,11 +586,15 @@ export default function EmployeeDirectory({
                       
                       {emp.role !== 'admin' && (
                         <button
-                          onClick={(e) => handleDelete(emp.id, emp.name, e)}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title={dirText.deleteEmployee}
+                          onClick={(e) => handleToggleStatus(emp.id, emp.name, emp.status || 'active', e)}
+                          className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                            emp.status === 'inactive' 
+                              ? 'text-teal-600 hover:bg-teal-50' 
+                              : 'text-rose-400 hover:text-rose-600 hover:bg-rose-50'
+                          }`}
+                          title={emp.status === 'inactive' ? (language === 'te' ? 'యాక్టివేట్' : 'Reactivate') : (language === 'te' ? 'నిలిపివేయి' : 'Deactivate')}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Power className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
@@ -644,6 +738,30 @@ export default function EmployeeDirectory({
                   onChange={(e) => setFormExperience(Number(e.target.value))}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700"
                 />
+              </div>
+              <div className="pt-2 pb-2 mt-4 border-t border-slate-100">
+                <h4 className="text-xs font-bold text-slate-800 mb-3">{t.bankDetails || 'Bank Details'}</h4>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.bankName || 'Bank Name'}</label>
+                    <input type="text" value={formBankName} onChange={e => setFormBankName(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.bankAccountNo || 'Account No'}</label>
+                    <input type="text" value={formBankAccountNo} onChange={e => setFormBankAccountNo(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700 font-mono" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.bankIfsc || 'IFSC Code'}</label>
+                    <input type="text" value={formBankIfsc} onChange={e => setFormBankIfsc(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700 font-mono" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.bankAccountType || 'Account Type'}</label>
+                    <select value={formBankAccountType} onChange={e => setFormBankAccountType(e.target.value as 'savings'|'current')} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700">
+                      <option value="savings">Savings</option>
+                      <option value="current">Current</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -826,6 +944,31 @@ export default function EmployeeDirectory({
                 />
               </div>
 
+              <div className="pt-2 pb-2 mt-4 border-t border-slate-100">
+                <h4 className="text-xs font-bold text-slate-800 mb-3">{t.bankDetails || 'Bank Details'}</h4>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.bankName || 'Bank Name'}</label>
+                    <input type="text" value={formBankName} onChange={e => setFormBankName(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.bankAccountNo || 'Account No'}</label>
+                    <input type="text" value={formBankAccountNo} onChange={e => setFormBankAccountNo(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700 font-mono" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.bankIfsc || 'IFSC Code'}</label>
+                    <input type="text" value={formBankIfsc} onChange={e => setFormBankIfsc(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700 font-mono" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.bankAccountType || 'Account Type'}</label>
+                    <select value={formBankAccountType} onChange={e => setFormBankAccountType(e.target.value as 'savings'|'current')} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700">
+                      <option value="savings">Savings</option>
+                      <option value="current">Current</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Role</label>
@@ -852,20 +995,30 @@ export default function EmployeeDirectory({
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex justify-between items-center gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold uppercase transition-colors cursor-pointer"
+                  onClick={handlePermanentDelete}
+                  className="px-4 py-2 text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
                 >
-                  {t.cancel}
+                  <Trash2 className="w-4 h-4" />
+                  {language === 'te' ? 'శాశ్వతంగా తొలగించండి' : 'Permanent Delete'}
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold uppercase transition-colors cursor-pointer"
-                >
-                  {dirText.btnSave}
-                </button>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold uppercase transition-colors cursor-pointer"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold uppercase transition-colors cursor-pointer"
+                  >
+                    {dirText.btnSave}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

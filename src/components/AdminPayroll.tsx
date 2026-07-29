@@ -9,8 +9,9 @@ interface AdminPayrollProps {
   language: 'en' | 'te';
   employees: Employee[];
   onRunBulkPayroll: (month: string) => void;
-  onGenerateSinglePayslip: (employeeId: string, month: string, basicPay: number, hasExisting: boolean, approvedAdvances: { id: string, amount: number }[]) => void;
+  onGenerateSinglePayslip: (employeeId: string, month: string, basicPay: number, hasExisting: boolean, approvedAdvances: { id: string, amount: number }[], attendanceRecords: any[], leaveRequests: any[]) => void;
   onUpdatePayslip: (employeeId: string, updatedSlip: Payslip) => void;
+  onUpdateEmployee?: (employeeId: string, updates: Partial<Employee>) => void;
 }
 
 export default function AdminPayroll({
@@ -19,6 +20,7 @@ export default function AdminPayroll({
   onRunBulkPayroll,
   onGenerateSinglePayslip,
   onUpdatePayslip,
+  onUpdateEmployee
 }: AdminPayrollProps) {
   const t = translations[language];
   const monthOptions = generateMonthOptions(2018, 1);
@@ -197,26 +199,35 @@ export default function AdminPayroll({
                 {monthOptions.map(m => {
                   const alreadyExists = activeEmployee.payslips.some(p => p.month === m);
                   return (
-                    <option key={m} value={m} disabled={alreadyExists}>
-                      {formatMonth(m, language)} {alreadyExists ? (language === 'te' ? '(ఉంది)' : '(Exists)') : ''}
+                    <option key={m} value={m}>
+                      {formatMonth(m, language)} {alreadyExists ? (language === 'te' ? '(ఉంది - మళ్లీ సృష్టించు)' : '(Exists - Will Overwrite)') : ''}
                     </option>
                   );
                 })}
               </select>
 
               <button
-                disabled={activeEmployee.payslips.some(p => p.month === singlePayrollMonth)}
-                onClick={() => {
-                  const hasExisting = activeEmployee.payslips.some(p => p.month === singlePayrollMonth);
-                  const approvedAdvances = activeEmployee.advanceRequests?.filter(a => a.status === 'approved') || [];
-                  onGenerateSinglePayslip(activeEmployee.id, singlePayrollMonth, activeEmployee.basicSalary, hasExisting, approvedAdvances);
-                  setShowNotification(language === 'te' ? 'సాలరీ స్లిప్ సృష్టించబడింది!' : 'Successfully generated individual payslip!');
+                // Removed disabled check to allow manual overrides
+                onClick={async () => {
+                  try {
+                    const hasExisting = activeEmployee.payslips.some(p => p.month === singlePayrollMonth);
+                    const approvedAdvances = activeEmployee.advanceRequests?.filter(a => a.status === 'approved') || [];
+                    await onGenerateSinglePayslip(activeEmployee.id, singlePayrollMonth, activeEmployee.basicSalary, hasExisting, approvedAdvances, activeEmployee.attendanceRecords || [], activeEmployee.leaveRequests || []);
+                    setShowNotification(language === 'te' ? 'సాలరీ స్లిప్ సృష్టించబడింది!' : 'Successfully generated individual payslip!');
+                  } catch (err: any) {
+                    console.error("Payslip Generation Error:", err);
+                    setShowNotification(`Error: ${err?.message || "Failed to save to database. Have you run the SQL migration?"}`);
+                  }
                   setTimeout(() => setShowNotification(null), 3000);
                 }}
                 className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-xs font-bold transition-all uppercase tracking-wide"
               >
                 <Plus className="w-4 h-4 shrink-0" />
-                <span className="whitespace-nowrap">{localizedText.btnGenerateSingle}</span>
+                <span className="whitespace-nowrap">
+                  {activeEmployee.payslips.some(p => p.month === singlePayrollMonth) 
+                    ? (language === 'te' ? 'మళ్లీ సృష్టించండి' : 'Regenerate Payslip') 
+                    : localizedText.btnGenerateSingle}
+                </span>
               </button>
             </div>
             
@@ -230,7 +241,11 @@ export default function AdminPayroll({
                   employeeDesignation={activeEmployee.designation}
                   employeeJoiningDate={activeEmployee.joiningDate}
                   employeeExperience={activeEmployee.experience}
+                  employeeBankDetails={activeEmployee.bankDetails}
                   onUpdatePayslip={handleUpdatePayslip}
+                  onUpdateBankDetails={(bankDetails) => onUpdateEmployee?.(activeEmployee.id, { bankDetails })}
+                  attendanceRecords={activeEmployee.attendanceRecords || []}
+                  leaveRequests={activeEmployee.leaveRequests || []}
                 />
               </div>
             )}

@@ -1,6 +1,9 @@
 import { Employee, Payslip } from '../types';
 import * as payrollService from '../lib/services/payroll-service';
 import { decrementInstallment } from '../lib/services/advance-service';
+import { fetchPayrollConfig, defaultPayrollConfig } from '../lib/services/payroll-config-service';
+import { computeAttendanceStats } from '../lib/utils/attendance-stats';
+import { AttendanceRecord, LeaveRequest } from '../types';
 
 export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) {
   const runBulkPayroll = async (employees: Employee[], month: string) => {
@@ -31,7 +34,9 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
     month: string,
     basicPay: number,
     hasExisting: boolean,
-    approvedAdvances: { id: string; amount: number; repaymentMonths?: number; monthlyInstallment?: number; installmentsRemaining?: number; advanceType?: 'salary' | 'medical' }[]
+    approvedAdvances: { id: string; amount: number; repaymentMonths?: number; monthlyInstallment?: number; installmentsRemaining?: number; advanceType?: 'salary' | 'medical' }[],
+    attendanceRecords: AttendanceRecord[],
+    leaveRequests: LeaveRequest[]
   ) => {
     if (isLocalMode) {
       alert("Payslip updates require an online database connection.");
@@ -45,12 +50,14 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
       if (!confirmOverride) return;
     }
 
-    // Fixed allowances per policy
-    const hraAmt = 4800;          // Fixed ₹4,800
-    const medAmt = 2000;          // Fixed ₹2,000
-    const convAmt = 1500;
-    const pfAmt = Math.round(basicPay * 0.12);
-    const profTax = 200;
+    // Fetch dynamic config from DB (or use defaults on failure)
+    const config = await fetchPayrollConfig();
+
+    const hraAmt = config.hra_fixed;
+    const medAmt = config.medical_allowance;
+    const convAmt = config.conveyance_allowance;
+    const pfAmt = Math.round(basicPay * (config.pf_percent / 100));
+    const profTax = config.professional_tax;
 
     // Installment-based advance deductions only
     const activeAdvances = approvedAdvances.filter(
@@ -75,6 +82,8 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
       });
     }
 
+    const stats = computeAttendanceStats(month, attendanceRecords, leaveRequests);
+
     const payslip: Payslip = {
       id: `PS-${month}-${empId.slice(-3)}`,
       month,
@@ -86,7 +95,10 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
       ],
       deductions: deductionsArr,
       advanceMoneyTaken: advanceInstallmentTotal > 0,
-      advanceMoneyAmount: advanceInstallmentTotal
+      advanceMoneyAmount: advanceInstallmentTotal,
+      workingDays: stats.workingDays,
+      daysPresent: stats.daysPresent,
+      leavesTaken: stats.leavesTaken
     };
 
     await payrollService.savePayslipToSupabase(empId, payslip);

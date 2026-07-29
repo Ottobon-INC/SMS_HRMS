@@ -17,14 +17,48 @@ export interface Employee {
   payslips: Payslip[];
   advanceRequests: AdvanceRequest[];
   gender?: 'male' | 'female' | 'other';
+  dob?: string;
   experience?: number;
   monthlyQuota?: MonthlyLeaveQuota;
+  locationPins?: LocationPin[];
+  shifts?: DutyRosterShift[];
+  bankDetails?: BankDetails;
+}
+
+export interface BankDetails {
+  accountNumber: string;
+  bankName: string;
+  ifsc: string;
+  accountType?: 'savings' | 'current';
 }
 
 export type Language = 'en' | 'te';
 export type PunchType = 'in_office' | 'out_of_office';
+export type PinType = 'field_visit' | 'medical_camp' | 'client_site' | 'delivery' | 'other';
 export type RepaymentTimeline = 2 | 3 | 5;
 
+export interface LocationPin {
+  id: string;
+  date: string;           // YYYY-MM-DD
+  pinnedAt: string;       // HH:MM:SS
+  label?: string;         // user-typed note
+  latitude?: number;
+  longitude?: number;
+  locationName?: string;  // reverse geocoded
+  photoUrl?: string;
+  pinType: PinType;
+}
+
+export interface DutyRosterShift {
+  id: string;
+  employeeId: string;
+  shiftDate: string; // YYYY-MM-DD
+  shiftStart: string; // HH:MM
+  shiftEnd: string; // HH:MM
+  shiftLabel?: string;
+  notes?: string;
+  isPublished: boolean;
+}
 
 export interface CheckInLog {
   id: string;
@@ -40,6 +74,7 @@ export interface CheckInLog {
   checkOutPhotoUrl?: string; // check-out photo
   punchType?: PunchType; // 'in_office' | 'out_of_office'
   punchNote?: string;
+  sessionNumber?: number;
 }
 
 
@@ -109,6 +144,9 @@ export interface Payslip {
   deductions: Deduction[];
   advanceMoneyTaken?: boolean;
   advanceMoneyAmount?: number;
+  workingDays?: number;
+  daysPresent?: number;
+  leavesTaken?: number;
 }
 
 export interface InvoiceItem {

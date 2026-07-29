@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { DollarSign, Printer, Landmark, Sparkles, TrendingUp, HelpCircle, Edit2, Check, X, Plus, Trash2 } from 'lucide-react';
-import { Language, Payslip, Allowance, Deduction } from '../types';
+import { Check, Edit2, Save, X, Printer, Plus, Trash2 } from 'lucide-react';
+import { Language, Payslip, Allowance, Deduction, BankDetails, AttendanceRecord, LeaveRequest } from '../types';
 import { translations } from '../translations';
-import SmsLogo from './SmsLogo';
 import { numberToWords, formatMonth } from '../lib/utils';
+import { computeAttendanceStats } from '../lib/utils/attendance-stats';
+import SmsLogo from './SmsLogo';
 
 interface PayrollModuleProps {
   language: Language;
@@ -14,7 +15,11 @@ interface PayrollModuleProps {
   employeeDesignation?: string;
   employeeJoiningDate?: string;
   employeeExperience?: number;
-  onUpdatePayslip?: (updatedSlip: Payslip) => void;
+  employeeBankDetails?: BankDetails;
+  onUpdatePayslip: (updatedSlip: Payslip) => void;
+  onUpdateBankDetails?: (details: BankDetails) => void;
+  attendanceRecords?: AttendanceRecord[];
+  leaveRequests?: LeaveRequest[];
 }
 
 export default function PayrollModule({
@@ -26,7 +31,11 @@ export default function PayrollModule({
   employeeDesignation = 'Software Engineer',
   employeeJoiningDate,
   employeeExperience,
+  employeeBankDetails,
   onUpdatePayslip,
+  onUpdateBankDetails,
+  attendanceRecords = [],
+  leaveRequests = []
 }: PayrollModuleProps) {
   const t = translations[language];
 
@@ -40,6 +49,15 @@ export default function PayrollModule({
   const [draftDeductions, setDraftDeductions] = useState<Deduction[]>([]);
   const [draftAdvanceTaken, setDraftAdvanceTaken] = useState<boolean>(false);
   const [draftAdvanceAmount, setDraftAdvanceAmount] = useState<number>(0);
+  
+  const [draftWorkingDays, setDraftWorkingDays] = useState<number>(0);
+  const [draftDaysPresent, setDraftDaysPresent] = useState<number>(0);
+  const [draftLeavesTaken, setDraftLeavesTaken] = useState<number>(0);
+
+  const [draftBankAccountNo, setDraftBankAccountNo] = useState<string>('');
+  const [draftBankName, setDraftBankName] = useState<string>('');
+  const [draftBankIfsc, setDraftBankIfsc] = useState<string>('');
+  const [draftBankAccountType, setDraftBankAccountType] = useState<string>('savings');
 
   const activeSlip = payslips.find(p => p.id === selectedSlipId) || payslips[0];
 
@@ -50,6 +68,24 @@ export default function PayrollModule({
       </div>
     );
   }
+
+  // --- Computed Fallback for Missing Stats ---
+  // If the database is missing these columns (due to Supabase schema lag), compute them on the fly
+  let displayWorkingDays = activeSlip.workingDays;
+  let displayDaysPresent = activeSlip.daysPresent;
+  let displayLeavesTaken = activeSlip.leavesTaken;
+  
+  let displayPaidLeaves = 0;
+  let displayLopDays = 0;
+
+  // Always compute dynamically from employee's actual attendance records + leave requests
+  const stats = computeAttendanceStats(activeSlip.month, attendanceRecords, leaveRequests);
+  displayWorkingDays = stats.workingDays;
+  displayDaysPresent = stats.daysPresent;
+  displayLeavesTaken = stats.leavesTaken;
+  displayPaidLeaves = stats.paidLeaves;
+  displayLopDays = stats.lopDays;
+  const hasAttendanceData = stats.hasData;
 
   // Formatting helpers
   const formatCurrency = (amount: number) => {
@@ -96,6 +132,13 @@ export default function PayrollModule({
     setDraftDeductions(activeSlip.deductions.filter(d => d.nameKey !== 'incomeTax'));
     setDraftAdvanceTaken(activeSlip.advanceMoneyTaken || false);
     setDraftAdvanceAmount(activeSlip.advanceMoneyAmount || 0);
+    setDraftWorkingDays(displayWorkingDays || 0);
+    setDraftDaysPresent(displayDaysPresent || 0);
+    setDraftLeavesTaken(displayLeavesTaken || 0);
+    setDraftBankAccountNo(employeeBankDetails?.accountNumber || '');
+    setDraftBankName(employeeBankDetails?.bankName || '');
+    setDraftBankIfsc(employeeBankDetails?.ifsc || '');
+    setDraftBankAccountType(employeeBankDetails?.accountType || 'savings');
     setIsEditing(true);
   };
 
@@ -145,6 +188,17 @@ export default function PayrollModule({
         deductions: draftDeductions,
         advanceMoneyTaken: draftAdvanceTaken,
         advanceMoneyAmount: draftAdvanceTaken ? draftAdvanceAmount : 0,
+        workingDays: draftWorkingDays,
+        daysPresent: draftDaysPresent,
+        leavesTaken: draftLeavesTaken,
+      });
+    }
+    if (onUpdateBankDetails) {
+      onUpdateBankDetails({
+        accountNumber: draftBankAccountNo,
+        bankName: draftBankName,
+        ifsc: draftBankIfsc,
+        accountType: draftBankAccountType as any
       });
     }
     setIsEditing(false);
@@ -219,51 +273,99 @@ export default function PayrollModule({
       >
         {!isEditing ? (
           <div className="font-sans text-sm text-black">
+            {/* 1. Header */}
             <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
-              <div className="flex gap-6 items-center">
-                <div className="shrink-0 scale-125 origin-left pl-2">
-                  <SmsLogo textSize="text-3xl font-black" subtitle={false} />
+              <div className="flex w-full items-center">
+                <div className="shrink-0 pr-6">
+                  <SmsLogo className="h-16 w-auto" />
                 </div>
-                <div className="pl-6 border-l-2 border-slate-200">
-                  <h1 className="text-2xl font-bold uppercase tracking-wider mb-2 text-teal-800">SMS DIAGNOSTICS</h1>
-                  <p className="text-xs max-w-lg mb-1 text-slate-700">#18-1-30/9, Opp. KGH OP Gate, Aditya Complex, Visakhapatnam - 530002, Andhra Pradesh</p>
-                  <p className="text-xs text-slate-700">info@smslabs.in &nbsp;&nbsp;|&nbsp;&nbsp; www.smslabs.in &nbsp;&nbsp;|&nbsp;&nbsp; Phone: 9059331954</p>
+                <div className="flex-1 text-right">
+                  <h1 className="text-2xl font-bold uppercase tracking-wider mb-1 text-teal-800">SMS DIAGNOSTICS</h1>
+                  <p className="text-xs mb-1 text-slate-800 font-medium">#18-1-30/9, Opp. KGH OP Gate, Aditya Complex, Visakhapatnam - 530002, A.P.</p>
+                  <p className="text-xs text-slate-800 font-medium">info@smslabs.in &nbsp;&nbsp;|&nbsp;&nbsp; www.smslabs.in &nbsp;&nbsp;|&nbsp;&nbsp; Phone: 9059331954</p>
                 </div>
               </div>
             </div>
 
-            <div className="text-center font-bold text-lg mb-6">
+            {/* 2. Title */}
+            <div className="text-center font-bold text-lg mb-6 uppercase tracking-wide">
               Pay slip for the month of {new Date(activeSlip.month + '-01').toLocaleString('en-US', { month: 'long', year: 'numeric' })}
             </div>
 
+            {/* 3. Employee Info Grid */}
             <div className="grid grid-cols-2 border border-black mb-6">
               <div className="border-r border-black flex flex-col">
-                <div className="flex border-b border-black last:border-b-0"><div className="w-1/2 p-2 border-r border-black">Employee Code</div><div className="w-1/2 p-2">: {employeeId}</div></div>
-                <div className="flex border-b border-black last:border-b-0"><div className="w-1/2 p-2 border-r border-black">Base Location</div><div className="w-1/2 p-2">: N/A</div></div>
-                <div className="flex border-b border-black last:border-b-0"><div className="w-1/2 p-2 border-r border-black">Date of Joining</div><div className="w-1/2 p-2">: {employeeJoiningDate ? new Date(employeeJoiningDate).toLocaleDateString('en-GB') : 'N/A'}</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/2 p-2 border-r border-black font-semibold">Employee Code</div><div className="w-1/2 p-2">: {employeeId}</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/2 p-2 border-r border-black font-semibold">Base Location</div><div className="w-1/2 p-2">: Visakhapatnam</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/2 p-2 border-r border-black font-semibold">Date of Joining</div><div className="w-1/2 p-2">: {employeeJoiningDate ? new Date(employeeJoiningDate).toLocaleDateString('en-GB') : 'N/A'}</div></div>
               </div>
               <div className="flex flex-col">
-                <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Company:</div><div className="w-2/3 p-2">SMS DIAGNOSTICS</div></div>
-                <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Name:</div><div className="w-2/3 p-2 font-bold">{employeeName}</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Company:</div><div className="w-2/3 p-2 font-bold">SMS DIAGNOSTICS</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Email:</div><div className="w-2/3 p-2 font-medium">{employeeEmail || 'N/A'}</div></div>
+                <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Employee Name:</div><div className="w-2/3 p-2 font-bold">{employeeName}</div></div>
                 <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Designation:</div><div className="w-2/3 p-2">{employeeDesignation}</div></div>
                 <div className="flex border-b border-black last:border-b-0"><div className="w-1/3 p-2 border-r border-black font-bold">Payslip #:</div><div className="w-2/3 p-2 font-mono text-xs">{activeSlip.id}</div></div>
               </div>
             </div>
 
+            {/* 4. Attendance Summary */}
+            <div className="grid grid-cols-8 border border-black text-center text-[10px] sm:text-xs">
+              <div className="p-2 border-r border-black font-bold bg-gray-100">{t.workingDays || 'Working Days'}</div>
+              <div className="p-2 border-r border-black">{displayWorkingDays ?? '-'}</div>
+              <div className="p-2 border-r border-black font-bold bg-gray-100">{t.daysPresent || 'Days Present'}</div>
+              <div className="p-2 border-r border-black">{displayDaysPresent}</div>
+              <div className="p-2 border-r border-black font-bold bg-gray-100">{language === 'te' ? 'పెయిడ్ సెలవులు' : 'Paid Leaves'}</div>
+              <div className="p-2 border-r border-black">{displayPaidLeaves}</div>
+              <div className="p-2 border-r border-black font-bold bg-gray-100">{language === 'te' ? 'సెలవులు/LOP' : 'LOP Days'}</div>
+              <div className="p-2">{displayLopDays}</div>
+            </div>
+            {!hasAttendanceData && (
+              <div className="border border-t-0 border-black px-3 py-1 mb-6 bg-amber-50 text-amber-700 text-[9px] italic text-center">
+                * No attendance data recorded for this month — please enter attendance in the Team Attendance module for accurate figures.
+              </div>
+            )}
+            {hasAttendanceData && <div className="mb-6" />}
+
+            {/* 5. Bank Details */}
+            {employeeBankDetails && (
+              <div className="grid grid-cols-6 border border-black mb-6 text-center">
+                <div className="p-2 border-r border-black font-bold bg-gray-100">{t.bankName || 'Bank Name'}</div>
+                <div className="p-2 border-r border-black col-span-2">{employeeBankDetails.bankName || '-'}</div>
+                <div className="p-2 border-r border-black font-bold bg-gray-100">{t.bankAccountNo || 'Account No'}</div>
+                <div className="p-2 col-span-2 font-mono">{employeeBankDetails.accountNumber || '-'}</div>
+              </div>
+            )}
+
+            {/* 6. Earnings and Deductions Table */}
             <div className="border border-black mb-6">
-              <div className="grid grid-cols-2 bg-slate-100 font-bold border-b border-black">
-                <div className="p-2 border-r border-black">Earnings</div>
-                <div className="p-2">Deductions</div>
+              <div className="grid grid-cols-2 bg-gray-100 font-bold border-b border-black">
+                <div className="p-2 border-r border-black text-center">Earnings</div>
+                <div className="p-2 text-center">Deductions</div>
               </div>
-              <div className="grid grid-cols-4 font-bold border-b border-black">
-                <div className="p-2 border-r border-black">Particulars</div><div className="p-2 border-r border-black text-right">Rate</div>
-                <div className="p-2 border-r border-black">Particulars</div><div className="p-2 text-right">Amount</div>
+              <div className="grid grid-cols-4 font-bold border-b border-black bg-gray-50">
+                <div className="p-2 border-r border-black">Particulars</div><div className="p-2 border-r border-black text-right">Rate / Month (Rs.)</div>
+                <div className="p-2 border-r border-black">Particulars</div><div className="p-2 text-right">Amount (Rs.)</div>
               </div>
+              
+              {/* Table Body (Flex columns to allow different row counts) */}
               <div className="grid grid-cols-2">
+                
+                {/* Earnings Column */}
                 <div className="border-r border-black flex flex-col">
                   <div className="flex justify-between p-2"><span>Basic Salary</span><span>{activeSlip.basicPay.toLocaleString('en-IN')}</span></div>
-                  {allowancesList.map((a, i) => <div key={i} className="flex justify-between p-2"><span>{t[a.nameKey] || a.nameKey}</span><span>{a.amount.toLocaleString('en-IN')}</span></div>)}
+                  {allowancesList.map((a, i) => (
+                    <div key={i} className="flex justify-between p-2">
+                      <span>{t[a.nameKey] || a.nameKey}</span>
+                      <span>{a.amount.toLocaleString('en-IN')}</span>
+                    </div>
+                  ))}
+                  {/* Fill empty space if earnings are fewer than deductions */}
+                  {Array.from({ length: Math.max(0, deductionsList.length + (activeSlip.advanceMoneyTaken && !hasAdvanceInDeductions ? 1 : 0) - allowancesList.length) }).map((_, i) => (
+                     <div key={`empty-e-${i}`} className="flex justify-between p-2 text-transparent"><span>-</span><span>-</span></div>
+                  ))}
                 </div>
+                
+                {/* Deductions Column */}
                 <div className="flex flex-col">
                   {deductionsList.map((d, i) => (
                     <div key={i} className="flex justify-between p-2">
@@ -280,36 +382,83 @@ export default function PayrollModule({
                   ))}
                   {!hasAdvanceInDeductions && activeSlip.advanceMoneyTaken && (
                     <div className="flex justify-between p-2">
-                      <span>{t.advInstallmentLabel || 'Advance'}</span>
+                      <span>{t.advInstallmentLabel || 'Advance Installment'}</span>
                       <span>{activeSlip.advanceMoneyAmount?.toLocaleString('en-IN')}</span>
                     </div>
                   )}
+                  {/* Fill empty space if deductions are fewer than earnings */}
+                  {Array.from({ length: Math.max(0, allowancesList.length - deductionsList.length - (activeSlip.advanceMoneyTaken && !hasAdvanceInDeductions ? 1 : 0)) }).map((_, i) => (
+                     <div key={`empty-d-${i}`} className="flex justify-between p-2 text-transparent"><span>-</span><span>-</span></div>
+                  ))}
                 </div>
 
               </div>
+              
+              {/* Totals Row */}
               <div className="grid grid-cols-2 border-t border-black font-bold">
                 <div className="flex justify-between p-2 border-r border-black"><span>Total Earnings</span><span>{totalEarnings.toLocaleString('en-IN')}</span></div>
                 <div className="flex justify-between p-2"><span>Total Deductions</span><span>{totalDeductions.toLocaleString('en-IN')}</span></div>
               </div>
-              <div className="border-t border-black font-bold flex justify-between p-2 bg-slate-100">
+              
+              {/* Net Salary Row */}
+              <div className="border-t border-black font-bold flex justify-between p-3 bg-gray-200 text-base">
                 <span>Net Salary:</span><span>Rs. {netPay.toLocaleString('en-IN')}</span>
               </div>
             </div>
 
-            <div className="text-sm mb-8 pb-4 border-b border-black">
-              <span className="font-bold">In words:</span> {numberToWords(netPay)}
+            {/* 7. In Words */}
+            <div className="text-sm mb-12">
+              <span className="font-normal">In words: {numberToWords(netPay)} Rupees only</span>
             </div>
 
-            <div className="flex justify-between items-end mt-12 pt-8">
-              <div className="text-xs italic text-slate-500">
+            {/* 8. Footer */}
+            <div className="flex justify-between items-end mt-12">
+              <div className="text-xs italic text-gray-500">
                 This is a computer-generated payslip and does not require a signature.<br/>
-                Generated on: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                Generated on: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' ')}
               </div>
             </div>
           </div>
         ) : (
           /* ----- EDIT MODE VIEW ----- */
           <div className="relative">
+            {/* Attendance & Bank Details Editors */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4 border-b border-slate-100">
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-blue-700 border-l-3 border-blue-500 pl-2.5 uppercase">{t.attendanceSummary || 'Attendance'}</h3>
+                <div className="flex justify-between items-center text-sm border-b pb-2">
+                  <span>{t.workingDays || 'Working Days'}</span>
+                  <input type="number" value={draftWorkingDays} onChange={(e) => setDraftWorkingDays(Number(e.target.value))} className="w-24 text-right border rounded p-1"/>
+                </div>
+                <div className="flex justify-between items-center text-sm border-b pb-2">
+                  <span>{t.daysPresent || 'Days Present'}</span>
+                  <input type="number" step="0.5" value={draftDaysPresent} onChange={(e) => setDraftDaysPresent(Number(e.target.value))} className="w-24 text-right border rounded p-1"/>
+                </div>
+                <div className="flex justify-between items-center text-sm border-b pb-2">
+                  <span>{t.leavesTaken || 'Leaves Taken'}</span>
+                  <input type="number" step="0.5" value={draftLeavesTaken} onChange={(e) => setDraftLeavesTaken(Number(e.target.value))} className="w-24 text-right border rounded p-1"/>
+                </div>
+              </div>
+
+              {onUpdateBankDetails && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-indigo-700 border-l-3 border-indigo-500 pl-2.5 uppercase">{t.bankDetails || 'Bank Details'}</h3>
+                  <div className="flex justify-between items-center text-sm border-b pb-2">
+                    <span>{t.bankName || 'Bank Name'}</span>
+                    <input type="text" value={draftBankName} onChange={(e) => setDraftBankName(e.target.value)} className="w-40 text-right border rounded p-1"/>
+                  </div>
+                  <div className="flex justify-between items-center text-sm border-b pb-2">
+                    <span>{t.bankAccountNo || 'Account No'}</span>
+                    <input type="text" value={draftBankAccountNo} onChange={(e) => setDraftBankAccountNo(e.target.value)} className="w-40 text-right border rounded p-1 font-mono text-xs"/>
+                  </div>
+                  <div className="flex justify-between items-center text-sm border-b pb-2">
+                    <span>{t.bankIfsc || 'IFSC'}</span>
+                    <input type="text" value={draftBankIfsc} onChange={(e) => setDraftBankIfsc(e.target.value)} className="w-40 text-right border rounded p-1 font-mono text-xs"/>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 border-b border-slate-100">
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-teal-700 border-l-3 border-teal-500 pl-2.5 uppercase">Earnings</h3>
