@@ -1,8 +1,30 @@
 import { supabase } from '../supabase-client';
 import { Employee, Payslip } from '../../types';
 import { decrementInstallment } from './advance-service';
-import { fetchPayrollConfig } from './payroll-config-service';
+import { fetchPayrollConfig, PayrollConfig } from './payroll-config-service';
 import { computeAttendanceStats } from '../utils/attendance-stats';
+
+export function getTieredAllowances(basicSalary: number, config: PayrollConfig) {
+  if (basicSalary < 10000) {
+    return {
+      hra: config.tier1_hra ?? 2000,
+      ma: config.tier1_ma ?? 1500,
+      ca: config.tier1_ca ?? 1000,
+    };
+  } else if (basicSalary === 10000) {
+    return {
+      hra: config.tier2_hra ?? 3000,
+      ma: config.tier2_ma ?? 2000,
+      ca: config.tier2_ca ?? 1500,
+    };
+  } else {
+    return {
+      hra: config.tier3_hra ?? 4800,
+      ma: config.tier3_ma ?? 2000,
+      ca: config.tier3_ca ?? 1500,
+    };
+  }
+}
 
 export async function savePayslipToSupabase(empId: string, payslip: Payslip): Promise<void> {
   let totalDeductions = payslip.deductions.reduce((sum, d) => sum + d.amount, 0);
@@ -61,11 +83,12 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
     if (emp.role === 'admin') continue;
     const basic = emp.basicSalary;
 
-    // Use dynamic allowances per policy
+    // Use dynamic tiered allowances per policy based on basic salary
+    const tier = getTieredAllowances(basic, config);
     const allowances = [
-      { nameKey: 'hra', amount: config.hra_fixed },
-      { nameKey: 'medicalAllow', amount: config.medical_allowance },
-      { nameKey: 'conveyanceAllow', amount: config.conveyance_allowance }
+      { nameKey: 'hra', amount: tier.hra },
+      { nameKey: 'medicalAllow', amount: tier.ma },
+      { nameKey: 'conveyanceAllow', amount: tier.ca }
     ];
 
     const deductions: { nameKey: string; amount: number }[] = [

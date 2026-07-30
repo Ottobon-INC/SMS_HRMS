@@ -320,9 +320,11 @@ export default function App() {
             payslips={currentUser.payslips}
             employeeName={currentUser.name}
             employeeId={currentUser.id}
+            employeeEmail={currentUser.email}
             employeeDesignation={currentUser.designation}
             employeeJoiningDate={currentUser.joiningDate}
             employeeExperience={currentUser.experience}
+            employeeBankDetails={currentUser.bankDetails}
           />
         );
 
@@ -893,7 +895,7 @@ export default function App() {
       </div>
 
       {/* 3. MOBILE BOTTOM NAVIGATION PANEL (Visible only on Mobile - Hidden during Print mode) */}
-      <nav id="mobile-navigation" className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] flex items-center overflow-x-auto px-4 py-1 gap-2 z-40 no-print hide-scrollbar">
+      <nav id="mobile-navigation" className="print:hidden lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] flex items-center overflow-x-auto px-4 py-1 gap-2 z-40 no-print hide-scrollbar">
         
         {currentUser.role === 'admin' ? (
           /* --- ADMIN MOBILE BUTTONS --- */

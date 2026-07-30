@@ -267,12 +267,34 @@ export default function PayrollModule({
         </div>
       </div>
 
+      <style>{`
+        @media print {
+          @page { margin: 0; }
+        }
+      `}</style>
+      
       <div 
         id="printable-payslip" 
-        className="bg-white p-5 sm:p-8 md:p-12 shadow-sm border border-slate-200 relative overflow-hidden transition-all duration-300 print:border-0 print:shadow-none print:p-0"
+        className="bg-white p-5 sm:p-8 md:p-12 shadow-sm border border-slate-200 relative overflow-hidden transition-all duration-300 print:border-0 print:shadow-none print:p-12"
       >
+        {/* Background Watermark zoomed in to completely hide the letterhead's top and bottom logos */}
+        <div 
+          className="absolute inset-0 pointer-events-none z-0"
+          style={{
+            backgroundImage: 'url(/watermark.jpeg)',
+            backgroundSize: '180% auto',
+            backgroundPosition: 'center center',
+            backgroundRepeat: 'no-repeat',
+            WebkitPrintColorAdjust: 'exact',
+            printColorAdjust: 'exact'
+          }}
+        ></div>
+
+        {/* Light overlay just in case the background image is too dark, ensuring text remains readable */}
+        <div className="absolute inset-0 bg-white/50 pointer-events-none print:bg-white/50 z-0"></div>
+        
         {!isEditing ? (
-          <div className="font-sans text-sm text-black">
+          <div className="font-sans text-sm text-black relative z-10">
             {/* 1. Header */}
             <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
               <div className="flex w-full items-center">
@@ -421,7 +443,7 @@ export default function PayrollModule({
           </div>
         ) : (
           /* ----- EDIT MODE VIEW ----- */
-          <div className="relative">
+          <div className="relative z-10">
             {/* Attendance & Bank Details Editors */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4 border-b border-slate-100">
               <div className="space-y-4">

@@ -96,7 +96,7 @@ export default function AdminPayroll({
     <div id="admin-payroll-root" className="space-y-6 animate-fadeIn">
       
       {/* 1. Header */}
-      <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm">
+      <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm print:hidden">
         <h2 className="text-xl font-bold font-display text-slate-800">
           {localizedText.title}
         </h2>
@@ -107,14 +107,14 @@ export default function AdminPayroll({
 
       {/* Notification Banner */}
       {showNotification && (
-        <div id="payroll-toast" className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl flex items-start gap-3 text-emerald-800 text-xs font-bold leading-normal">
+        <div id="payroll-toast" className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl flex items-start gap-3 text-emerald-800 text-xs font-bold leading-normal print:hidden">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
           <p>{showNotification}</p>
         </div>
       )}
 
       {/* 2. Bulk Payroll Run Control Card */}
-      <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
+      <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6 print:hidden">
         <div className="flex items-center gap-2 pb-2 border-b border-slate-50">
           <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
           <h3 className="text-base font-bold text-slate-800">{localizedText.bulkHeader}</h3>
@@ -152,14 +152,14 @@ export default function AdminPayroll({
       </div>
 
       {/* 3. Individual Employee Payslip Inspector Card */}
-      <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-50">
+      <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6 print:border-0 print:p-0 print:shadow-none">
+        <div className="flex items-center gap-2 pb-2 border-b border-slate-50 print:hidden">
           <span className="w-1.5 h-1.5 bg-purple-600 rounded-full shrink-0" />
           <h3 className="text-base font-bold text-slate-800">{localizedText.inspectHeader}</h3>
         </div>
 
         {/* Dropdown Employee Selector */}
-        <div className="space-y-1 max-w-sm">
+        <div className="space-y-1 max-w-sm print:hidden">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             {language === 'te' ? 'ఉద్యోగిని ఎంచుకోండి' : 'Select Employee'}
           </label>
@@ -179,9 +179,9 @@ export default function AdminPayroll({
 
         {/* Render Selected Employee Slips */}
         {activeEmployee ? (
-          <div className="pt-4 border-t border-slate-100 space-y-6">
+          <div className="pt-4 border-t border-slate-100 space-y-6 print:border-t-0 print:pt-0">
             {/* Generate Single Payslip Section */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 print:hidden">
               <div className="flex-1">
                 <p className="text-xs font-bold text-slate-700">
                   {language === 'te' ? 'కొత్త సాలరీ స్లిప్ సృష్టించండి' : 'Generate New Payslip'}
@@ -238,6 +238,7 @@ export default function AdminPayroll({
                   payslips={activeEmployee.payslips}
                   employeeName={activeEmployee.name}
                   employeeId={activeEmployee.id}
+                  employeeEmail={activeEmployee.email}
                   employeeDesignation={activeEmployee.designation}
                   employeeJoiningDate={activeEmployee.joiningDate}
                   employeeExperience={activeEmployee.experience}

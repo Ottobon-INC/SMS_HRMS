@@ -53,9 +53,10 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
     // Fetch dynamic config from DB (or use defaults on failure)
     const config = await fetchPayrollConfig();
 
-    const hraAmt = config.hra_fixed;
-    const medAmt = config.medical_allowance;
-    const convAmt = config.conveyance_allowance;
+    const tier = payrollService.getTieredAllowances(basicPay, config);
+    const hraAmt = tier.hra;
+    const medAmt = tier.ma;
+    const convAmt = tier.ca;
     const pfAmt = Math.round(basicPay * (config.pf_percent / 100));
     const profTax = config.professional_tax;
 

@@ -35,11 +35,20 @@ export default function AdminSettings({ language }: AdminSettingsProps) {
       for (const [key, value] of Object.entries(config)) {
         let label = '';
         switch (key) {
-          case 'hra_fixed': label = 'HRA (Fixed)'; break;
-          case 'medical_allowance': label = 'Medical Allowance'; break;
-          case 'conveyance_allowance': label = 'Conveyance Allowance'; break;
+          case 'tier1_hra': label = 'Tier 1 HRA'; break;
+          case 'tier1_ma': label = 'Tier 1 Medical'; break;
+          case 'tier1_ca': label = 'Tier 1 Conveyance'; break;
+          case 'tier2_hra': label = 'Tier 2 HRA'; break;
+          case 'tier2_ma': label = 'Tier 2 Medical'; break;
+          case 'tier2_ca': label = 'Tier 2 Conveyance'; break;
+          case 'tier3_hra': label = 'Tier 3 HRA'; break;
+          case 'tier3_ma': label = 'Tier 3 Medical'; break;
+          case 'tier3_ca': label = 'Tier 3 Conveyance'; break;
           case 'pf_percent': label = 'PF % of Basic'; break;
           case 'professional_tax': label = 'Professional Tax (Fixed)'; break;
+          case 'hra_fixed': label = 'Legacy HRA'; break;
+          case 'medical_allowance': label = 'Legacy Medical'; break;
+          case 'conveyance_allowance': label = 'Legacy Conveyance'; break;
         }
         await upsertPayrollConfig(key, value as number, label);
       }
@@ -97,54 +106,89 @@ export default function AdminSettings({ language }: AdminSettingsProps) {
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Allowances */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  HRA (Fixed Amount)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                  <input
-                    type="number"
-                    required
-                    value={config.hra_fixed || ''}
-                    onChange={(e) => handleChange('hra_fixed', e.target.value)}
-                    className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700"
-                  />
+            {/* Tier 1 */}
+            <div className="mb-6 border border-slate-100 rounded-2xl p-6 bg-slate-50/50">
+              <h4 className="text-sm font-bold text-slate-800 mb-4">Tier 1: Basic Salary Below ₹10,000</h4>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">HRA</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
+                    <input type="number" required value={config.tier1_hra ?? 2000} onChange={(e) => handleChange('tier1_hra', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Medical Allowance</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
+                    <input type="number" required value={config.tier1_ma ?? 1500} onChange={(e) => handleChange('tier1_ma', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Conveyance Allowance</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
+                    <input type="number" required value={config.tier1_ca ?? 1000} onChange={(e) => handleChange('tier1_ca', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Medical Allowance
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                  <input
-                    type="number"
-                    required
-                    value={config.medical_allowance || ''}
-                    onChange={(e) => handleChange('medical_allowance', e.target.value)}
-                    className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700"
-                  />
+            {/* Tier 2 */}
+            <div className="mb-6 border border-slate-100 rounded-2xl p-6 bg-slate-50/50">
+              <h4 className="text-sm font-bold text-slate-800 mb-4">Tier 2: Basic Salary Exactly ₹10,000</h4>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">HRA</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
+                    <input type="number" required value={config.tier2_hra ?? 3000} onChange={(e) => handleChange('tier2_hra', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Medical Allowance</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
+                    <input type="number" required value={config.tier2_ma ?? 2000} onChange={(e) => handleChange('tier2_ma', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Conveyance Allowance</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
+                    <input type="number" required value={config.tier2_ca ?? 1500} onChange={(e) => handleChange('tier2_ca', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Conveyance Allowance
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                  <input
-                    type="number"
-                    required
-                    value={config.conveyance_allowance || ''}
-                    onChange={(e) => handleChange('conveyance_allowance', e.target.value)}
-                    className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700"
-                  />
+            {/* Tier 3 */}
+            <div className="mb-6 border border-slate-100 rounded-2xl p-6 bg-slate-50/50">
+              <h4 className="text-sm font-bold text-slate-800 mb-4">Tier 3: Basic Salary Above ₹10,000</h4>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">HRA</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
+                    <input type="number" required value={config.tier3_hra ?? 4800} onChange={(e) => handleChange('tier3_hra', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Medical Allowance</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
+                    <input type="number" required value={config.tier3_ma ?? 2000} onChange={(e) => handleChange('tier3_ma', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Conveyance Allowance</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
+                    <input type="number" required value={config.tier3_ca ?? 1500} onChange={(e) => handleChange('tier3_ca', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                  </div>
                 </div>
               </div>
+            </div>
 
               {/* Deductions */}
               <div className="space-y-1">

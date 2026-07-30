@@ -3,6 +3,8 @@ import { ArrowRight, Users, CheckCircle, Clock, Landmark, AlertCircle, MapPin, C
 import { Language, Employee, LeaveRequest } from '../types';
 import { translations } from '../translations';
 import TickerAlert from './TickerAlert';
+import { defaultPayrollConfig } from '../lib/services/payroll-config-service';
+import { getTieredAllowances } from '../lib/services/payroll-service';
 
 interface AdminDashboardProps {
   language: Language;
@@ -40,12 +42,12 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
   });
   const pendingCount = pendingRequests.length;
 
-  // Calculate payroll total (based on basic salary + rough HRA estimation)
+  // Calculate payroll total (based on basic salary + tiered allowances)
   const totalPayroll = employees.reduce((sum, emp) => {
-    if (emp.role === 'admin') return sum; // Admins might not have active payroll listed
-    // Total gross = basic salary + estimated allowances (HRA ~40% basic + Medical ~3000 + Conveyance ~4000)
-    const gross = emp.basicSalary + (emp.basicSalary * 0.4) + 3000 + 4000;
-    const deductions = (emp.basicSalary * 0.12) + 200 + 3000; // rough standard deduction
+    if (emp.role === 'admin' || emp.status === 'inactive') return sum; 
+    const tier = getTieredAllowances(emp.basicSalary, defaultPayrollConfig);
+    const gross = emp.basicSalary + tier.hra + tier.ma + tier.ca;
+    const deductions = (emp.basicSalary * (defaultPayrollConfig.pf_percent / 100)) + defaultPayrollConfig.professional_tax; 
     return sum + (gross - deductions);
   }, 0);
 

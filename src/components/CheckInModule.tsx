@@ -71,7 +71,18 @@ export default function CheckInModule({
         handlePinSubmit(undefined);
       } else {
         setIsCameraOpen(false);
-        onToggleCheckIn(undefined, selectedPunchType, punchNote);
+        const result = await onToggleCheckIn(undefined, selectedPunchType, punchNote);
+        if (result && !result.success) {
+          if (result.geoError) {
+            setGeoError(result.geoError);
+          } else if (result.error) {
+            if (result.error.startsWith('missed_punchout:')) {
+              setMissedPunchDate(result.error.split(':')[1]);
+            } else {
+              alert(result.error);
+            }
+          }
+        }
       }
     }
   };

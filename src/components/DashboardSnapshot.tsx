@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Sparkles, ArrowRight, Home, Calendar, Moon, Landmark, Receipt, Camera, X, MapPin } from 'lucide-react';
+import { Sparkles, ArrowRight, Home, Calendar, Moon, Landmark, Receipt, Camera, X, MapPin, AlertCircle } from 'lucide-react';
 import { Language, CheckInLog, AttendanceRecord, LeaveBalance, Payslip, Employee } from '../types';
 import { translations } from '../translations';
 import LocationPinTimeline from './LocationPinTimeline';
@@ -43,6 +43,7 @@ export default function DashboardSnapshot({
   const [isProcessing, setIsProcessing] = useState(false);
   const [punchType, setPunchType] = useState<import('../types').PunchType>('in_office');
   const [punchNote, setPunchNote] = useState('');
+  const [missedPunchDate, setMissedPunchDate] = useState<string | null>(null);
 
   // Pin states
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -79,7 +80,18 @@ export default function DashboardSnapshot({
         handlePinSubmit(undefined);
       } else {
         setIsCameraOpen(false);
-        onToggleCheckIn(undefined, punchType, punchNote); // Fallback check-in
+        const result = await onToggleCheckIn(undefined, punchType, punchNote); // Fallback check-in
+        if (result && !result.success) {
+          if (result.geoError) {
+            setGeoError(result.geoError);
+          } else if (result.error) {
+            if (result.error.startsWith('missed_punchout:')) {
+              setMissedPunchDate(result.error.split(':')[1]);
+            } else {
+              alert(result.error);
+            }
+          }
+        }
       }
     }
   };
@@ -124,7 +136,11 @@ export default function DashboardSnapshot({
           if (result.geoError) {
             setGeoError(result.geoError);
           } else if (result.error) {
-            alert(result.error);
+            if (result.error.startsWith('missed_punchout:')) {
+              setMissedPunchDate(result.error.split(':')[1]);
+            } else {
+              alert(result.error);
+            }
           }
         }
       }
@@ -518,6 +534,34 @@ export default function DashboardSnapshot({
                 {language === 'te' ? "ఫోటో తీసి పంచ్ ఇన్ చేయండి" : "Capture & Punch In"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Missed Punch Out Error Modal */}
+      {missedPunchDate && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fadeIn">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-4">
+            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">
+                {language === 'te' ? 'హాజరు అసంపూర్ణం' : 'Incomplete Attendance'}
+              </h3>
+              <p className="text-sm text-slate-500">
+                {language === 'te'
+                  ? `మీరు ${missedPunchDate} న పంచ్ అవుట్ చేయలేదు. దయచేసి అడ్మిన్‌ను సంప్రదించి సమయాన్ని మాన్యువల్‌గా అప్‌డేట్ చేయించుకోండి.`
+                  : `You did not punch out on ${missedPunchDate}. Please contact the Admin to manually close that session before you can punch in today.`
+                }
+              </p>
+            </div>
+            <button
+              onClick={() => setMissedPunchDate(null)}
+              className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl transition-colors uppercase tracking-wider text-xs shadow-md"
+            >
+              {language === 'te' ? 'అర్థమైంది' : 'Understood'}
+            </button>
           </div>
         </div>
       )}

@@ -398,6 +398,10 @@ export default function EmployeeDirectory({
               <PayrollModule
                 language={language}
                 payslips={activeEmployee.payslips}
+                employeeName={activeEmployee.name}
+                employeeId={activeEmployee.id}
+                employeeEmail={activeEmployee.email}
+                employeeDesignation={activeEmployee.designation}
                 employeeJoiningDate={activeEmployee.joiningDate}
                 employeeExperience={activeEmployee.experience}
                 employeeBankDetails={activeEmployee.bankDetails}
