@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
 import { supabase } from '../lib/supabase-client';
 
 export interface ChatMessage {
@@ -15,7 +14,6 @@ export interface ChatMessage {
 
 export function useMessaging(channelId: string | null, userId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   // Fetch initial messages when channel changes
@@ -35,82 +33,101 @@ export function useMessaging(channelId: string | null, userId: string | null) {
     fetchMessages();
   }, [channelId]);
 
-  // Setup Socket.IO connection
+  // Listen for new messages via Supabase Realtime (Postgres Changes)
   useEffect(() => {
-    // Note: In production, this should point to your deployed backend URL.
-    // When using Docker compose with Nginx, it might be the same origin.
-    // For local dev, Vite runs on 9620, Backend on 9640.
-    const backendUrl = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:9640';
-    
-    const newSocket = io(backendUrl, {
-      transports: ['websocket', 'polling']
-    });
+    if (!channelId) return;
 
-    setSocket(newSocket);
-
-    newSocket.on('connect', () => {
-      setIsConnected(true);
-      if (channelId) {
-        newSocket.emit('join_channel', channelId);
-      }
-    });
-
-    newSocket.on('disconnect', () => {
-      setIsConnected(false);
-    });
+    const channel = supabase.channel(`chat_${channelId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'HRMS_chat_messages',
+          filter: `channel_id=eq.${channelId}`
+        },
+        (payload) => {
+          const newMessage = payload.new as ChatMessage;
+          setMessages((prev) => {
+            const isDuplicate = prev.some((m) => m.id === newMessage.id);
+            if (isDuplicate) return prev;
+            return [...prev, newMessage];
+          });
+        }
+      )
+      .subscribe((status) => {
+        setIsConnected(status === 'SUBSCRIBED');
+      });
 
     return () => {
-      newSocket.close();
+      supabase.removeChannel(channel);
     };
-  }, []);
+  }, [channelId]);
 
-  // Listen for new messages
-  useEffect(() => {
-    if (!socket || !channelId) return;
+  const sendMessage = useCallback(async (text: string | null, attachment_url?: string, attachment_type?: string, attachment_name?: string) => {
+    if (!channelId || !userId) return;
 
-    // Join channel when channel changes
-    socket.emit('join_channel', channelId);
-
-    const handleReceiveMessage = (message: ChatMessage) => {
-      console.log('socket receive_message event fired:', message);
-      console.log('Current channelId:', channelId);
-      // Check if it belongs to current channel
-      if (message.channel_id === channelId) {
-        setMessages((prev) => {
-          console.log('Previous messages length:', prev.length);
-          // Prevent duplicates (ensure we only match IDs if they actually exist)
-          const isDuplicate = prev.find((m) => (m.id && message.id && m.id === message.id) || (m.created_at === message.created_at && m.text === message.text));
-          if (isDuplicate) {
-            console.log('Message is duplicate, skipping');
-            return prev;
-          }
-          console.log('Adding message to state');
-          return [...prev, message];
-        });
-      } else {
-        console.log('Message channel_id does not match current channelId');
-      }
-    };
-
-    socket.on('receive_message', handleReceiveMessage);
-
-    return () => {
-      socket.off('receive_message', handleReceiveMessage);
-    };
-  }, [socket, channelId]);
-
-  const sendMessage = useCallback((text: string | null, attachment_url?: string, attachment_type?: string, attachment_name?: string) => {
-    if (!socket || !channelId || !userId) return;
-
-    socket.emit('send_message', {
+    // Optimistic UI Update
+    const optimisticId = `temp_${Date.now()}`;
+    const optimisticMsg: ChatMessage = {
+      id: optimisticId,
       channel_id: channelId,
       sender_id: userId,
       text,
       attachment_url,
       attachment_type,
-      attachment_name
+      attachment_name,
+      created_at: new Date().toISOString()
+    };
+    
+    setMessages((prev) => [...prev, optimisticMsg]);
+
+    const payload: any = {
+      channel_id: channelId,
+      sender_id: userId,
+      text
+    };
+    if (attachment_url) payload.attachment_url = attachment_url;
+    if (attachment_type) payload.attachment_type = attachment_type;
+    if (attachment_name) payload.attachment_name = attachment_name;
+
+    const { data, error } = await supabase
+      .from('HRMS_chat_messages')
+      .insert([payload])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to send message:', error);
+      // Remove optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+    } else if (data) {
+      // Replace optimistic message with real database row
+      setMessages((prev) => prev.map((m) => m.id === optimisticId ? data : m));
+      
+      // Also broadcast via realtime as fallback if postgres_changes is disabled on the table
+      supabase.channel(`chat_${channelId}`).send({
+        type: 'broadcast',
+        event: 'new_message',
+        payload: data
+      });
+    }
+  }, [channelId, userId]);
+
+  // Fallback broadcast listener in case postgres_changes is disabled
+  useEffect(() => {
+    if (!channelId) return;
+    
+    const channel = supabase.channel(`chat_${channelId}`);
+    channel.on('broadcast', { event: 'new_message' }, ({ payload }) => {
+      setMessages((prev) => {
+        const isDuplicate = prev.some((m) => m.id === payload.id);
+        if (isDuplicate) return prev;
+        return [...prev, payload];
+      });
     });
-  }, [socket, channelId, userId]);
+    // Already subscribed in the main postgres_changes block, but this is safe
+  }, [channelId]);
 
   return { messages, sendMessage, isConnected };
 }

@@ -9,7 +9,7 @@ interface LeaveModuleProps {
   monthlyQuota: MonthlyLeaveQuota;
   leaveRequests: LeaveRequest[];
   gender?: 'male' | 'female' | 'other';
-  onApplyLeave: (type: LeaveType, fromDate: string, toDate: string, reason: string) => void;
+  onApplyLeave: (type: LeaveType, fromDate: string, toDate: string, reason: string) => Promise<void>;
   onApproveLeave: (id: string) => void;
   onRejectLeave: (id: string) => void;
   onUpdateBalances?: (type: LeaveType, allotted: number, used: number) => void;
@@ -64,7 +64,7 @@ export default function LeaveModule({
     }
     setShowManageModal(false);
   };
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -79,47 +79,67 @@ export default function LeaveModule({
       return;
     }
 
-    const balance = leaveBalance[leaveType];
-    if (balance) {
-      const remaining = balance.allowed - balance.taken;
-      
-      // Calculate days requested
-      const diffTime = Math.abs(new Date(toDate).getTime() - new Date(fromDate).getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const diffTime = Math.abs(new Date(toDate).getTime() - new Date(fromDate).getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
+    if (leaveType === 'monthly') {
+      const remaining = monthlyQuota?.remaining || 0;
       if (diffDays > remaining) {
         setErrorMsg(
           language === 'te'
-            ? `క్షమించండి! మీ దగ్గర తగినన్ని సెలవులు లేవు. మీకు ${remaining} మాత్రమే మిగిలి ఉన్నాయి.`
+            ? `క్షమించండి! మీ దగ్గర తగినన్ని నెలవారీ సెలవులు లేవు. మీకు ${remaining} మాత్రమే మిగిలి ఉన్నాయి.`
             : `Insufficient balance! You requested ${diffDays} days but only have ${remaining} days left.`
         );
         return;
       }
-      
-      if ((leaveType === 'sick' || leaveType === 'casual') && diffDays > 3) {
+      if (diffDays > 3) {
         setErrorMsg(
           language === 'te'
             ? `నిరంతర సెలవు 3 రోజులకు మించకూడదు. దయచేసి మీ అభ్యర్థనను విభజించండి.`
-            : `Continuous leave cannot exceed 3 days for this leave type.`
+            : `Monthly leave cannot exceed 3 days per month.`
         );
         return;
-      } else if (leaveType === 'maternity' && diffDays > 90) {
-        setErrorMsg(`Maternity leave cannot exceed 90 days.`);
-        return;
-      } else if (leaveType === 'paternity' && diffDays > 7) {
-        setErrorMsg(`Paternity leave cannot exceed 7 days.`);
-        return;
+      }
+    } else {
+      const balance = leaveBalance[leaveType];
+      if (balance) {
+        const remaining = balance.allowed - balance.taken;
+        if (diffDays > remaining) {
+          setErrorMsg(
+            language === 'te'
+              ? `క్షమించండి! మీ దగ్గర తగినన్ని సెలవులు లేవు. మీకు ${remaining} మాత్రమే మిగిలి ఉన్నాయి.`
+              : `Insufficient balance! You requested ${diffDays} days but only have ${remaining} days left.`
+          );
+          return;
+        }
+        
+        if ((leaveType === 'sick' || leaveType === 'casual') && diffDays > 3) {
+          setErrorMsg(
+            language === 'te'
+              ? `నిరంతర సెలవు 3 రోజులకు మించకూడదు. దయచేసి మీ అభ్యర్థనను విభజించండి.`
+              : `Continuous leave cannot exceed 3 days for this leave type.`
+          );
+          return;
+        } else if (leaveType === 'maternity' && diffDays > 90) {
+          setErrorMsg(`Maternity leave cannot exceed 90 days.`);
+          return;
+        } else if (leaveType === 'paternity' && diffDays > 7) {
+          setErrorMsg(`Paternity leave cannot exceed 7 days.`);
+          return;
+        }
       }
     }
 
-    // Success flow
-    onApplyLeave(leaveType, fromDate, toDate, reason);
-    setSuccessMsg(language === 'te' ? 'సెలవు అప్లికేషన్ విజయవంతంగా సబ్మిట్ చేయబడింది!' : 'Leave application submitted successfully!');
-    
-    // Reset Form
-    setFromDate('');
-    setToDate('');
-    setReason('');
+    try {
+      await onApplyLeave(leaveType, fromDate, toDate, reason);
+      setSuccessMsg(language === 'te' ? 'సెలవు అప్లికేషన్ విజయవంతంగా సబ్మిట్ చేయబడింది!' : 'Leave application submitted successfully!');
+      setFromDate('');
+      setToDate('');
+      setReason('');
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Failed to submit leave. Please check your connection.');
+    }
   };
 
   // Status tag styling helper
