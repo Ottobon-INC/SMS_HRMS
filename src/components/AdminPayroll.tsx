@@ -24,10 +24,9 @@ export default function AdminPayroll({
 }: AdminPayrollProps) {
   const t = translations[language];
   const monthOptions = generateMonthOptions(2018, 1);
-
-  // Selected states
-  const [payrollMonth, setPayrollMonth] = useState(monthOptions[0] || '2026-07');
-  const [singlePayrollMonth, setSinglePayrollMonth] = useState(monthOptions[0] || '2026-07');
+  const currentMonthStr = new Date().toISOString().substring(0, 7);
+  const [payrollMonth, setPayrollMonth] = useState(monthOptions[0] || currentMonthStr);
+  const [singlePayrollMonth, setSinglePayrollMonth] = useState(monthOptions[0] || currentMonthStr);
   const [selectedEmpId, setSelectedEmpId] = useState<string>('');
   
   // Notice Banner state

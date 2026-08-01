@@ -186,8 +186,9 @@ export default function DashboardSnapshot({
   const latestCheckIn = todayLogs[todayLogs.length - 1];
   const hasCheckedOutToday = latestCheckIn && latestCheckIn.checkOutTime !== null;
 
-  // Calculate stats for current month (July 2026)
-  const currentMonthRecords = attendanceRecords.filter(r => r.date.startsWith('2026-07'));
+  // Calculate stats for current month dynamically
+  const currentMonthStr = new Date().toISOString().substring(0, 7);
+  const currentMonthRecords = attendanceRecords.filter(r => r.date.startsWith(currentMonthStr));
   const presentDays = currentMonthRecords.filter(r => r.status === 'present').length;
   const absentDays = currentMonthRecords.filter(r => r.status === 'absent').length;
   const halfDays = currentMonthRecords.filter(r => r.status === 'half-day').length;

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, UserCheck, AlertCircle, ArrowLeft, Users, Check, Moon, HelpCircle, MapPin, Clock } from 'lucide-react';
 import { Language, Employee, AttendanceStatus } from '../types';
 import { translations } from '../translations';
+import { generateMonthOptions, formatMonth } from '../lib/utils';
 import LocationPinTimeline from './LocationPinTimeline';
 
 interface AdminAttendanceProps {
@@ -15,7 +16,8 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
   const t = translations[language];
 
   // Filters
-  const [selectedMonth, setSelectedMonth] = useState('2026-07');
+  const monthOptions = generateMonthOptions(2018, 1);
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0] || '2026-07');
   const [editTarget, setEditTarget] = useState<{empId: string, date: string, status: AttendanceStatus | 'blank'} | null>(null);
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -161,8 +163,11 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="border border-slate-200 bg-slate-50 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/10 cursor-pointer"
           >
-            <option value="2026-07">July 2026</option>
-            <option value="2026-06">June 2026</option>
+            {monthOptions.map(month => (
+              <option key={month} value={month}>
+                {formatMonth(month, language)}
+              </option>
+            ))}
           </select>
         </div>
       </div>
