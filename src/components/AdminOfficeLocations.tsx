@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Plus, Trash2, Power, PowerOff, Save, Loader2, Navigation, X } from 'lucide-react';
+import { MapPin, Plus, Trash2, Power, PowerOff, Save, Loader2, Navigation, X, Edit2 } from 'lucide-react';
 import { supabase } from '../lib/supabase-client';
 import { OfficeLocation, Language } from '../types';
 import { translations } from '../translations';
@@ -20,6 +20,15 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
   const [longitude, setLongitude] = useState('');
   const [radius, setRadius] = useState('50');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const resetForm = () => {
+    setName('');
+    setLatitude('');
+    setLongitude('');
+    setRadius('50');
+    setEditingId(null);
+  };
 
   useEffect(() => {
     fetchLocations();
@@ -63,32 +72,61 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
     }
   };
 
+  const handleEditClick = (loc: OfficeLocation) => {
+    setEditingId(loc.id);
+    setName(loc.name);
+    setLatitude(loc.latitude.toString());
+    setLongitude(loc.longitude.toString());
+    setRadius(loc.radius_meters.toString());
+    setShowForm(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !latitude || !longitude || !radius) return;
     
     setIsSubmitting(true);
-    const { error } = await supabase.from('HRMS_office_locations').insert([
-      {
-        name,
-        latitude: parseFloat(latitude),
-        longitude: parseFloat(longitude),
-        radius_meters: parseInt(radius),
-        is_active: true
+    
+    if (editingId) {
+      const { error } = await supabase
+        .from('HRMS_office_locations')
+        .update({
+          name,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          radius_meters: parseInt(radius)
+        })
+        .eq('id', editingId);
+        
+      setIsSubmitting(false);
+      
+      if (error) {
+        alert('Error updating location: ' + error.message);
+      } else {
+        setShowForm(false);
+        resetForm();
+        fetchLocations();
       }
-    ]);
-    
-    setIsSubmitting(false);
-    
-    if (error) {
-      alert('Error creating location: ' + error.message);
     } else {
-      setShowForm(false);
-      setName('');
-      setLatitude('');
-      setLongitude('');
-      setRadius('50');
-      fetchLocations();
+      const { error } = await supabase.from('HRMS_office_locations').insert([
+        {
+          name,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          radius_meters: parseInt(radius),
+          is_active: true
+        }
+      ]);
+      
+      setIsSubmitting(false);
+      
+      if (error) {
+        alert('Error creating location: ' + error.message);
+      } else {
+        setShowForm(false);
+        resetForm();
+        fetchLocations();
+      }
     }
   };
 
@@ -133,7 +171,14 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
           </p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            if (showForm) {
+              setShowForm(false);
+              resetForm();
+            } else {
+              setShowForm(true);
+            }
+          }}
           className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all"
         >
           {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
@@ -144,7 +189,9 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
       {/* Add Form */}
       {showForm && (
         <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-sm animate-scaleUp">
-          <h3 className="text-base font-bold text-slate-800 mb-5 border-b pb-3">New Office Location</h3>
+          <h3 className="text-base font-bold text-slate-800 mb-5 border-b pb-3">
+            {editingId ? 'Edit Office Location' : 'New Office Location'}
+          </h3>
           <form onSubmit={handleSubmit} className="space-y-4 max-w-2xl">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
@@ -225,7 +272,7 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
                 className="px-6 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all"
               >
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save Location
+                {editingId ? 'Update Location' : 'Save Location'}
               </button>
             </div>
           </form>
@@ -254,6 +301,13 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
                     </span>
                   </div>
                   <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditClick(loc)}
+                      className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                      title="Edit"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => toggleStatus(loc.id, loc.is_active)}
                       className={`p-1.5 rounded-lg transition-colors ${loc.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
