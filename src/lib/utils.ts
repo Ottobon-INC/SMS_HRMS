@@ -25,7 +25,7 @@ export function generateMonthOptions(startYear: number, startMonth: number): str
   const currentMonth = currentDate.getMonth() + 1; // 1-12
 
   for (let year = currentYear; year >= startYear; year--) {
-    const endMonth = 12; // Always show all 12 months, allowing future planning up to Dec
+    const endMonth = year === currentYear ? currentMonth : 12;
     const beginMonth = year === startYear ? startMonth : 1;
 
     for (let month = endMonth; month >= beginMonth; month--) {

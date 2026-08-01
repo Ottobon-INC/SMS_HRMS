@@ -75,7 +75,22 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
       } else {
         const missedDate = await attendanceService.checkMissedPunchOut(empId);
         if (missedDate) {
-          return { success: false, error: `missed_punchout:${missedDate}` };
+          // Auto-close missed punch-out at 18:00:00 so they can continue punching in today
+          const { data: activeSessions } = await supabase
+            .from('HRMS_attendance')
+            .select('id')
+            .eq('employee_id', empId)
+            .eq('date', missedDate)
+            .is('check_out_time', null);
+            
+          if (activeSessions && activeSessions.length > 0) {
+            for (const session of activeSessions) {
+              await supabase
+                .from('HRMS_attendance')
+                .update({ check_out_time: '18:00:00', punch_note: 'Auto-closed by system' })
+                .eq('id', session.id);
+            }
+          }
         }
         await attendanceService.clockInEmployee(empId, locationStr, latLngStr, photoData, punchType, punchNote);
       }
