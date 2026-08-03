@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, UserCheck, AlertCircle, ArrowLeft, Users, Check, Moon, HelpCircle, MapPin, Clock } from 'lucide-react';
-import { Language, Employee, AttendanceStatus } from '../types';
+import { Calendar, UserCheck, AlertCircle, ArrowLeft, Users, Check, Moon, HelpCircle, MapPin, Clock, FileWarning, CheckCircle, XCircle } from 'lucide-react';
+import { Language, Employee, AttendanceStatus, MissedPunchRequest } from '../types';
 import { translations } from '../translations';
 import { generateMonthOptions, formatMonth } from '../lib/utils';
 import LocationPinTimeline from './LocationPinTimeline';
@@ -211,8 +211,8 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
         </div>
       </div>
 
-      {/* 3. The Grand Matrix Roster */}
       <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
+        {/* 3. The Grand Matrix Roster */}
         <h3 className="text-base font-bold text-slate-800">
           {localizedText.matrixHeader} ({selectedMonth})
         </h3>

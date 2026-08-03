@@ -51,6 +51,8 @@ const MessagingModule = React.lazy(() => import('./components/MessagingModule').
 const AdminSettings = React.lazy(() => import('./components/AdminSettings'));
 const DutyRosterModule = React.lazy(() => import('./components/DutyRosterModule'));
 const EmployeeRoster = React.lazy(() => import('./components/EmployeeRoster'));
+const AdminMissedPunches = React.lazy(() => import('./components/AdminMissedPunches'));
+const EmployeeMissedPunches = React.lazy(() => import('./components/EmployeeMissedPunches'));
 
 export default function App() {
   // --- Persistent Bilingual State ---
@@ -83,7 +85,9 @@ export default function App() {
       'office-locations': 'officeLocations',
       'special-events': 'specialEvents',
       'messages': 'messages',
-      'admin-settings': 'adminSettings'
+      'admin-settings': 'adminSettings',
+      'missed-punches-admin': 'adminMissedPunches',
+      'missed-punches': 'employeeMissedPunches'
     };
     
     if (pathToTab[path]) return pathToTab[path];
@@ -111,7 +115,9 @@ export default function App() {
       'officeLocations': 'office-locations',
       'specialEvents': 'special-events',
       'messages': 'messages',
-      'adminSettings': 'admin-settings'
+      'adminSettings': 'admin-settings',
+      'adminMissedPunches': 'missed-punches-admin',
+      'employeeMissedPunches': 'missed-punches'
     };
     
     const newPath = '/' + (tabToPath[activeTab] || activeTab);
@@ -137,7 +143,9 @@ export default function App() {
         'office-locations': 'officeLocations',
         'special-events': 'specialEvents',
         'messages': 'messages',
-        'admin-settings': 'adminSettings'
+        'admin-settings': 'adminSettings',
+        'missed-punches-admin': 'adminMissedPunches',
+        'missed-punches': 'employeeMissedPunches'
       };
       
       if (pathToTab[path]) {
@@ -167,8 +175,8 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     
-    const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'advanceApprovals', 'adminPayroll', 'officeLocations', 'specialEvents', 'messages', 'adminSettings', 'dutyRoster'];
-    const employeeTabs = ['dashboard', 'attendance', 'leave', 'advance', 'payroll', 'events', 'messages', 'myRoster'];
+    const adminTabs = ['adminDashboard', 'directory', 'attendanceOverview', 'leaveApprovals', 'advanceApprovals', 'adminPayroll', 'officeLocations', 'specialEvents', 'messages', 'adminSettings', 'dutyRoster', 'adminMissedPunches'];
+    const employeeTabs = ['dashboard', 'attendance', 'leave', 'advance', 'payroll', 'events', 'messages', 'myRoster', 'employeeMissedPunches'];
 
     if (currentUser.role === 'admin' && !adminTabs.includes(activeTab)) {
       setActiveTab('adminDashboard');
@@ -276,6 +284,13 @@ export default function App() {
             attendanceRecords={currentUser.attendanceRecords}
           />
         );
+      case 'employeeMissedPunches':
+        return (
+          <EmployeeMissedPunches
+            language={language}
+            currentUser={currentUser}
+          />
+        );
       case 'events':
         return (
           <EmployeeSpecialEvents
@@ -359,6 +374,14 @@ export default function App() {
             employees={employees}
             onUpdateAttendance={updateAttendance}
             onForceCloseSession={forceCloseSession}
+          />
+        );
+      case 'adminMissedPunches':
+        return (
+          <AdminMissedPunches
+            language={language}
+            employees={employees}
+            adminId={currentUser.id}
           />
         );
       case 'leaveApprovals':
@@ -592,6 +615,23 @@ export default function App() {
                   </button>
 
                   <button
+                    id="nav-tab-admin-missed-punches"
+                    onClick={() => setActiveTab('adminMissedPunches')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'adminMissedPunches'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'adminMissedPunches' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <Clock className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'మిస్ అయిన పంచ్ అవుట్స్' : 'Missed Punches'}</span>
+                  </button>
+
+                  <button
                     id="nav-tab-leave-approvals"
                     onClick={() => setActiveTab('leaveApprovals')}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
@@ -762,6 +802,23 @@ export default function App() {
                       <Calendar className="w-4 h-4 shrink-0" />
                     )}
                     <span>{t.attendance}</span>
+                  </button>
+
+                  <button
+                    id="nav-tab-employee-missed-punches"
+                    onClick={() => setActiveTab('employeeMissedPunches')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all uppercase cursor-pointer ${
+                      activeTab === 'employeeMissedPunches'
+                        ? 'bg-teal-50 text-teal-700 font-bold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    {activeTab === 'employeeMissedPunches' ? (
+                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full shrink-0" />
+                    ) : (
+                      <Clock className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{language === 'te' ? 'నా మిస్ అయిన పంచ్ అభ్యర్థనలు' : 'Missed Punches'}</span>
                   </button>
 
                   <button

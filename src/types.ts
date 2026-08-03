@@ -196,3 +196,19 @@ export interface SpecialLocationEvent {
   fromDate: string;
   toDate: string;
 }
+
+// --- Missed Punch Requests ---
+export type MissedPunchStatus = 'pending' | 'approved' | 'rejected';
+
+export interface MissedPunchRequest {
+  id: string;
+  employeeId: string;
+  employeeName?: string;       // joined for admin display
+  missedDate: string;          // YYYY-MM-DD
+  reason?: string;
+  status: MissedPunchStatus;
+  adminNote?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+  createdAt: string;
+}

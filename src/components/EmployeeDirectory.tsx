@@ -17,7 +17,7 @@ interface EmployeeDirectoryProps {
   // Propagate actions on employee's leave
   onApproveEmployeeLeave: (empId: string, reqId: string) => void;
   onRejectEmployeeLeave: (empId: string, reqId: string) => void;
-  onApplyEmployeeLeave: (empId: string, type: LeaveType, from: string, to: string, reason: string) => void;
+  onApplyEmployeeLeave: (empId: string, type: LeaveType, from: string, to: string, reason: string) => Promise<void>;
   onUpdateLeaveBalances: (empId: string, type: LeaveType, allotted: number, used: number) => void;
 }
 
