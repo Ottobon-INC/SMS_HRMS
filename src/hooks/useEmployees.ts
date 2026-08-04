@@ -10,7 +10,11 @@ export function useEmployees() {
   const [isLocalMode, setIsLocalMode] = useState<boolean>(false);
 
   const saveLocalData = (emps: Employee[]) => {
-    localStorage.setItem('hrms_local_employees', JSON.stringify(emps));
+    try {
+      localStorage.setItem('hrms_local_employees', JSON.stringify(emps));
+    } catch (storageErr) {
+      console.warn('Could not cache employees to localStorage (quota exceeded or unavailable):', storageErr);
+    }
   };
 
   const loadData = useCallback(async () => {
