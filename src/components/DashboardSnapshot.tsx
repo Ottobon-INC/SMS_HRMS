@@ -80,10 +80,23 @@ export default function DashboardSnapshot({
       } else {
         setIsCameraOpen(true);
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' }, 
-        audio: false 
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'user' }, 
+          audio: false 
+        });
+      } catch (firstErr: any) {
+        if (firstErr.name === 'NotAllowedError') {
+          throw firstErr;
+        }
+        console.warn("First camera attempt failed, retrying...", firstErr);
+        await new Promise(resolve => setTimeout(resolve, 800));
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: false 
+        });
+      }
       streamRef.current = stream;
       
       // Give React a moment to render the modal and attach the ref

@@ -75,10 +75,24 @@ export default function CheckInModule({
       } else {
         setIsCameraOpen(true);
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' }, 
-        audio: false 
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'user' }, 
+          audio: false 
+        });
+      } catch (firstErr: any) {
+        if (firstErr.name === 'NotAllowedError') {
+          throw firstErr; // Don't retry if it's a permission issue
+        }
+        console.warn("First camera attempt failed, retrying...", firstErr);
+        // Short delay to allow hardware to reset if locked
+        await new Promise(resolve => setTimeout(resolve, 800));
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: false 
+        });
+      }
       streamRef.current = stream;
       setTimeout(() => {
         if (videoRef.current) {
