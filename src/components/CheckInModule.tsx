@@ -75,16 +75,20 @@ export default function CheckInModule({
       } else {
         setIsCameraOpen(true);
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' }, 
+        audio: false 
+      });
       streamRef.current = stream;
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
       }, 50);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Camera access denied or unavailable", err);
-      alert(language === 'te' ? "కెమెరా అందుబాటులో లేదు. ఫోటో లేకుండా హాజరు నమోదు చేయబడుతుంది." : "Camera unavailable. Proceeding without photo.");
+      const errorMessage = err.name === 'NotAllowedError' ? 'Permission denied' : (err.message || 'Unknown error');
+      alert(language === 'te' ? `కెమెరా అందుబాటులో లేదు (${errorMessage}). ఫోటో లేకుండా హాజరు నమోదు చేయబడుతుంది.` : `Camera unavailable (${errorMessage}). Proceeding without photo.`);
       if (isForPin) {
         setIsPinCameraOpen(false);
         handlePinSubmit(undefined);
