@@ -199,12 +199,14 @@ export interface SpecialLocationEvent {
 
 // --- Missed Punch Requests ---
 export type MissedPunchStatus = 'pending' | 'approved' | 'rejected';
+export type MissedPunchCorrectionType = 'in' | 'out';
 
 export interface MissedPunchRequest {
   id: string;
   employeeId: string;
   employeeName?: string;       // joined for admin display
   missedDate: string;          // YYYY-MM-DD
+  punchType: MissedPunchCorrectionType;
   reason?: string;
   status: MissedPunchStatus;
   adminNote?: string;

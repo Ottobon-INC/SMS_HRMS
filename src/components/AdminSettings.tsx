@@ -54,9 +54,9 @@ export default function AdminSettings({ language }: AdminSettingsProps) {
       }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save config:', err);
-      alert('Failed to save settings. Please check your connection.');
+      alert(`Failed to save settings: ${err.message || 'Check your connection'}`);
     } finally {
       setIsSaving(false);
     }

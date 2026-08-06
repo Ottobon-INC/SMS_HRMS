@@ -65,7 +65,8 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
         },
         (error) => {
           alert('Error getting location: ' + error.message);
-        }
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
       );
     } else {
       alert('Geolocation is not supported by this browser.');

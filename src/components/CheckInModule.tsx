@@ -45,7 +45,7 @@ export default function CheckInModule({
     if (!missedPunchDate) return;
     setIsSubmittingRequest(true);
     try {
-      await submitMissedPunchRequest(employeeId, missedPunchDate, missedPunchReason);
+      await submitMissedPunchRequest(employeeId, missedPunchDate, 'out', missedPunchReason);
       setRequestSubmitted(true);
     } catch (err) {
       alert('Failed to submit request. Please try again.');
@@ -115,6 +115,11 @@ export default function CheckInModule({
           } else if (result.error) {
             if (result.error.startsWith('missed_punchout:')) {
               setMissedPunchDate(result.error.split(':')[1]);
+            } else if (result.error.startsWith('pending_request:')) {
+              const d = result.error.split(':')[1];
+              alert(language === 'te' 
+                ? `మీరు ఇప్పటికే ${d} తేదీ కోసం మిస్ పంచ్ అభ్యర్థనను సమర్పించారు. అడ్మిన్ ఆమోదం కోసం దయచేసి వేచి ఉండండి.` 
+                : `You already submitted a mispunch request for ${d}. Please wait for admin approval.`);
             } else {
               alert(result.error);
             }
@@ -155,6 +160,11 @@ export default function CheckInModule({
           } else if (result.error) {
             if (result.error.startsWith('missed_punchout:')) {
               setMissedPunchDate(result.error.split(':')[1]);
+            } else if (result.error.startsWith('pending_request:')) {
+              const d = result.error.split(':')[1];
+              alert(language === 'te' 
+                ? `మీరు ఇప్పటికే ${d} తేదీ కోసం మిస్ పంచ్ అభ్యర్థనను సమర్పించారు. అడ్మిన్ ఆమోదం కోసం దయచేసి వేచి ఉండండి.` 
+                : `You already submitted a mispunch request for ${d}. Please wait for admin approval.`);
             } else {
               alert(result.error);
             }

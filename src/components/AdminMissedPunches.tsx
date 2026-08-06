@@ -31,21 +31,64 @@ export default function AdminMissedPunches({ language, employees, adminId }: Adm
     }
   };
 
-  const handleApproveMissedPunch = async (req: MissedPunchRequest) => {
-    try {
-      await approveMissedPunchRequest(req.id, req.employeeId, req.missedDate, '18:00:00', adminId, 'Approved by admin via dashboard');
-      await loadMissedRequests();
-    } catch (err) {
-      alert("Failed to approve request.");
-    }
+  const [selectedRequest, setSelectedRequest] = useState<MissedPunchRequest | null>(null);
+  const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
+  
+  const [inTime, setInTime] = useState('09:00');
+  const [outTime, setOutTime] = useState('18:00');
+  const [adminNote, setAdminNote] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const openApproveModal = (req: MissedPunchRequest) => {
+    setSelectedRequest(req);
+    setActionType('approve');
+    setInTime('09:00');
+    setOutTime('18:00');
+    setAdminNote('');
   };
 
-  const handleRejectMissedPunch = async (req: MissedPunchRequest) => {
+  const openRejectModal = (req: MissedPunchRequest) => {
+    setSelectedRequest(req);
+    setActionType('reject');
+    setAdminNote('');
+  };
+
+  const closeModal = () => {
+    setSelectedRequest(null);
+    setActionType(null);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!selectedRequest || !actionType) return;
+    setIsProcessing(true);
     try {
-      await rejectMissedPunchRequest(req.id, adminId, 'Rejected by admin via dashboard');
+      if (actionType === 'approve') {
+        const checkOutWithSecs = outTime.length === 5 ? `${outTime}:00` : outTime;
+        const checkInWithSecs = inTime.length === 5 ? `${inTime}:00` : inTime;
+        
+        await approveMissedPunchRequest(
+          selectedRequest.id, 
+          selectedRequest.employeeId, 
+          selectedRequest.missedDate, 
+          selectedRequest.punchType,
+          selectedRequest.punchType === 'out' ? checkOutWithSecs : checkInWithSecs,
+          selectedRequest.punchType === 'in' ? checkOutWithSecs : undefined,
+          adminId, 
+          adminNote || (language === 'te' ? 'అడ్మిన్ ఆమోదించారు' : 'Approved by admin')
+        );
+      } else {
+        await rejectMissedPunchRequest(
+          selectedRequest.id, 
+          adminId, 
+          adminNote || (language === 'te' ? 'అడ్మిన్ తిరస్కరించారు' : 'Rejected by admin')
+        );
+      }
+      closeModal();
       await loadMissedRequests();
-    } catch (err) {
-      alert("Failed to reject request.");
+    } catch (err: any) {
+      alert(err.message || "Action failed.");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -101,6 +144,11 @@ export default function AdminMissedPunches({ language, employees, adminId }: Adm
                   <div>
                     <div className="flex items-center gap-3">
                       <h4 className="text-sm font-bold text-slate-800">{empName}</h4>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                        req.punchType === 'in' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {req.punchType === 'in' ? 'PUNCH-IN' : 'PUNCH-OUT'}
+                      </span>
                       <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
                         isPending ? 'bg-amber-100 text-amber-700' : 
                         isApproved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
@@ -119,16 +167,16 @@ export default function AdminMissedPunches({ language, employees, adminId }: Adm
                   {isPending && (
                     <div className="flex gap-2 w-full sm:w-auto">
                       <button
-                        onClick={() => handleRejectMissedPunch(req)}
+                        onClick={() => openRejectModal(req)}
                         className="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors"
                       >
                         <XCircle className="w-4 h-4" /> {language === 'te' ? 'తిరస్కరించు' : 'Reject'}
                       </button>
                       <button
-                        onClick={() => handleApproveMissedPunch(req)}
+                        onClick={() => openApproveModal(req)}
                         className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors shadow-sm"
                       >
-                        <CheckCircle className="w-4 h-4" /> {language === 'te' ? 'ఆమోదించు' : 'Approve (6:00 PM)'}
+                        <CheckCircle className="w-4 h-4" /> {language === 'te' ? 'ఆమోదించు' : 'Approve'}
                       </button>
                     </div>
                   )}
@@ -138,6 +186,88 @@ export default function AdminMissedPunches({ language, employees, adminId }: Adm
           </div>
         )}
       </div>
+
+      {/* Action Modal */}
+      {selectedRequest && actionType && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl p-6">
+            <h3 className="font-bold text-slate-800 text-lg mb-1">
+              {actionType === 'approve' 
+                ? (language === 'te' ? 'అభ్యర్థన ఆమోదించండి' : 'Approve Request')
+                : (language === 'te' ? 'అభ్యర్థన తిరస్కరించండి' : 'Reject Request')}
+            </h3>
+            <p className="text-xs text-slate-500 mb-6 flex items-center gap-2">
+              {getEmployeeName(selectedRequest.employeeId)} — {selectedRequest.missedDate}
+              <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                selectedRequest.punchType === 'in' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}>
+                {selectedRequest.punchType === 'in' ? 'PUNCH-IN' : 'PUNCH-OUT'}
+              </span>
+            </p>
+
+            <div className="space-y-4">
+              {actionType === 'approve' && selectedRequest.punchType === 'in' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2">
+                    {language === 'te' ? 'పంచ్ ఇన్ సమయం' : 'Punch-In Time'}
+                  </label>
+                  <input
+                    type="time"
+                    value={inTime}
+                    onChange={e => setInTime(e.target.value)}
+                    className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+                  />
+                </div>
+              )}
+
+              {actionType === 'approve' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2">
+                    {language === 'te' ? 'పంచ్ అవుట్ సమయం' : 'Punch-Out Time'}
+                  </label>
+                  <input
+                    type="time"
+                    value={outTime}
+                    onChange={e => setOutTime(e.target.value)}
+                    className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  {language === 'te' ? 'అడ్మిన్ నోట్ (ఐచ్ఛికం)' : 'Admin Note (Optional)'}
+                </label>
+                <textarea
+                  value={adminNote}
+                  onChange={e => setAdminNote(e.target.value)}
+                  placeholder="..."
+                  rows={2}
+                  className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20 resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={closeModal}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition-colors text-xs uppercase tracking-wider"
+                >
+                  {language === 'te' ? 'రద్దు' : 'Cancel'}
+                </button>
+                <button
+                  onClick={handleConfirmAction}
+                  disabled={isProcessing}
+                  className={`flex-1 py-3 text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md disabled:opacity-50 ${
+                    actionType === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'
+                  }`}
+                >
+                  {isProcessing ? '...' : (language === 'te' ? 'నిర్ధారించు' : 'Confirm')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

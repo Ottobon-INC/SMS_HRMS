@@ -41,9 +41,9 @@ export function useLocationPins(empId: string | undefined, isLocalMode: boolean)
       try {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { 
-            timeout: 8000,
-            maximumAge: 60000,
-            enableHighAccuracy: false
+            timeout: 20000, // 20 seconds
+            maximumAge: 30000, // 30 seconds
+            enableHighAccuracy: true
           });
         });
         lat = position.coords.latitude;

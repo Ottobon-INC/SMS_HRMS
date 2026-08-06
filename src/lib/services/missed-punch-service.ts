@@ -5,14 +5,16 @@ import { MissedPunchRequest, MissedPunchStatus } from '../../types';
 export async function submitMissedPunchRequest(
   empId: string,
   missedDate: string,
+  punchType: 'in' | 'out',
   reason?: string
 ): Promise<void> {
-  // Prevent duplicate: if a pending request already exists for that date, skip
+  // Prevent duplicate: if a pending request already exists for that date and type, skip
   const { data: existing } = await supabase
     .from('HRMS_missed_punch_requests')
     .select('id')
     .eq('employee_id', empId)
     .eq('missed_date', missedDate)
+    .eq('punch_type', punchType)
     .eq('status', 'pending')
     .maybeSingle();
 
@@ -23,6 +25,7 @@ export async function submitMissedPunchRequest(
     .insert([{
       employee_id: empId,
       missed_date: missedDate,
+      punch_type: punchType,
       reason: reason || null,
       status: 'pending'
     }]);
@@ -40,6 +43,7 @@ export async function fetchMissedPunchRequests(
       id,
       employee_id,
       missed_date,
+      punch_type,
       reason,
       status,
       admin_note,
@@ -62,6 +66,7 @@ export async function fetchMissedPunchRequests(
     employeeId: r.employee_id,
     employeeName: r.employee_id, // We will map the real name in the UI
     missedDate: r.missed_date,
+    punchType: (r.punch_type || 'out') as 'in' | 'out',
     reason: r.reason,
     status: r.status as MissedPunchStatus,
     adminNote: r.admin_note,
@@ -81,6 +86,7 @@ export async function fetchEmployeeMissedPunches(
       id,
       employee_id,
       missed_date,
+      punch_type,
       reason,
       status,
       admin_note,
@@ -99,6 +105,7 @@ export async function fetchEmployeeMissedPunches(
     employeeId: r.employee_id,
     employeeName: r.employee_id,
     missedDate: r.missed_date,
+    punchType: (r.punch_type || 'out') as 'in' | 'out',
     reason: r.reason,
     status: r.status as MissedPunchStatus,
     adminNote: r.admin_note,
@@ -113,29 +120,66 @@ export async function approveMissedPunchRequest(
   requestId: string,
   empId: string,
   missedDate: string,
-  checkoutTime: string,    // e.g. '18:00:00'
+  punchType: 'in' | 'out',
+  correctionTime: string,    // e.g. '18:00:00'
+  checkInTime: string | undefined, // Only used when punchType === 'in', e.g. '09:00:00'
   adminId: string,
   adminNote?: string
 ): Promise<void> {
-  // 1. Close the open attendance session
-  const { data: openSessions, error: fetchErr } = await supabase
-    .from('HRMS_attendance')
-    .select('id')
-    .eq('employee_id', empId)
-    .eq('date', missedDate)
-    .is('check_out_time', null);
+  if (punchType === 'out') {
+    // 1. Close the open attendance session
+    const { data: openSessions, error: fetchErr } = await supabase
+      .from('HRMS_attendance')
+      .select('id')
+      .eq('employee_id', empId)
+      .eq('date', missedDate)
+      .is('check_out_time', null);
 
-  if (fetchErr) throw fetchErr;
+    if (fetchErr) throw fetchErr;
 
-  if (openSessions && openSessions.length > 0) {
-    for (const session of openSessions) {
+    if (openSessions && openSessions.length > 0) {
+      for (const session of openSessions) {
+        await supabase
+          .from('HRMS_attendance')
+          .update({
+            check_out_time: correctionTime,
+            punch_note: adminNote || 'Closed by Admin — Missed Punch-Out Approved'
+          })
+          .eq('id', session.id);
+      }
+    }
+  } else if (punchType === 'in') {
+    // Check if session exists
+    const { data: existingSessions, error: fetchErr } = await supabase
+      .from('HRMS_attendance')
+      .select('id')
+      .eq('employee_id', empId)
+      .eq('date', missedDate)
+      .limit(1);
+
+    if (fetchErr) throw fetchErr;
+
+    if (existingSessions && existingSessions.length > 0) {
       await supabase
         .from('HRMS_attendance')
         .update({
-          check_out_time: checkoutTime,
-          punch_note: adminNote || 'Closed by Admin — Missed Punch Approved'
+          check_in_time: correctionTime,
+          check_out_time: checkInTime || '18:00:00',
+          punch_note: adminNote || 'Corrected by Admin — Missed Punch-In Approved'
         })
-        .eq('id', session.id);
+        .eq('id', existingSessions[0].id);
+    } else {
+      await supabase
+        .from('HRMS_attendance')
+        .insert([{
+          employee_id: empId,
+          date: missedDate,
+          status: 'Present',
+          check_in_time: correctionTime,
+          check_out_time: checkInTime || '18:00:00',
+          punch_note: adminNote || 'Corrected by Admin — Missed Punch-In Approved',
+          session_number: 1
+        }]);
     }
   }
 

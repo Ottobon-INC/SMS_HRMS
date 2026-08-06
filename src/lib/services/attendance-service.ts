@@ -1,6 +1,50 @@
 import { supabase } from '../supabase-client';
 import { AttendanceStatus, PunchType } from '../../types';
 
+export async function autoExpireMissedPunches(empId: string): Promise<void> {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const cutoffTime = yesterday.toISOString(); // 24 hours ago
+
+  // Find expired pending out-punch requests
+  const { data: expiredRequests, error: fetchErr } = await supabase
+    .from('HRMS_missed_punch_requests')
+    .select('id, missed_date')
+    .eq('employee_id', empId)
+    .eq('punch_type', 'out')
+    .eq('status', 'pending')
+    .lt('created_at', cutoffTime);
+
+  if (fetchErr || !expiredRequests || expiredRequests.length === 0) return;
+
+  for (const req of expiredRequests) {
+    // 1. Update attendance record to Half-day
+    const { data: att } = await supabase
+      .from('HRMS_attendance')
+      .select('id')
+      .eq('employee_id', empId)
+      .eq('date', req.missed_date)
+      .limit(1);
+
+    if (att && att.length > 0) {
+      await supabase
+        .from('HRMS_attendance')
+        .update({ status: 'Half-day' })
+        .eq('id', att[0].id);
+    }
+
+    // 2. Update request status to rejected
+    await supabase
+      .from('HRMS_missed_punch_requests')
+      .update({
+        status: 'rejected',
+        admin_note: 'Auto-expired: 24-hr window passed. Marked as half-day.',
+        resolved_at: new Date().toISOString()
+      })
+      .eq('id', req.id);
+  }
+}
+
 export async function checkMissedPunchOut(empId: string): Promise<string | null> {
   const todayStr = new Date().toISOString().split('T')[0];
   

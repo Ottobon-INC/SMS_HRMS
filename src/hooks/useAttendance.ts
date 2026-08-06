@@ -19,9 +19,9 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
         try {
           const position = await new Promise<GeolocationPosition>((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, { 
-              timeout: 8000,
-              maximumAge: 60000, // Accept up to 1-minute old cached location
-              enableHighAccuracy: false // Faster lock
+              timeout: 20000, // 20 seconds
+              maximumAge: 30000, // Accept up to 30-second old cached location
+              enableHighAccuracy: true // Require accurate GPS for geofencing
             });
           });
           const { latitude, longitude } = position.coords;
@@ -63,9 +63,13 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
           }
           
           locationStr = geoCheck.matchedLocation || locationStr;
-        } catch (err) {
+        } catch (err: any) {
           console.warn("Could not get location:", err);
-          return { success: false, error: "Could not get your GPS location. Please enable location services." };
+          let errMsg = "Could not get your GPS location. Please enable location services and ensure Chrome has location permission.";
+          if (err?.code === 1) errMsg = "Location permission denied. Please allow location access in your browser settings.";
+          if (err?.code === 2) errMsg = "Location position unavailable. Please ensure your device GPS is turned on.";
+          if (err?.code === 3) errMsg = "Location request timed out. Please try again in an open area.";
+          return { success: false, error: errMsg };
         }
 
       if (isCurrentlyCheckedIn) {
@@ -73,24 +77,27 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
         await loadData();
         return { success: true };
       } else {
+        // 1. Run auto-expire for missed punch-outs older than 24 hours
+        await attendanceService.autoExpireMissedPunches(empId);
+
+        // 2. Check for missed punch-out from previous days before allowing punch in
         const missedDate = await attendanceService.checkMissedPunchOut(empId);
         if (missedDate) {
-          // Auto-close missed punch-out at 18:00:00 so they can continue punching in today
-          const { data: activeSessions } = await supabase
-            .from('HRMS_attendance')
+          // Check if a PENDING request already exists for this date
+          const { data: existing } = await supabase
+            .from('HRMS_missed_punch_requests')
             .select('id')
             .eq('employee_id', empId)
-            .eq('date', missedDate)
-            .is('check_out_time', null);
+            .eq('missed_date', missedDate)
+            .eq('status', 'pending')
+            .maybeSingle();
             
-          if (activeSessions && activeSessions.length > 0) {
-            for (const session of activeSessions) {
-              await supabase
-                .from('HRMS_attendance')
-                .update({ check_out_time: '18:00:00', punch_note: 'Auto-closed by system' })
-                .eq('id', session.id);
-            }
+          if (existing) {
+            // Already submitted — tell employee to wait for admin approval
+            return { success: false, error: `pending_request:${missedDate}` };
           }
+          // No request yet — prompt employee to submit one
+          return { success: false, error: `missed_punchout:${missedDate}` };
         }
         await attendanceService.clockInEmployee(empId, locationStr, latLngStr, photoData, punchType, punchNote);
       }
