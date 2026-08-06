@@ -99,7 +99,9 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
     absent: 'bg-rose-500 text-white',
     'half-day': 'bg-amber-500 text-white',
     leave: 'bg-blue-500 text-white',
-    holiday: 'bg-slate-200 text-slate-400'
+    holiday: 'bg-slate-100 text-slate-400',
+    mispunch: 'bg-purple-500 text-white',
+    weekoff: 'bg-slate-200 text-slate-500'
   };
 
   const localizedText = {
@@ -262,6 +264,8 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
                               status === 'absent' ? 'bg-rose-500 text-white' :
                               status === 'leave' ? 'bg-blue-500 text-white' :
                               status === 'half-day' ? 'bg-amber-500 text-white' :
+                              status === 'mispunch' ? 'bg-purple-500 text-white' :
+                              status === 'weekoff' ? 'bg-slate-200 text-slate-500' :
                               status === 'holiday' ? 'bg-slate-100 text-slate-400' :
                               'bg-slate-50 text-transparent'
                             }`}
@@ -271,6 +275,8 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
                              status === 'absent' ? 'A' : 
                              status === 'leave' ? 'L' : 
                              status === 'half-day' ? 'H' : 
+                             status === 'mispunch' ? 'M' :
+                             status === 'weekoff' ? 'WO' :
                              status === 'holiday' ? 'W' : '-'}
                           </div>
                         </td>
@@ -305,6 +311,14 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-slate-100 rounded-xs flex items-center justify-center text-[8px] text-slate-400 font-black">W</div>
               <span>{localizedText.legendHoliday}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-purple-500 rounded-xs flex items-center justify-center text-[8px] text-white font-black">M</div>
+              <span>Mispunch</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-slate-200 rounded-xs flex items-center justify-center text-[8px] text-slate-500 font-black">WO</div>
+              <span>Weekoff</span>
             </div>
           </div>
         </div>
@@ -415,7 +429,7 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
             })()}
             
             <div className="grid grid-cols-2 gap-3 mb-6">
-              {(['present', 'absent', 'half-day', 'leave', 'holiday'] as AttendanceStatus[]).map(statusOption => (
+              {(['present', 'absent', 'half-day', 'leave', 'holiday', 'mispunch', 'weekoff'] as AttendanceStatus[]).map(statusOption => (
                 <button
                   key={statusOption}
                   onClick={() => {

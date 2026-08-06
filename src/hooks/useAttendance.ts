@@ -65,11 +65,18 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
           locationStr = geoCheck.matchedLocation || locationStr;
         } catch (err: any) {
           console.warn("Could not get location:", err);
-          let errMsg = "Could not get your GPS location. Please enable location services and ensure Chrome has location permission.";
-          if (err?.code === 1) errMsg = "Location permission denied. Please allow location access in your browser settings.";
-          if (err?.code === 2) errMsg = "Location position unavailable. Please ensure your device GPS is turned on.";
-          if (err?.code === 3) errMsg = "Location request timed out. Please try again in an open area.";
-          return { success: false, error: errMsg };
+          
+          if (punchType === 'out_of_office') {
+            // Fallback for Out of Office so they can still punch in if GPS is broken
+            locationStr = "Out of Office - Location Unknown (GPS Failed)";
+            latLngStr = "0,0";
+          } else {
+            let errMsg = "Could not get your GPS location. Please enable location services and ensure Chrome has location permission.";
+            if (err?.code === 1) errMsg = "Location access denied.\n\nTo fix on Android:\n1. Go to your phone's Settings > Apps > Chrome > Permissions.\n2. Allow 'Location'.\n3. Tap the Lock icon 🔒 next to hrms.smslabs.in in Chrome and allow Location there too.\n4. Reload the page.";
+            if (err?.code === 2) errMsg = "Location position unavailable. Please ensure your device GPS/Location is turned ON in your phone settings.";
+            if (err?.code === 3) errMsg = "Location request timed out. Please try again in an open area.";
+            return { success: false, error: errMsg };
+          }
         }
 
       if (isCurrentlyCheckedIn) {

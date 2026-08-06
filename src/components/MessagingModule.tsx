@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, User, Circle, Paperclip, FileText, Image as ImageIcon, X, Loader2, ArrowLeft } from 'lucide-react';
+import { Send, User, Circle, Paperclip, FileText, X, Loader2, ArrowLeft, MoreVertical, Trash2, Image as ImageIcon } from 'lucide-react';
 import { useMessaging } from '../hooks/useMessaging';
 import { Employee } from '../types';
 import { supabase } from '../lib/supabase-client';
@@ -16,16 +16,25 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Context menu state for message deletion
+  const [contextMenu, setContextMenu] = useState<{ msgId: string; x: number; y: number, isMine: boolean } | null>(null);
   
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, isConnected } = useMessaging(channelId, currentUser.id);
+  const { messages, sendMessage, deleteMessageForMe, deleteMessageForEveryone, isConnected } = useMessaging(channelId, currentUser.id);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+  
+  // Hide context menu on click outside
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, []);
 
   // Handle selecting a user or group to chat with
   useEffect(() => {
@@ -49,11 +58,9 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
           if (newChannel) setChannelId(newChannel.id);
         }
       } else {
-        // We need a deterministic channel name for 1-on-1 chats based on the two user IDs
         const participants = [currentUser.id, selectedUser.id].sort();
         const channelName = `direct_${participants[0]}_${participants[1]}`;
 
-        // Find or create channel
         const { data: existingChannels } = await supabase
           .from('HRMS_chat_channels')
           .select('*')
@@ -62,7 +69,6 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
         if (existingChannels && existingChannels.length > 0) {
           setChannelId(existingChannels[0].id);
         } else {
-          // Create new channel
           const { data: newChannel } = await supabase
             .from('HRMS_chat_channels')
             .insert([{ name: channelName, type: 'direct' }])
@@ -79,8 +85,10 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
     setupChannel();
   }, [selectedUser, currentUser.id]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSend = async (e: React.FormEvent | React.KeyboardEvent) => {
+    if (e.type === 'submit') {
+      e.preventDefault();
+    }
     if ((!inputText.trim() && !selectedFile) || isUploading) return;
 
     let attachmentUrl = undefined;
@@ -118,147 +126,210 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
     sendMessage(inputText.trim() || null, attachmentUrl, attachmentType, attachmentName);
     setInputText('');
     setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend(e);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size exceeds 5MB limit. Please choose a smaller file.');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      setSelectedFile(file);
     }
   };
+  
+  const handleContextMenu = (e: React.MouseEvent, msgId: string, isMine: boolean) => {
+    e.preventDefault();
+    setContextMenu({ msgId, x: e.clientX, y: e.clientY, isMine });
+  };
 
-  // Filter out the current user from the contact list
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
   const contacts = employees.filter(emp => emp.id !== currentUser.id);
 
+  // Calculate visible messages
+  const visibleMessages = messages.filter(msg => {
+    // Hide if sender deleted for themselves and I am the sender
+    if (msg.deleted_for_sender && msg.sender_id === currentUser.id) return false;
+    return true;
+  });
+
   return (
-    <div className="flex h-[calc(100vh-8rem)] bg-white/80 backdrop-blur-xl rounded-2xl border border-white/50 shadow-xl overflow-hidden mt-6">
+    <div className="flex h-[calc(100vh-8rem)] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-6 relative">
       
       {/* Left Sidebar - Contact List */}
-      <div className={`border-r border-slate-200/60 bg-slate-50/50 flex-col ${selectedUser ? 'hidden md:flex md:w-1/3' : 'flex w-full md:w-1/3'}`}>
-        <div className="p-4 border-b border-slate-200/60 flex items-center justify-between bg-white/50 backdrop-blur-md">
-          <h2 className="text-lg font-semibold text-slate-800">Messages</h2>
-          <div className="flex items-center space-x-2">
-             <Circle className={`w-3 h-3 ${isConnected ? 'text-green-500 fill-green-500' : 'text-red-500 fill-red-500'}`} />
-             <span className="text-xs font-medium text-slate-500">{isConnected ? 'Online' : 'Offline'}</span>
+      <div className={`border-r border-slate-200 bg-white flex-col ${selectedUser ? 'hidden md:flex md:w-[350px]' : 'flex w-full md:w-[350px]'}`}>
+        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold">
+              {getInitials(currentUser.name)}
+            </div>
+            <h2 className="text-lg font-bold text-slate-800">Chats</h2>
+          </div>
+          <div className="flex items-center space-x-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-slate-100">
+             <Circle className={`w-2.5 h-2.5 ${isConnected ? 'text-green-500 fill-green-500' : 'text-slate-400 fill-slate-400'}`} />
+             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{isConnected ? 'Online' : 'Offline'}</span>
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {/* Company Groups Section */}
-          <div className="px-2 pt-2 pb-1">
-             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Company Groups</h3>
-          </div>
-
-          {/* Group Chat Button */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Company Group Chat Button */}
           <button
             onClick={() => setSelectedUser('group')}
-            className={`w-full flex items-center space-x-4 p-3 rounded-xl transition-all duration-200 mb-2 ${
-              selectedUser === 'group' 
-                ? 'bg-blue-50 border border-blue-200/60 shadow-sm' 
-                : 'hover:bg-slate-100 border border-transparent'
+            className={`w-full flex items-center gap-4 p-4 border-b border-slate-100 transition-colors ${
+              selectedUser === 'group' ? 'bg-slate-100' : 'hover:bg-slate-50'
             }`}
           >
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-100 to-purple-50 border border-purple-200 flex items-center justify-center flex-shrink-0">
-              <User className="w-5 h-5 text-purple-600" />
+            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-500 flex items-center justify-center shrink-0 shadow-sm text-white font-bold text-lg">
+              CG
             </div>
-            <div className="flex-1 text-left">
-              <h3 className="text-sm font-semibold text-slate-800">Company Group</h3>
-              <p className="text-xs text-slate-500 capitalize">All Staff</p>
+            <div className="flex-1 text-left min-w-0">
+              <div className="flex justify-between items-baseline mb-1">
+                <h3 className="text-[15px] font-semibold text-slate-900 truncate">Company Group</h3>
+              </div>
+              <p className="text-[13px] text-slate-500 truncate">Tap to view team messages</p>
             </div>
           </button>
-
-          {/* Direct Messages Section */}
-          <div className="px-2 pt-4 pb-1 mt-4 border-t border-slate-100/60">
-             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Direct Messages</h3>
-          </div>
 
           {/* Individual Contacts */}
           {contacts.map((contact) => (
             <button
               key={contact.id}
               onClick={() => setSelectedUser(contact)}
-              className={`w-full flex items-center space-x-4 p-3 rounded-xl transition-all duration-200 ${
-                selectedUser?.id === contact.id 
-                  ? 'bg-blue-50 border border-blue-200/60 shadow-sm' 
-                  : 'hover:bg-slate-100 border border-transparent'
+              className={`w-full flex items-center gap-4 p-4 border-b border-slate-50 transition-colors ${
+                selectedUser?.id === contact.id ? 'bg-slate-100' : 'hover:bg-slate-50'
               }`}
             >
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-100 to-blue-50 border border-blue-200 flex items-center justify-center flex-shrink-0">
-                <User className="w-5 h-5 text-blue-600" />
+              <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center shrink-0 text-slate-600 font-bold text-base">
+                {getInitials(contact.name)}
               </div>
-              <div className="flex-1 text-left">
-                <h3 className="text-sm font-semibold text-slate-800">{contact.name}</h3>
-                <p className="text-xs text-slate-500 capitalize">{contact.designation}</p>
+              <div className="flex-1 text-left min-w-0">
+                <div className="flex justify-between items-baseline mb-1">
+                  <h3 className="text-[15px] font-semibold text-slate-900 truncate">{contact.name}</h3>
+                </div>
+                <p className="text-[13px] text-slate-500 truncate capitalize">{contact.designation}</p>
               </div>
             </button>
           ))}
-          {contacts.length === 0 && (
-            <div className="text-center p-4 text-slate-500 text-sm">No contacts available.</div>
-          )}
         </div>
       </div>
 
       {/* Right Content - Chat Area */}
-      <div className={`flex-1 flex-col bg-white/40 ${selectedUser ? 'flex' : 'hidden md:flex'}`}>
+      <div className={`flex-1 flex-col bg-[#efeae2] ${selectedUser ? 'flex' : 'hidden md:flex'}`}>
         {selectedUser ? (
           <>
             {/* Chat Header */}
-            <div className="p-4 border-b border-slate-200/60 bg-white/60 backdrop-blur-md flex items-center space-x-4">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-4 z-10 shadow-sm">
               <button 
                 onClick={() => setSelectedUser(null)}
-                className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full"
+                className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-200 rounded-full"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-               <div className={`w-10 h-10 rounded-full bg-gradient-to-tr ${selectedUser === 'group' ? 'from-purple-100 to-purple-50 border-purple-200' : 'from-blue-100 to-blue-50 border-blue-200'} border flex items-center justify-center`}>
-                <User className={`w-5 h-5 ${selectedUser === 'group' ? 'text-purple-600' : 'text-blue-600'}`} />
+              
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0 ${
+                selectedUser === 'group' ? 'bg-gradient-to-tr from-emerald-400 to-teal-500' : 'bg-slate-300 text-slate-600'
+              }`}>
+                {selectedUser === 'group' ? 'CG' : getInitials(selectedUser.name)}
               </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-800">{selectedUser === 'group' ? 'Company Group' : selectedUser.name}</h2>
-                <p className="text-xs text-slate-500 capitalize">{selectedUser === 'group' ? 'All Staff' : selectedUser.designation}</p>
+              
+              <div className="flex-1 min-w-0">
+                <h2 className="text-[16px] font-semibold text-slate-900 truncate">
+                  {selectedUser === 'group' ? 'Company Group' : selectedUser.name}
+                </h2>
+                <p className="text-[13px] text-slate-500 truncate capitalize">
+                  {selectedUser === 'group' ? 'All Team Members' : selectedUser.designation}
+                </p>
               </div>
             </div>
 
             {/* Messages Stream */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {messages.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-slate-400 text-sm">
-                  Say hi to start the conversation!
+            <div 
+              className="flex-1 overflow-y-auto p-4 space-y-3 bg-[url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-repeat bg-center"
+              style={{ backgroundSize: '400px' }}
+            >
+              {visibleMessages.length === 0 ? (
+                <div className="flex mt-10 justify-center">
+                  <div className="bg-amber-100 text-amber-900 text-xs px-4 py-2 rounded-lg shadow-sm max-w-sm text-center">
+                    Messages are end-to-end encrypted. No one outside of this chat, not even SMS HRMS, can read them.
+                  </div>
                 </div>
               ) : (
-                messages.map((msg, index) => {
+                visibleMessages.map((msg, index) => {
                   const isMe = msg.sender_id === currentUser.id;
+                  const isDeleted = msg.deleted_for_everyone;
+                  
                   return (
                     <div 
                       key={msg.id || index} 
-                      className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                     >
                       <div 
-                        className={`max-w-[70%] rounded-2xl px-5 py-3 shadow-sm ${
+                        onContextMenu={(e) => handleContextMenu(e, msg.id, isMe)}
+                        className={`relative max-w-[85%] md:max-w-[65%] rounded-xl px-3 py-1.5 shadow-sm ${
                           isMe 
-                            ? 'bg-blue-600 text-white rounded-br-none' 
-                            : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                            ? 'bg-[#dcf8c6] rounded-tr-none text-slate-900' 
+                            : 'bg-white rounded-tl-none text-slate-900'
                         }`}
                       >
-                        {!isMe && selectedUser === 'group' && (
-                          <div className="text-[10px] font-bold text-slate-500 mb-1">
+                        {/* Sender Name for Group */}
+                        {!isMe && selectedUser === 'group' && !isDeleted && (
+                          <div className="text-[11px] font-bold text-teal-600 mb-0.5">
                             {employees.find(e => e.id === msg.sender_id)?.name || 'Unknown'}
                           </div>
                         )}
-                        {msg.attachment_url && msg.attachment_type === 'image' && (
-                          <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="block mb-2">
-                            <img src={msg.attachment_url} alt={msg.attachment_name || 'attachment'} className="max-w-full rounded-lg object-contain max-h-64" />
-                          </a>
+                        
+                        {isDeleted ? (
+                          <div className="flex items-center gap-1.5 text-slate-500 italic py-1 text-[13px]">
+                            <div className="w-4 h-4 rounded-full border border-slate-400 flex items-center justify-center">
+                              <span className="text-[10px] leading-none">!</span>
+                            </div>
+                            This message was deleted
+                          </div>
+                        ) : (
+                          <>
+                            {msg.attachment_url && msg.attachment_type === 'image' && (
+                              <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="block mb-1 mt-1">
+                                <img src={msg.attachment_url} alt={msg.attachment_name || 'attachment'} className="max-w-full rounded-lg object-cover max-h-64 sm:max-h-80" />
+                              </a>
+                            )}
+                            {msg.attachment_url && msg.attachment_type === 'document' && (
+                              <a href={msg.attachment_url} target="_blank" rel="noreferrer" className={`flex items-center gap-3 p-2.5 rounded-lg mb-1 mt-1 transition-colors ${isMe ? 'bg-[#cbe6b6] hover:bg-[#b9d5a4]' : 'bg-slate-100 hover:bg-slate-200'}`}>
+                                <div className="w-10 h-10 rounded bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                                  <FileText className="w-5 h-5" />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-[13px] truncate font-medium">{msg.attachment_name || 'Document'}</span>
+                                  <span className="text-[11px] uppercase text-slate-500">Document</span>
+                                </div>
+                              </a>
+                            )}
+                            
+                            <div className="flex flex-wrap items-end justify-between gap-2">
+                              {msg.text && (
+                                <p className="text-[14.5px] leading-relaxed whitespace-pre-wrap break-words pb-2">
+                                  {msg.text}
+                                </p>
+                              )}
+                              
+                              <span className={`text-[10px] ml-auto float-right ${isMe ? 'text-teal-700' : 'text-slate-400'} whitespace-nowrap mt-1`}>
+                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </>
                         )}
-                        {msg.attachment_url && msg.attachment_type === 'document' && (
-                          <a href={msg.attachment_url} target="_blank" rel="noreferrer" className={`flex items-center gap-2 p-3 rounded-lg mb-2 transition-colors ${isMe ? 'bg-blue-700/50 hover:bg-blue-700/70' : 'bg-slate-100 hover:bg-slate-200'}`}>
-                            <FileText className="w-6 h-6 shrink-0" />
-                            <span className="text-sm truncate font-medium underline">{msg.attachment_name || 'Document'}</span>
-                          </a>
-                        )}
-                        {msg.text && <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>}
-                        <span className={`text-[10px] mt-1 block ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
-                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
                       </div>
                     </div>
                   );
@@ -268,34 +339,38 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
             </div>
 
             {/* Input Area */}
-            <div className="bg-white/60 backdrop-blur-md border-t border-slate-200/60 flex flex-col">
+            <div className="bg-[#f0f2f5] px-4 py-3 flex flex-col">
               
               {/* Attachment Preview */}
               {selectedFile && (
-                <div className="p-3 bg-slate-50 border-b border-slate-200/60 flex items-center justify-between">
+                <div className="mb-3 p-3 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="w-10 h-10 rounded bg-white flex items-center justify-center border border-slate-200 shrink-0">
+                    <div className="w-12 h-12 rounded bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0">
                       {selectedFile.type.startsWith('image/') ? (
                         <img src={URL.createObjectURL(selectedFile)} alt="preview" className="w-full h-full object-cover rounded" />
                       ) : (
-                        <FileText className="w-5 h-5 text-slate-500" />
+                        <FileText className="w-6 h-6 text-slate-500" />
                       )}
                     </div>
-                    <div className="truncate text-sm font-medium text-slate-700">
-                      {selectedFile.name}
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate text-sm font-medium text-slate-700">{selectedFile.name}</span>
+                      <span className="text-xs text-slate-400">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</span>
                     </div>
                   </div>
                   <button 
-                    onClick={() => setSelectedFile(null)}
-                    className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               )}
 
-              <div className="p-4">
-                <form onSubmit={handleSend} className="flex items-center space-x-3">
+              <div className="flex items-end gap-2">
+                <div className="flex-1 bg-white rounded-3xl flex items-end px-2 py-1 shadow-sm">
                   <input 
                     type="file" 
                     ref={fileInputRef} 
@@ -303,47 +378,90 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
                     onChange={handleFileChange}
                     accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
                   />
+                  
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shrink-0"
+                    className="p-3 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all shrink-0 mb-0.5"
                     title="Attach file"
                   >
-                    <Paperclip className="w-5 h-5" />
+                    <Paperclip className="w-5 h-5 -rotate-45" />
                   </button>
                   
-                  <input
-                    type="text"
+                  <textarea
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    placeholder="Type your message..."
-                    className="flex-1 bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type a message"
+                    className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 resize-none max-h-32 min-h-[44px] py-3 px-2 text-[15px] text-slate-800 leading-normal"
+                    rows={1}
+                    style={{ height: inputText ? 'auto' : '44px' }}
                   />
-                  
-                  <button
-                    type="submit"
-                    disabled={(!inputText.trim() && !selectedFile) || isUploading}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 text-white p-3 rounded-xl shadow-md transition-all duration-200 active:scale-95 flex items-center justify-center shrink-0 w-11 h-11"
-                  >
-                    {isUploading ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Send className="w-5 h-5" />
-                    )}
-                  </button>
-                </form>
+                </div>
+                
+                <button
+                  onClick={handleSend}
+                  disabled={(!inputText.trim() && !selectedFile) || isUploading}
+                  className="bg-[#00a884] hover:bg-[#008f6f] disabled:opacity-50 text-white p-3.5 rounded-full shadow-sm transition-all shrink-0 mb-0.5"
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send className="w-5 h-5 translate-x-0.5" />
+                  )}
+                </button>
               </div>
             </div>
           </>
         ) : (
-          <div className="flex h-full items-center justify-center flex-col space-y-4 text-slate-400">
-            <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center">
-              <User className="w-10 h-10 text-slate-300" />
+          <div className="flex h-full items-center justify-center flex-col text-slate-400 bg-slate-50">
+            <div className="w-72 max-w-full text-center">
+              <div className="w-24 h-24 mx-auto bg-slate-200 rounded-full flex items-center justify-center mb-6">
+                 <ImageIcon className="w-10 h-10 text-slate-400" />
+              </div>
+              <h2 className="text-xl font-light text-slate-700 mb-4">SMS HRMS Web</h2>
+              <p className="text-[13px] leading-relaxed">Send and receive messages seamlessly. Select a contact to start chatting.</p>
             </div>
-            <p className="text-sm font-medium">Select a contact to start messaging</p>
           </div>
         )}
       </div>
+
+      {/* Context Menu for Deletion */}
+      {contextMenu && (
+        <div 
+          className="fixed z-50 bg-white rounded-lg shadow-xl border border-slate-100 py-1 min-w-[160px] overflow-hidden animate-scaleUp"
+          style={{ 
+            top: `${Math.min(contextMenu.y, window.innerHeight - 100)}px`, 
+            left: `${Math.min(contextMenu.x, window.innerWidth - 180)}px` 
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            className="w-full text-left px-4 py-3 text-[14px] text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+            onClick={() => {
+              deleteMessageForMe(contextMenu.msgId);
+              setContextMenu(null);
+            }}
+          >
+            <Trash2 className="w-4 h-4 text-slate-400" />
+            Delete for me
+          </button>
+          
+          {contextMenu.isMine && (
+            <button 
+              className="w-full text-left px-4 py-3 text-[14px] text-rose-600 hover:bg-rose-50 flex items-center gap-3 transition-colors border-t border-slate-50"
+              onClick={() => {
+                deleteMessageForEveryone(contextMenu.msgId);
+                setContextMenu(null);
+              }}
+            >
+              <Trash2 className="w-4 h-4 text-rose-500" />
+              Delete for everyone
+            </button>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }

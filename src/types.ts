@@ -78,7 +78,7 @@ export interface CheckInLog {
 }
 
 
-export type AttendanceStatus = 'present' | 'absent' | 'half-day' | 'leave' | 'holiday';
+export type AttendanceStatus = 'present' | 'absent' | 'half-day' | 'leave' | 'holiday' | 'mispunch' | 'weekoff';
 
 export interface AttendanceRecord {
   date: string; // YYYY-MM-DD
