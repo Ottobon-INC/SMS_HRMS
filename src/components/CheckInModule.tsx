@@ -65,49 +65,53 @@ export default function CheckInModule({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // BUG FIX: Attach stream via useEffect so video element is guaranteed to be mounted
+  useEffect(() => {
+    if ((isCameraOpen || isPinCameraOpen) && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [isCameraOpen, isPinCameraOpen]);
+
   const startCamera = async (isForPin: boolean = false) => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Camera API not available");
+        throw new Error("Camera API not available. Access the app over HTTPS.");
       }
+      let stream: MediaStream;
+      try {
+        // BUG FIX: Use `ideal` constraint so it works on all Android cameras without NotFoundError
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: { ideal: 'user' } }, 
+          audio: false 
+        });
+      } catch (firstErr: any) {
+        if (firstErr.name === 'NotAllowedError') {
+          throw firstErr; // Permission denied — can't retry
+        }
+        // For NotFoundError, OverconstrainedError — retry without constraints
+        console.warn("Camera with constraints failed, retrying without:", firstErr);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+      streamRef.current = stream;
+      // BUG FIX: Open modal AFTER stream is ready so useEffect attaches srcObject immediately
       if (isForPin) {
         setIsPinCameraOpen(true);
       } else {
         setIsCameraOpen(true);
       }
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'user' }, 
-          audio: false 
-        });
-      } catch (firstErr: any) {
-        if (firstErr.name === 'NotAllowedError') {
-          throw firstErr; // Don't retry if it's a permission issue
-        }
-        console.warn("First camera attempt failed, retrying...", firstErr);
-        // Short delay to allow hardware to reset if locked
-        await new Promise(resolve => setTimeout(resolve, 800));
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: false 
-        });
-      }
-      streamRef.current = stream;
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      }, 50);
     } catch (err: any) {
-      console.error("Camera access denied or unavailable", err);
-      const errorMessage = err.name === 'NotAllowedError' ? 'Permission denied' : (err.message || 'Unknown error');
-      alert(language === 'te' ? `కెమెరా అందుబాటులో లేదు (${errorMessage}). ఫోటో లేకుండా హాజరు నమోదు చేయబడుతుంది.` : `Camera unavailable (${errorMessage}). Proceeding without photo.`);
+      console.warn("Camera not available:", err.name, err.message);
+      const isNoCamera = err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError';
+      const isPermissionDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+      if (isPermissionDenied) {
+        alert(language === 'te' ? 'కెమెరా అనుమతి నిరాకరించబడింది. బ్రౌజర్ సెట్టింగ్స్‌లో కెమెరా అనుమతి ఇవ్వండి.' : 'Camera permission denied. Please tap the lock icon in the address bar and allow Camera, then reload.');
+      } else if (!isNoCamera) {
+        alert(language === 'te' ? 'కెమెరా అందుబాటులో లేదు. ఫోటో లేకుండా హాజరు నమోదు చేయబడుతుంది.' : `Camera error: ${err.message}. Proceeding without photo.`);
+      }
+      // For NotFoundError: silently proceed without photo
       if (isForPin) {
-        setIsPinCameraOpen(false);
         handlePinSubmit(undefined);
       } else {
-        setIsCameraOpen(false);
         const result = await onToggleCheckIn(undefined, selectedPunchType, punchNote);
         if (result && !result.success) {
           if (result.geoError) {
@@ -115,11 +119,6 @@ export default function CheckInModule({
           } else if (result.error) {
             if (result.error.startsWith('missed_punchout:')) {
               setMissedPunchDate(result.error.split(':')[1]);
-            } else if (result.error.startsWith('pending_request:')) {
-              const d = result.error.split(':')[1];
-              alert(language === 'te' 
-                ? `మీరు ఇప్పటికే ${d} తేదీ కోసం మిస్ పంచ్ అభ్యర్థనను సమర్పించారు. అడ్మిన్ ఆమోదం కోసం దయచేసి వేచి ఉండండి.` 
-                : `You already submitted a mispunch request for ${d}. Please wait for admin approval.`);
             } else {
               alert(result.error);
             }
@@ -160,11 +159,6 @@ export default function CheckInModule({
           } else if (result.error) {
             if (result.error.startsWith('missed_punchout:')) {
               setMissedPunchDate(result.error.split(':')[1]);
-            } else if (result.error.startsWith('pending_request:')) {
-              const d = result.error.split(':')[1];
-              alert(language === 'te' 
-                ? `మీరు ఇప్పటికే ${d} తేదీ కోసం మిస్ పంచ్ అభ్యర్థనను సమర్పించారు. అడ్మిన్ ఆమోదం కోసం దయచేసి వేచి ఉండండి.` 
-                : `You already submitted a mispunch request for ${d}. Please wait for admin approval.`);
             } else {
               alert(result.error);
             }

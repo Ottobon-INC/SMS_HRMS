@@ -4,6 +4,17 @@ import * as leaveService from '../lib/services/leave-service';
 import { checkGeofence, resolveAllowedLocations } from '../lib/geofence';
 import { supabase } from '../lib/supabase-client';
 
+/** Helper: get GPS position with a configurable timeout and accuracy mode */
+function getPosition(enableHighAccuracy: boolean, timeout: number): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      timeout,
+      maximumAge: 60000,
+      enableHighAccuracy,
+    });
+  });
+}
+
 export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void>) {
   const toggleCheckIn = async (empId: string, isCurrentlyCheckedIn: boolean, photoData?: string, punchType: PunchType = 'in_office', punchNote?: string) => {
 
@@ -13,71 +24,74 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
     }
     
     try {
-        let locationStr: string | undefined = undefined;
-        let latLngStr: string | undefined = undefined;
+      let locationStr: string | undefined = undefined;
+      let latLngStr: string | undefined = undefined;
 
+      try {
+        // Fast-first GPS: try a quick network-based location first (5s),
+        // then fall back to high-accuracy GPS (10s) if needed.
+        let position: GeolocationPosition | null = null;
         try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { 
-              timeout: 20000, // 20 seconds
-              maximumAge: 30000, // Accept up to 30-second old cached location
-              enableHighAccuracy: true // Require accurate GPS for geofencing
-            });
-          });
-          const { latitude, longitude } = position.coords;
-          latLngStr = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+          position = await getPosition(false, 5000);
+        } catch {
+          position = await getPosition(true, 10000);
+        }
 
-          // Reverse geocoding with strict 3-second timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3000);
-          
-          try {
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-              { signal: controller.signal }
-            );
-            clearTimeout(timeoutId);
-            if (response.ok) {
-              const data = await response.json();
-              const city = data.address.city || data.address.town || data.address.village || data.address.county || '';
-              const state = data.address.state || '';
-              const suburb = data.address.suburb || data.address.neighbourhood || '';
-              locationStr = [suburb, city, state].filter(Boolean).join(', ');
-            }
-          } catch (e) {
-            console.warn("Reverse geocoding timed out or failed:", e);
-            locationStr = "Location details unavailable";
+        const { latitude, longitude } = position.coords;
+        latLngStr = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+
+        // Reverse geocoding with strict 3-second timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            { signal: controller.signal }
+          );
+          clearTimeout(timeoutId);
+          if (response.ok) {
+            const data = await response.json();
+            const city = data.address.city || data.address.town || data.address.village || data.address.county || '';
+            const state = data.address.state || '';
+            const suburb = data.address.suburb || data.address.neighbourhood || '';
+            locationStr = [suburb, city, state].filter(Boolean).join(', ');
           }
-          
-          let geoCheck: any;
-          if (punchType === 'out_of_office') {
-            geoCheck = { allowed: true, matchedLocation: `Out of Office - ${locationStr || 'Location Unknown'}`, distance: 0 };
-          } else {
-            const today = new Date().toISOString().split('T')[0];
-            const allowedLocations = await resolveAllowedLocations(empId, today);
-            geoCheck = checkGeofence(latitude, longitude, allowedLocations);
-          }
-          
+        } catch {
+          locationStr = "Location details unavailable";
+        }
+
+        // Geofence check: ONLY run on punch-IN and only for in_office type.
+        // Punch-OUT should never be blocked by geofence — employee may have left the premises.
+        if (!isCurrentlyCheckedIn && punchType !== 'out_of_office') {
+          const today = new Date().toISOString().split('T')[0];
+          const allowedLocations = await resolveAllowedLocations(empId, today);
+          const geoCheck = checkGeofence(latitude, longitude, allowedLocations);
           if (!geoCheck.allowed) {
             return { success: false, geoError: geoCheck };
           }
-          
           locationStr = geoCheck.matchedLocation || locationStr;
-        } catch (err: any) {
-          console.warn("Could not get location:", err);
-          
-          if (punchType === 'out_of_office') {
-            // Fallback for Out of Office so they can still punch in if GPS is broken
-            locationStr = "Out of Office - Location Unknown (GPS Failed)";
-            latLngStr = "0,0";
-          } else {
-            let errMsg = "Could not get your GPS location. Please enable location services and ensure Chrome has location permission.";
-            if (err?.code === 1) errMsg = "Location access denied.\n\nTo fix on Android:\n1. Go to your phone's Settings > Apps > Chrome > Permissions.\n2. Allow 'Location'.\n3. Tap the Lock icon 🔒 next to hrms.smslabs.in in Chrome and allow Location there too.\n4. Reload the page.";
-            if (err?.code === 2) errMsg = "Location position unavailable. Please ensure your device GPS/Location is turned ON in your phone settings.";
-            if (err?.code === 3) errMsg = "Location request timed out. Please try again in an open area.";
-            return { success: false, error: errMsg };
-          }
+        } else if (punchType === 'out_of_office') {
+          locationStr = `Out of Office - ${locationStr || 'Location Unknown'}`;
         }
+
+      } catch (err: any) {
+        console.warn("Could not get location:", err);
+
+        if (punchType === 'out_of_office' || isCurrentlyCheckedIn) {
+          // For punch-out or out-of-office, allow attendance without GPS
+          locationStr = isCurrentlyCheckedIn
+            ? "Punch-out - Location Unknown (GPS Failed)"
+            : "Out of Office - Location Unknown (GPS Failed)";
+          latLngStr = "0,0";
+        } else {
+          // For in-office punch-in, GPS is required for geofencing
+          let errMsg = "Could not get your GPS location. Please enable location services and try again.";
+          if (err?.code === 1) errMsg = "Location access denied.\n\nPlease tap the lock icon 🔒 next to the URL in your browser and set Location to 'Allow', then reload the page.";
+          if (err?.code === 2) errMsg = "Your GPS/Location is turned off. Please enable it in your phone settings and try again.";
+          if (err?.code === 3) errMsg = "Location request timed out. Please move to an open area and try again.";
+          return { success: false, error: errMsg };
+        }
+      }
 
       if (isCurrentlyCheckedIn) {
         await attendanceService.clockOutEmployee(empId, photoData, locationStr, latLngStr);
@@ -99,12 +113,11 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
             .eq('status', 'pending')
             .maybeSingle();
             
-          if (existing) {
-            // Already submitted — tell employee to wait for admin approval
-            return { success: false, error: `pending_request:${missedDate}` };
+          if (!existing) {
+            // No request yet — prompt employee to submit one
+            return { success: false, error: `missed_punchout:${missedDate}` };
           }
-          // No request yet — prompt employee to submit one
-          return { success: false, error: `missed_punchout:${missedDate}` };
+          // If existing pending request found, allow punch in for today while admin reviews
         }
         await attendanceService.clockInEmployee(empId, locationStr, latLngStr, photoData, punchType, punchNote);
       }

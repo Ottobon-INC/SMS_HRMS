@@ -139,13 +139,14 @@ export async function approveMissedPunchRequest(
 
     if (openSessions && openSessions.length > 0) {
       for (const session of openSessions) {
-        await supabase
+        const { error: updateErr } = await supabase
           .from('HRMS_attendance')
           .update({
             check_out_time: correctionTime,
             punch_note: adminNote || 'Closed by Admin — Missed Punch-Out Approved'
           })
           .eq('id', session.id);
+        if (updateErr) throw updateErr;
       }
     }
   } else if (punchType === 'in') {
@@ -160,7 +161,7 @@ export async function approveMissedPunchRequest(
     if (fetchErr) throw fetchErr;
 
     if (existingSessions && existingSessions.length > 0) {
-      await supabase
+      const { error: updateErr } = await supabase
         .from('HRMS_attendance')
         .update({
           check_in_time: correctionTime,
@@ -168,8 +169,9 @@ export async function approveMissedPunchRequest(
           punch_note: adminNote || 'Corrected by Admin — Missed Punch-In Approved'
         })
         .eq('id', existingSessions[0].id);
+      if (updateErr) throw updateErr;
     } else {
-      await supabase
+      const { error: insertErr } = await supabase
         .from('HRMS_attendance')
         .insert([{
           employee_id: empId,
@@ -180,6 +182,7 @@ export async function approveMissedPunchRequest(
           punch_note: adminNote || 'Corrected by Admin — Missed Punch-In Approved',
           session_number: 1
         }]);
+      if (insertErr) throw insertErr;
     }
   }
 

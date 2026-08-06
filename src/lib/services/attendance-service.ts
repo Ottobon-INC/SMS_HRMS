@@ -29,7 +29,7 @@ export async function autoExpireMissedPunches(empId: string): Promise<void> {
     if (att && att.length > 0) {
       await supabase
         .from('HRMS_attendance')
-        .update({ status: 'Half-day' })
+        .update({ status: 'Half-day', check_out_time: '18:00:00', punch_note: 'Auto-closed by system (Missed punch)' })
         .eq('id', att[0].id);
     }
 
@@ -55,8 +55,7 @@ export async function checkMissedPunchOut(empId: string): Promise<string | null>
     .eq('employee_id', empId)
     .is('check_out_time', null)
     .lt('date', todayStr)
-    .order('date', { ascending: false })
-    .limit(1);
+    .order('date', { ascending: false });
 
   if (error) {
     console.error("Error checking missed punch-out:", error);
@@ -64,7 +63,27 @@ export async function checkMissedPunchOut(empId: string): Promise<string | null>
   }
 
   if (data && data.length > 0) {
-    return data[0].date;
+    for (const session of data) {
+      const { data: approvedReq } = await supabase
+        .from('HRMS_missed_punch_requests')
+        .select('id')
+        .eq('employee_id', empId)
+        .eq('missed_date', session.date)
+        .eq('status', 'approved')
+        .maybeSingle();
+
+      if (!approvedReq) {
+        return session.date; // Found a missed punch out that hasn't been approved yet
+      } else {
+        // If it was approved but the session is still open, auto-fix it
+        await supabase
+          .from('HRMS_attendance')
+          .update({ check_out_time: '18:00:00', punch_note: 'Auto-closed by system (Previously Approved)' })
+          .eq('employee_id', empId)
+          .eq('date', session.date)
+          .is('check_out_time', null);
+      }
+    }
   }
 
   return null;
