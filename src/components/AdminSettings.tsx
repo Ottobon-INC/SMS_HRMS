@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, CheckCircle, RefreshCcw } from 'lucide-react';
+import { Settings, Save, CheckCircle, RefreshCcw, Plus, Trash2 } from 'lucide-react';
 import { Language } from '../types';
 import { translations } from '../translations';
-import { fetchPayrollConfig, upsertPayrollConfig, PayrollConfig } from '../lib/services/payroll-config-service';
+import { fetchPayrollConfig, upsertPayrollConfig, PayrollConfig, PayrollTier } from '../lib/services/payroll-config-service';
 
 interface AdminSettingsProps {
   language: Language;
@@ -33,24 +33,22 @@ export default function AdminSettings({ language }: AdminSettingsProps) {
     setIsSaving(true);
     try {
       for (const [key, value] of Object.entries(config)) {
+        if (key === 'payroll_tiers') {
+          await upsertPayrollConfig('payroll_tiers_json', 0, JSON.stringify(value));
+          continue;
+        }
+        
         let label = '';
         switch (key) {
-          case 'tier1_hra': label = 'Tier 1 HRA'; break;
-          case 'tier1_ma': label = 'Tier 1 Medical'; break;
-          case 'tier1_ca': label = 'Tier 1 Conveyance'; break;
-          case 'tier2_hra': label = 'Tier 2 HRA'; break;
-          case 'tier2_ma': label = 'Tier 2 Medical'; break;
-          case 'tier2_ca': label = 'Tier 2 Conveyance'; break;
-          case 'tier3_hra': label = 'Tier 3 HRA'; break;
-          case 'tier3_ma': label = 'Tier 3 Medical'; break;
-          case 'tier3_ca': label = 'Tier 3 Conveyance'; break;
           case 'pf_percent': label = 'PF % of Basic'; break;
           case 'professional_tax': label = 'Professional Tax (Fixed)'; break;
           case 'hra_fixed': label = 'Legacy HRA'; break;
           case 'medical_allowance': label = 'Legacy Medical'; break;
           case 'conveyance_allowance': label = 'Legacy Conveyance'; break;
         }
-        await upsertPayrollConfig(key, value as number, label);
+        if (typeof value === 'number') {
+          await upsertPayrollConfig(key, value, label);
+        }
       }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -67,6 +65,46 @@ export default function AdminSettings({ language }: AdminSettingsProps) {
     setConfig({
       ...config,
       [key]: Number(value)
+    });
+  };
+
+  const addTier = () => {
+    if (!config) return;
+    const newTier: PayrollTier = {
+      id: Date.now().toString(),
+      name: `Tier ${(config.payroll_tiers?.length || 0) + 1}`,
+      minSalary: 0,
+      maxSalary: 999999,
+      hra: 0,
+      ma: 0,
+      ca: 0
+    };
+    setConfig({
+      ...config,
+      payroll_tiers: [...(config.payroll_tiers || []), newTier]
+    });
+  };
+
+  const updateTier = (tierId: string, field: keyof PayrollTier, value: string | number) => {
+    if (!config || !config.payroll_tiers) return;
+    const updatedTiers = config.payroll_tiers.map(t => {
+      if (t.id === tierId) {
+        return { ...t, [field]: field === 'name' ? value : Number(value) };
+      }
+      return t;
+    });
+    setConfig({ ...config, payroll_tiers: updatedTiers });
+  };
+
+  const removeTier = (tierId: string) => {
+    if (!config || !config.payroll_tiers) return;
+    if (config.payroll_tiers.length <= 1) {
+      alert("You must have at least one payroll tier.");
+      return;
+    }
+    setConfig({
+      ...config,
+      payroll_tiers: config.payroll_tiers.filter(t => t.id !== tierId)
     });
   };
 
@@ -105,90 +143,99 @@ export default function AdminSettings({ language }: AdminSettingsProps) {
               {language === 'te' ? 'పేరోల్ స్ట్రక్చర్ (Payroll Structure)' : 'Payroll Structure'}
             </h3>
             
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-slate-500">Define salary ranges and their corresponding allowances.</p>
+              <button
+                type="button"
+                onClick={addTier}
+                className="flex items-center gap-1.5 text-xs font-bold bg-teal-50 text-teal-700 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Tier
+              </button>
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Tier 1 */}
-            <div className="mb-6 border border-slate-100 rounded-2xl p-6 bg-slate-50/50">
-              <h4 className="text-sm font-bold text-slate-800 mb-4">Tier 1: Basic Salary Below ₹10,000</h4>
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">HRA</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                    <input type="number" required value={config.tier1_hra ?? 2000} onChange={(e) => handleChange('tier1_hra', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+              {config.payroll_tiers?.map((tier, index) => (
+                <div key={tier.id} className="mb-6 border border-slate-100 rounded-2xl p-5 bg-slate-50/50 shadow-sm relative group">
+                  <button 
+                    type="button"
+                    onClick={() => removeTier(tier.id)}
+                    className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                    title="Remove Tier"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  
+                  <div className="mb-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Tier Name</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={tier.name} 
+                      onChange={(e) => updateTier(tier.id, 'name', e.target.value)} 
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/10"
+                      placeholder="e.g. Tier 1"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Min Salary</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2 text-slate-400 font-bold text-sm">₹</span>
+                        <input 
+                          type="number" 
+                          required 
+                          value={tier.minSalary} 
+                          onChange={(e) => updateTier(tier.id, 'minSalary', e.target.value)} 
+                          className="w-full pl-7 pr-2 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/10"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Max Salary</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2 text-slate-400 font-bold text-sm">₹</span>
+                        <input 
+                          type="number" 
+                          required 
+                          value={tier.maxSalary} 
+                          onChange={(e) => updateTier(tier.id, 'maxSalary', e.target.value)} 
+                          className="w-full pl-7 pr-2 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 pt-4 border-t border-slate-200/60">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-500">HRA</label>
+                      <div className="relative w-32">
+                        <span className="absolute left-3 top-1.5 text-slate-400 font-bold text-sm">₹</span>
+                        <input type="number" required value={tier.hra} onChange={(e) => updateTier(tier.id, 'hra', e.target.value)} className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-500">Medical</label>
+                      <div className="relative w-32">
+                        <span className="absolute left-3 top-1.5 text-slate-400 font-bold text-sm">₹</span>
+                        <input type="number" required value={tier.ma} onChange={(e) => updateTier(tier.id, 'ma', e.target.value)} className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-500">Conveyance</label>
+                      <div className="relative w-32">
+                        <span className="absolute left-3 top-1.5 text-slate-400 font-bold text-sm">₹</span>
+                        <input type="number" required value={tier.ca} onChange={(e) => updateTier(tier.id, 'ca', e.target.value)} className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Medical Allowance</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                    <input type="number" required value={config.tier1_ma ?? 1500} onChange={(e) => handleChange('tier1_ma', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Conveyance Allowance</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                    <input type="number" required value={config.tier1_ca ?? 1000} onChange={(e) => handleChange('tier1_ca', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
 
-            {/* Tier 2 */}
-            <div className="mb-6 border border-slate-100 rounded-2xl p-6 bg-slate-50/50">
-              <h4 className="text-sm font-bold text-slate-800 mb-4">Tier 2: Basic Salary Exactly ₹10,000</h4>
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">HRA</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                    <input type="number" required value={config.tier2_hra ?? 3000} onChange={(e) => handleChange('tier2_hra', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Medical Allowance</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                    <input type="number" required value={config.tier2_ma ?? 2000} onChange={(e) => handleChange('tier2_ma', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Conveyance Allowance</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                    <input type="number" required value={config.tier2_ca ?? 1500} onChange={(e) => handleChange('tier2_ca', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Tier 3 */}
-            <div className="mb-6 border border-slate-100 rounded-2xl p-6 bg-slate-50/50">
-              <h4 className="text-sm font-bold text-slate-800 mb-4">Tier 3: Basic Salary Above ₹10,000</h4>
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">HRA</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                    <input type="number" required value={config.tier3_hra ?? 4800} onChange={(e) => handleChange('tier3_hra', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Medical Allowance</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                    <input type="number" required value={config.tier3_ma ?? 2000} onChange={(e) => handleChange('tier3_ma', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Conveyance Allowance</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-2 text-slate-400 font-bold">₹</span>
-                    <input type="number" required value={config.tier3_ca ?? 1500} onChange={(e) => handleChange('tier3_ca', e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700" />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
 
               {/* Deductions */}
               <div className="space-y-1">

@@ -5,25 +5,25 @@ import { fetchPayrollConfig, PayrollConfig } from './payroll-config-service';
 import { computeAttendanceStats } from '../utils/attendance-stats';
 
 export function getTieredAllowances(basicSalary: number, config: PayrollConfig) {
-  if (basicSalary < 10000) {
+  const tiers = config.payroll_tiers || [];
+  
+  // Find the first tier where basicSalary falls within [minSalary, maxSalary]
+  const matchedTier = tiers.find(t => basicSalary >= t.minSalary && basicSalary <= t.maxSalary);
+  
+  if (matchedTier) {
     return {
-      hra: config.tier1_hra ?? 2000,
-      ma: config.tier1_ma ?? 1500,
-      ca: config.tier1_ca ?? 1000,
-    };
-  } else if (basicSalary === 10000) {
-    return {
-      hra: config.tier2_hra ?? 3000,
-      ma: config.tier2_ma ?? 2000,
-      ca: config.tier2_ca ?? 1500,
-    };
-  } else {
-    return {
-      hra: config.tier3_hra ?? 4800,
-      ma: config.tier3_ma ?? 2000,
-      ca: config.tier3_ca ?? 1500,
+      hra: matchedTier.hra,
+      ma: matchedTier.ma,
+      ca: matchedTier.ca,
     };
   }
+  
+  // Fallback to Tier 1 logic if no tier matches, or if tiers are empty
+  return {
+    hra: 2000,
+    ma: 1500,
+    ca: 1000,
+  };
 }
 
 export async function savePayslipToSupabase(empId: string, payslip: Payslip): Promise<void> {

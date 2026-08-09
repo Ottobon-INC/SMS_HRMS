@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, User, Circle, Paperclip, FileText, X, Loader2, ArrowLeft, MoreVertical, Trash2, Image as ImageIcon } from 'lucide-react';
 import { useMessaging } from '../hooks/useMessaging';
+import { Settings, Plus, Check, CheckCheck } from 'lucide-react';
 import { Employee } from '../types';
 import { supabase } from '../lib/supabase-client';
 
@@ -10,7 +11,10 @@ interface MessagingModuleProps {
 }
 
 export function MessagingModule({ currentUser, employees }: MessagingModuleProps) {
-  const [selectedUser, setSelectedUser] = useState<Employee | 'group' | null>(null);
+  const [selectedUser, setSelectedUser] = useState<Employee | { isGroup: true, id: string, name: string, admin_id?: string } | null>(null);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
   const [channelId, setChannelId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -22,7 +26,7 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, deleteMessageForMe, deleteMessageForEveryone, isConnected } = useMessaging(channelId, currentUser.id);
+  const { messages, sendMessage, deleteMessageForMe, deleteMessageForEveryone, isConnected, participants, messageReads, channelDetails, updateGroupName, addParticipant, removeParticipant } = useMessaging(channelId, currentUser.id);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -38,50 +42,37 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
 
   // Handle selecting a user or group to chat with
   useEffect(() => {
+    
     async function setupChannel() {
       if (!selectedUser) return;
       
-      if (selectedUser === 'group') {
-        const { data: existingChannels } = await supabase
-          .from('HRMS_chat_channels')
-          .select('*')
-          .eq('name', 'group_all');
-          
-        if (existingChannels && existingChannels.length > 0) {
-          setChannelId(existingChannels[0].id);
+      if ('isGroup' in selectedUser) {
+        if (selectedUser.id === 'group_all') {
+          const { data: existingChannels } = await supabase.from('HRMS_chat_channels').select('*').eq('name', 'group_all');
+          if (existingChannels && existingChannels.length > 0) {
+            setChannelId(existingChannels[0].id);
+          } else {
+            const { data: newChannel } = await supabase.from('HRMS_chat_channels').insert([{ name: 'group_all', type: 'group' }]).select().single();
+            if (newChannel) setChannelId(newChannel.id);
+          }
         } else {
-          const { data: newChannel } = await supabase
-            .from('HRMS_chat_channels')
-            .insert([{ name: 'group_all', type: 'group' }])
-            .select()
-            .single();
-          if (newChannel) setChannelId(newChannel.id);
+           setChannelId(selectedUser.id);
         }
       } else {
-        const participants = [currentUser.id, selectedUser.id].sort();
-        const channelName = `direct_${participants[0]}_${participants[1]}`;
+        const participantsIds = [currentUser.id, selectedUser.id].sort();
+        const channelName = `direct_${participantsIds[0]}_${participantsIds[1]}`;
 
-        const { data: existingChannels } = await supabase
-          .from('HRMS_chat_channels')
-          .select('*')
-          .eq('name', channelName);
+        const { data: existingChannels } = await supabase.from('HRMS_chat_channels').select('*').eq('name', channelName);
 
         if (existingChannels && existingChannels.length > 0) {
           setChannelId(existingChannels[0].id);
         } else {
-          const { data: newChannel } = await supabase
-            .from('HRMS_chat_channels')
-            .insert([{ name: channelName, type: 'direct' }])
-            .select()
-            .single();
-            
-          if (newChannel) {
-            setChannelId(newChannel.id);
-          }
+          const { data: newChannel } = await supabase.from('HRMS_chat_channels').insert([{ name: channelName, type: 'direct' }]).select().single();
+          if (newChannel) setChannelId(newChannel.id);
         }
       }
     }
-    
+
     setupChannel();
   }, [selectedUser, currentUser.id]);
 
@@ -185,23 +176,25 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
         </div>
         
         <div className="flex-1 overflow-y-auto">
-          {/* Company Group Chat Button */}
+          
+          {/* Groups List */}
+          <div className="px-4 py-2 flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Groups</span>
+          </div>
           <button
-            onClick={() => setSelectedUser('group')}
+            onClick={() => setSelectedUser({ isGroup: true, id: 'group_all', name: 'Company Group' })}
             className={`w-full flex items-center gap-4 p-4 border-b border-slate-100 transition-colors ${
-              selectedUser === 'group' ? 'bg-slate-100' : 'hover:bg-slate-50'
+              selectedUser && 'isGroup' in selectedUser && selectedUser.id === 'group_all' ? 'bg-slate-100' : 'hover:bg-slate-50'
             }`}
           >
             <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-500 flex items-center justify-center shrink-0 shadow-sm text-white font-bold text-lg">
               CG
             </div>
             <div className="flex-1 text-left min-w-0">
-              <div className="flex justify-between items-baseline mb-1">
-                <h3 className="text-[15px] font-semibold text-slate-900 truncate">Company Group</h3>
-              </div>
-              <p className="text-[13px] text-slate-500 truncate">Tap to view team messages</p>
+              <h3 className="text-[15px] font-semibold text-slate-900 truncate">Company Group</h3>
             </div>
           </button>
+
 
           {/* Individual Contacts */}
           {contacts.map((contact) => (
@@ -242,17 +235,25 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0 ${
                 selectedUser === 'group' ? 'bg-gradient-to-tr from-emerald-400 to-teal-500' : 'bg-slate-300 text-slate-600'
               }`}>
-                {selectedUser === 'group' ? 'CG' : getInitials(selectedUser.name)}
+                {selectedUser && 'isGroup' in selectedUser ? getInitials(selectedUser.name) : getInitials(selectedUser.name)}
               </div>
+              
               
               <div className="flex-1 min-w-0">
                 <h2 className="text-[16px] font-semibold text-slate-900 truncate">
-                  {selectedUser === 'group' ? 'Company Group' : selectedUser.name}
+                  {selectedUser && 'isGroup' in selectedUser ? channelDetails?.name || selectedUser.name : (selectedUser as Employee).name}
                 </h2>
                 <p className="text-[13px] text-slate-500 truncate capitalize">
-                  {selectedUser === 'group' ? 'All Team Members' : selectedUser.designation}
+                  {selectedUser && 'isGroup' in selectedUser ? `${participants.length} Participants` : (selectedUser as Employee).designation}
                 </p>
               </div>
+              
+              {selectedUser && 'isGroup' in selectedUser && (
+                <button onClick={() => setShowGroupSettings(true)} className="p-2 text-slate-500 hover:bg-slate-200 rounded-full">
+                  <Settings className="w-5 h-5" />
+                </button>
+              )}
+
             </div>
 
             {/* Messages Stream */}
@@ -285,7 +286,7 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
                         }`}
                       >
                         {/* Sender Name for Group */}
-                        {!isMe && selectedUser === 'group' && !isDeleted && (
+                        {!isMe && selectedUser && 'isGroup' in selectedUser && !isDeleted && (
                           <div className="text-[11px] font-bold text-teal-600 mb-0.5">
                             {employees.find(e => e.id === msg.sender_id)?.name || 'Unknown'}
                           </div>
@@ -459,6 +460,104 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
               Delete for everyone
             </button>
           )}
+        </div>
+      )}
+
+
+      {/* Group Settings Modal */}
+      {showGroupSettings && selectedUser && 'isGroup' in selectedUser && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-800 text-lg">Group Settings</h3>
+              <button onClick={() => setShowGroupSettings(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              {channelDetails?.admin_id === currentUser.id || !channelDetails?.admin_id ? (
+                <div className="mb-6 space-y-3">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Change Group Name</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      defaultValue={channelDetails?.name || ''}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                    />
+                    <button 
+                      onClick={async () => { 
+                        if(newGroupName) {
+                           await updateGroupName(newGroupName); 
+                           if (!channelDetails?.admin_id) {
+                             await supabase.from('HRMS_chat_channels').update({ admin_id: currentUser.id }).eq('id', channelId);
+                           }
+                           alert("Saved!");
+                        }
+                      }}
+                      className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <p className="text-sm text-slate-600 text-center">Only the group admin can change the name or add members.</p>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">Participants ({participants.length})</label>
+                <div className="space-y-2">
+                  {participants.map(p => {
+                    const emp = employees.find(e => e.id === p.user_id);
+                    return (
+                      <div key={p.id} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl group transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                            {emp ? getInitials(emp.name) : '?'}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-slate-800">{emp ? emp.name : p.user_id}</p>
+                            {channelDetails?.admin_id === p.user_id && <span className="text-[10px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-bold">Admin</span>}
+                          </div>
+                        </div>
+                        {(channelDetails?.admin_id === currentUser.id || !channelDetails?.admin_id) && p.user_id !== currentUser.id && (
+                          <button onClick={() => removeParticipant(p.user_id)} className="text-rose-500 opacity-0 group-hover:opacity-100 p-1.5 hover:bg-rose-50 rounded transition-all">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {(channelDetails?.admin_id === currentUser.id || !channelDetails?.admin_id) && (
+                <div className="mt-6 border-t border-slate-100 pt-6">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">Add People</label>
+                  <div className="space-y-2">
+                    {employees.filter(e => e.id !== currentUser.id && !participants.some(p => p.user_id === e.id)).map(e => (
+                       <div key={e.id} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                         <div className="flex items-center gap-3">
+                           <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">
+                             {getInitials(e.name)}
+                           </div>
+                           <span className="text-sm font-medium text-slate-700">{e.name}</span>
+                         </div>
+                         <button onClick={() => addParticipant(e.id)} className="bg-white border border-slate-200 hover:border-teal-500 hover:text-teal-600 shadow-sm text-slate-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all">
+                           Add
+                         </button>
+                       </div>
+                    ))}
+                    {employees.filter(e => e.id !== currentUser.id && !participants.some(p => p.user_id === e.id)).length === 0 && (
+                      <p className="text-sm text-slate-400 italic text-center py-4">All employees are in this group.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
