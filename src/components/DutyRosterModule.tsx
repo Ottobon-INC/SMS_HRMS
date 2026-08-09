@@ -157,9 +157,9 @@ export default function DutyRosterModule({ language, employees }: DutyRosterModu
         {isLoading ? (
           <div className="p-12 text-center text-slate-400">Loading...</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
+          <div className="overflow-auto max-h-[65vh] pb-48">
+            <table className="w-full text-left border-collapse relative">
+              <thead className="sticky top-0 z-40 bg-white shadow-sm">
                 <tr className="bg-slate-50/50 border-b border-slate-100">
                   <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-400 min-w-[200px] border-r border-slate-100 sticky left-0 z-10 bg-slate-50/95 backdrop-blur-sm">
                     {language === 'te' ? 'ఉద్యోగి' : 'Employee'}
@@ -202,7 +202,7 @@ export default function DutyRosterModule({ language, employees }: DutyRosterModu
                       return (
                         <td key={dateStr} className="p-2 border-r border-slate-100 last:border-r-0 relative text-center h-16 align-middle">
                           {isEditing ? (
-                            <div className="absolute inset-1 z-20 bg-white rounded-lg shadow-lg border border-slate-200 p-2 flex flex-col gap-1 min-w-[140px]">
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] bg-white rounded-xl shadow-2xl border border-slate-200 p-2 flex flex-col gap-1 min-w-[180px]">
                               {PREDEFINED_SHIFTS.map(tmpl => (
                                 <button
                                   key={tmpl.label}

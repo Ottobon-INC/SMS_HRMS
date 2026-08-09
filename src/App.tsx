@@ -903,9 +903,8 @@ export default function App() {
                     ) : (
                       <CalendarDays className="w-4 h-4 shrink-0" />
                     )}
-                    <span>{language === 'te' ? 'నా రోస్టర్' : 'My Roster'}</span>
+                    <span>{language === 'te' ? 'డ్యూటీ రోస్టర్' : 'Duty Roster'}</span>
                   </button>
-
 
                   <button
                     id="nav-tab-messages"
