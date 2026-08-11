@@ -1055,6 +1055,26 @@ export default function App() {
               <MessageSquare className="w-5 h-5" />
               <span className="text-[8px] font-bold uppercase mt-1 leading-none">Chat</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('dutyRoster')}
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'dutyRoster' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <CalendarDays className="w-5 h-5" />
+              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Duty</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('adminSettings')}
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'adminSettings' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Settings className="w-5 h-5" />
+              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Settings</span>
+            </button>
           </>
         ) : (
           /* --- EMPLOYEE MOBILE BUTTONS --- */
@@ -1137,6 +1157,16 @@ export default function App() {
             >
               <MessageSquare className="w-5 h-5" />
               <span className="text-[8px] font-bold uppercase mt-1 leading-none">Chat</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('myRoster')}
+              className={`shrink-0 flex flex-col items-center justify-center min-w-[3.5rem] h-12 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'myRoster' ? 'text-teal-600 scale-105' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <CalendarDays className="w-5 h-5" />
+              <span className="text-[8px] font-bold uppercase mt-1 leading-none">Duty</span>
             </button>
           </>
         )}
