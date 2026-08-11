@@ -5,6 +5,7 @@ import { translations } from "../translations";
 import LocationPinTimeline from "./LocationPinTimeline";
 import TickerAlert from "./TickerAlert";
 import { submitMissedPunchRequest } from "../lib/services/missed-punch-service";
+import { fetchRoster } from "../lib/services/roster-service";
 
 interface DashboardSnapshotProps {
   language: Language;
@@ -40,6 +41,25 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
   const [pinType, setPinType] = useState<import("../types").PinType>("field_visit");
   const [pinLabel, setPinLabel] = useState("");
   const [isPinning, setIsPinning] = useState(false);
+  const [todayShift, setTodayShift] = useState<import("../types").DutyRosterShift | null>(null);
+
+  useEffect(() => {
+    const fetchTodayShift = async () => {
+      const today = new Date();
+      // To get the start of the week for fetchRoster
+      const d = new Date(today);
+      const day = d.getDay() || 7; 
+      if (day !== 1) d.setHours(-24 * (day - 1));
+      d.setHours(0, 0, 0, 0);
+      const weekStartStr = d.toLocaleDateString('en-CA');
+      
+      const data = await fetchRoster(weekStartStr);
+      const todayStr = today.toLocaleDateString('en-CA');
+      const publishedShift = data.find(s => s.employeeId === currentUser.id && s.shiftDate === todayStr && s.isPublished);
+      setTodayShift(publishedShift || null);
+    };
+    fetchTodayShift();
+  }, [currentUser.id]);
 
   // BUG FIX: Attach stream using useEffect so the video DOM element is guaranteed to be mounted
   useEffect(() => {
@@ -190,7 +210,7 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
               </p>
             </div>
             <div className="pt-2 flex flex-wrap justify-center sm:justify-start gap-4">
-              {[{label:"Shift Start",val:latestCheckIn?.checkInTime||"09:00 AM"},{label:"Worked Today",val:isCheckedIn?"Live Running":`${todayWorkedHrs} hrs`},{label:"Shift Stops",val:latestCheckIn?.checkOutTime||"Pending"}].map(item=>(
+              {[{label:"Shift Start",val:latestCheckIn?.checkInTime || todayShift?.shiftStart || "09:00 AM"},{label:"Worked Today",val:isCheckedIn?"Live Running":`${todayWorkedHrs} hrs`},{label:"Shift Stops",val:latestCheckIn?.checkOutTime || todayShift?.shiftEnd || "Pending"}].map(item=>(
                 <div key={item.label} className="text-center bg-slate-50 px-4 py-2 rounded-xl min-w-[100px]">
                   <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">{item.label}</p>
                   <p className="text-xs font-bold text-slate-700">{item.val}</p>

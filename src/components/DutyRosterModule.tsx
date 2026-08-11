@@ -30,7 +30,7 @@ export default function DutyRosterModule({ language, employees }: DutyRosterModu
 
   const loadWeekRoster = async () => {
     setIsLoading(true);
-    const dateStr = currentWeekStart.toISOString().split('T')[0];
+    const dateStr = currentWeekStart.toLocaleDateString('en-CA'); // 'YYYY-MM-DD' in local time
     const data = await fetchRoster(dateStr);
     setRoster(data);
     setIsLoading(false);
@@ -97,7 +97,7 @@ export default function DutyRosterModule({ language, employees }: DutyRosterModu
     if (roster.length === 0) return;
     setIsPublishing(true);
     try {
-      const dateStr = currentWeekStart.toISOString().split('T')[0];
+      const dateStr = currentWeekStart.toLocaleDateString('en-CA');
       await publishRoster(dateStr);
       alert(language === 'te' ? 'రోస్టర్ ప్రచురించబడింది' : 'Roster published successfully');
       loadWeekRoster();
@@ -192,7 +192,7 @@ export default function DutyRosterModule({ language, employees }: DutyRosterModu
                     </td>
                     
                     {weekDates.map(d => {
-                      const dateStr = d.toISOString().split('T')[0];
+                      const dateStr = d.toLocaleDateString('en-CA');
                       const shift = getShiftForCell(emp.id, dateStr);
                       const isEditing = editingCell?.empId === emp.id && editingCell?.date === dateStr;
                       
@@ -201,32 +201,13 @@ export default function DutyRosterModule({ language, employees }: DutyRosterModu
 
                       return (
                         <td key={dateStr} className="p-2 border-r border-slate-100 last:border-r-0 relative text-center h-16 align-middle">
-                          {isEditing ? (
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] bg-white rounded-xl shadow-2xl border border-slate-200 p-2 flex flex-col gap-1 min-w-[180px]">
-                              {PREDEFINED_SHIFTS.map(tmpl => (
-                                <button
-                                  key={tmpl.label}
-                                  onClick={() => handleSelectShift(emp.id, dateStr, tmpl)}
-                                  className={`text-[9px] font-bold px-2 py-1.5 rounded-md text-left transition-colors border ${tmpl.colorClass} hover:opacity-80`}
-                                >
-                                  {tmpl.label} ({tmpl.start}-{tmpl.end})
-                                </button>
-                              ))}
-                              <button
-                                onClick={() => setEditingCell(null)}
-                                className="text-[9px] font-bold px-2 py-1.5 rounded-md text-center text-slate-500 hover:bg-slate-100 mt-1"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
                             <div 
                               onClick={() => setEditingCell({ empId: emp.id, date: dateStr })}
                               className={`w-full h-full flex flex-col items-center justify-center rounded-lg border border-dashed transition-all cursor-pointer p-2
                                 ${shift 
                                   ? `border-solid ${colorClass} hover:ring-2 hover:ring-teal-500/20` 
                                   : 'border-slate-200 hover:border-teal-300 hover:bg-teal-50/50'
-                                }`}
+                                } ${isEditing ? 'ring-2 ring-teal-500' : ''}`}
                             >
                               {shift ? (
                                 <>
@@ -244,7 +225,6 @@ export default function DutyRosterModule({ language, employees }: DutyRosterModu
                                 </span>
                               )}
                             </div>
-                          )}
                         </td>
                       );
                     })}
@@ -255,6 +235,41 @@ export default function DutyRosterModule({ language, employees }: DutyRosterModu
           </div>
         )}
       </div>
+
+      {/* Mobile Responsive Edit Modal */}
+      {editingCell && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setEditingCell(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 flex flex-col gap-2 min-w-[240px] max-w-sm w-full animate-scaleUp" onClick={e => e.stopPropagation()}>
+            <div className="mb-2 text-center border-b border-slate-100 pb-2">
+              <p className="text-sm font-bold text-slate-800">
+                {employees.find(e => e.id === editingCell.empId)?.name}
+              </p>
+              <p className="text-[10px] font-black uppercase text-slate-400">
+                {new Date(editingCell.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {PREDEFINED_SHIFTS.map(tmpl => (
+                <button
+                  key={tmpl.label}
+                  onClick={() => handleSelectShift(editingCell.empId, editingCell.date, tmpl)}
+                  className={`text-xs font-bold px-3 py-2.5 rounded-xl text-left transition-all active:scale-95 border ${tmpl.colorClass} hover:opacity-80 flex flex-col`}
+                >
+                  <span>{tmpl.label}</span>
+                  <span className="opacity-75 text-[10px]">{tmpl.start}-{tmpl.end}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setEditingCell(null)}
+              className="text-xs font-bold px-3 py-2.5 rounded-xl text-center text-slate-500 hover:bg-slate-100 mt-2 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

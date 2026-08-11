@@ -27,7 +27,7 @@ export default function EmployeeRoster({ language, employeeId }: EmployeeRosterP
 
   const loadWeekRoster = async () => {
     setIsLoading(true);
-    const dateStr = currentWeekStart.toISOString().split('T')[0];
+    const dateStr = currentWeekStart.toLocaleDateString('en-CA');
     const data = await fetchRoster(dateStr);
     // Only show published shifts for this employee
     setRoster(data.filter(s => s.employeeId === employeeId && s.isPublished));
@@ -97,11 +97,11 @@ export default function EmployeeRoster({ language, employeeId }: EmployeeRosterP
           <div className="col-span-full p-12 text-center text-slate-400">Loading...</div>
         ) : (
           weekDates.map(d => {
-            const dateStr = d.toISOString().split('T')[0];
+            const dateStr = d.toLocaleDateString('en-CA');
             const shift = getShiftForCell(dateStr);
             const template = shift ? PREDEFINED_SHIFTS.find(t => t.label === shift.shiftLabel) : null;
             const colorClass = template?.colorClass || 'bg-slate-50 text-slate-500 border-slate-200';
-            const isToday = new Date().toISOString().split('T')[0] === dateStr;
+            const isToday = new Date().toLocaleDateString('en-CA') === dateStr;
 
             return (
               <div 
