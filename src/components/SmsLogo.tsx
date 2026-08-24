@@ -6,13 +6,15 @@ interface SmsLogoProps {
   textSize?: string;
   diagnosticsColor?: string;
   subtitle?: boolean;
+  onClick?: () => void;
 }
 
 export default function SmsLogo({ 
   className = "", 
+  onClick
 }: SmsLogoProps) {
   return (
-    <div className={`flex items-center select-none ${className}`}>
+    <div className={`flex items-center select-none ${className}`} onClick={onClick}>
        <img 
          src="/logo.png" 
          alt="SMS Diagnostics Letterhead" 
