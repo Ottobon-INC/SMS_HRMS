@@ -1,9 +1,9 @@
-import { LeaveBalance, LeaveRequest, MonthlyLeaveQuota } from './leave.types';
-import { AttendanceRecord, CheckInLog } from './attendance.types';
-import { Payslip } from './payroll.types';
-import { AdvanceRequest } from './advance.types';
-import { LocationPin } from './location.types';
-import { DutyRosterShift } from './roster.types';
+import type { LeaveBalance, LeaveRequest, MonthlyLeaveQuota } from './leave.types';
+import type { AttendanceRecord, CheckInLog } from './attendance.types';
+import type { Payslip } from './payroll.types';
+import type { AdvanceRequest } from './advance.types';
+import type { LocationPin } from './location.types';
+import type { DutyRosterShift } from './roster.types';
 
 export interface BankDetails {
   accountNumber: string;
