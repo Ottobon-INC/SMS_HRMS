@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { FieldVisitEvent, FieldEventType } from '../../types';
 
 export async function logFieldEvent(
@@ -13,7 +14,7 @@ export async function logFieldEvent(
   metadata?: Record<string, any>
 ): Promise<FieldVisitEvent> {
   const { data, error } = await supabase
-    .from('HRMS_field_visit_events')
+    .from(DB_TABLES.FIELD_VISIT_EVENTS)
     .insert([{
       employee_id: employeeId,
       event_type: eventType,

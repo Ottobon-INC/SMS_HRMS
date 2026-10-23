@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { RepaymentTimeline } from '../../types';
 
 export async function submitAdvanceRequest(
@@ -10,7 +11,7 @@ export async function submitAdvanceRequest(
 ): Promise<void> {
   const monthlyInstallment = Math.ceil(amount / repaymentMonths);
   const { error } = await supabase
-    .from('HRMS_advance_requests')
+    .from(DB_TABLES.ADVANCE_REQUESTS)
     .insert([{
       employee_id: empId,
       amount,
@@ -27,7 +28,7 @@ export async function submitAdvanceRequest(
 
 export async function approveAdvance(requestId: string): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_advance_requests')
+    .from(DB_TABLES.ADVANCE_REQUESTS)
     .update({ 
       status: 'approved',
       approved_at: new Date().toISOString()
@@ -39,7 +40,7 @@ export async function approveAdvance(requestId: string): Promise<void> {
 
 export async function rejectAdvance(requestId: string): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_advance_requests')
+    .from(DB_TABLES.ADVANCE_REQUESTS)
     .update({ status: 'rejected' })
     .eq('id', requestId);
 
@@ -52,7 +53,7 @@ export async function rejectAdvance(requestId: string): Promise<void> {
  */
 export async function decrementInstallment(requestId: string): Promise<void> {
   const { data, error: fetchErr } = await supabase
-    .from('HRMS_advance_requests')
+    .from(DB_TABLES.ADVANCE_REQUESTS)
     .select('installments_remaining')
     .eq('id', requestId)
     .single();
@@ -63,7 +64,7 @@ export async function decrementInstallment(requestId: string): Promise<void> {
   const newStatus = remaining <= 0 ? 'deducted' : 'approved';
 
   const { error } = await supabase
-    .from('HRMS_advance_requests')
+    .from(DB_TABLES.ADVANCE_REQUESTS)
     .update({
       installments_remaining: remaining,
       status: newStatus,

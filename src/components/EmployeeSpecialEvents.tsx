@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase-client';
+import { DB_TABLES } from '../core/database.tables';
 import { Language } from '../types';
 import { translations } from '../translations';
 
@@ -23,7 +24,7 @@ export default function EmployeeSpecialEvents({ language, employeeId }: Employee
     
     // First, find event IDs assigned to this employee
     const { data: assignments, error: assignmentsError } = await supabase
-      .from('HRMS_special_event_assignees')
+      .from(DB_TABLES.SPECIAL_EVENT_ASSIGNEES)
       .select('event_id')
       .eq('employee_id', employeeId);
       
@@ -43,7 +44,7 @@ export default function EmployeeSpecialEvents({ language, employeeId }: Employee
     
     // Fetch the actual events
     const { data: eventsData, error: eventsError } = await supabase
-      .from('HRMS_special_location_events')
+      .from(DB_TABLES.SPECIAL_LOCATION_EVENTS)
       .select('*')
       .in('id', eventIds)
       .order('from_date', { ascending: true });

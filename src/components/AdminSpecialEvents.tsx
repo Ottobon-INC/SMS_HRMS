@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Plus, Trash2, Save, Loader2, Navigation, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase-client';
+import { DB_TABLES } from '../core/database.tables';
 import { Employee, Language } from '../types';
 import { translations } from '../translations';
 
@@ -33,7 +34,7 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
     
     // Fetch events
     const { data: eventsData, error: eventsError } = await supabase
-      .from('HRMS_special_location_events')
+      .from(DB_TABLES.SPECIAL_LOCATION_EVENTS)
       .select('*')
       .order('created_at', { ascending: false });
       
@@ -45,7 +46,7 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
     
     // Fetch assignees
     const { data: assigneesData, error: assigneesError } = await supabase
-      .from('HRMS_special_event_assignees')
+      .from(DB_TABLES.SPECIAL_EVENT_ASSIGNEES)
       .select('*');
       
     if (assigneesError) {
@@ -80,7 +81,7 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
     setIsSubmitting(true);
     
     // 1. Insert Event
-    const { data: newEvent, error: eventError } = await supabase.from('HRMS_special_location_events').insert([
+    const { data: newEvent, error: eventError } = await supabase.from(DB_TABLES.SPECIAL_LOCATION_EVENTS).insert([
       {
         name,
         event_type: eventType,
@@ -105,7 +106,7 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
         employee_id: empId
       }));
       
-      const { error: assigneesError } = await supabase.from('HRMS_special_event_assignees').insert(assigneesPayload);
+      const { error: assigneesError } = await supabase.from(DB_TABLES.SPECIAL_EVENT_ASSIGNEES).insert(assigneesPayload);
       if (assigneesError) {
         console.error("Error assigning employees", assigneesError);
       }
@@ -127,7 +128,7 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
     if (!confirm('Are you sure you want to delete this event?')) return;
     
     const { error } = await supabase
-      .from('HRMS_special_location_events')
+      .from(DB_TABLES.SPECIAL_LOCATION_EVENTS)
       .delete()
       .eq('id', id);
       

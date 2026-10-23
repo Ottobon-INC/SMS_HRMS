@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 
 export async function addProof(
   visitId: string,
@@ -8,7 +9,7 @@ export async function addProof(
   longitude?: number
 ): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_field_visit_proofs')
+    .from(DB_TABLES.FIELD_VISIT_PROOFS)
     .insert([{
       visit_id: visitId,
       proof_type: proofType,

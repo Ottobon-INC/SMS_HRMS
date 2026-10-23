@@ -1,4 +1,5 @@
 import { supabase } from './supabase-client';
+import { DB_TABLES } from '../core/database.tables';
 import { OfficeLocation, SpecialLocationEvent } from '../types';
 
 /** Haversine formula — returns distance in metres between two GPS points */
@@ -65,7 +66,7 @@ export async function resolveAllowedLocations(
 ): Promise<OfficeLocation[]> {
   // 1. Fetch permanent active office locations
   const { data: offices } = await supabase
-    .from('HRMS_office_locations')
+    .from(DB_TABLES.OFFICE_LOCATIONS)
     .select('*')
     .eq('is_active', true);
     
@@ -80,7 +81,7 @@ export async function resolveAllowedLocations(
 
   // 2. Fetch special events active today for this employee
   const { data: assignees } = await supabase
-    .from('HRMS_special_event_assignees')
+    .from(DB_TABLES.SPECIAL_EVENT_ASSIGNEES)
     .select('event_id')
     .eq('employee_id', employeeId);
     
@@ -90,7 +91,7 @@ export async function resolveAllowedLocations(
     const eventIds = assignees.map(a => a.event_id);
     
     const { data: events } = await supabase
-      .from('HRMS_special_location_events')
+      .from(DB_TABLES.SPECIAL_LOCATION_EVENTS)
       .select('*')
       .in('id', eventIds)
       .lte('from_date', today)

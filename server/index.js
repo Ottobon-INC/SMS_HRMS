@@ -60,7 +60,7 @@ io.on('connection', (socket) => {
     if (supabase) {
       try {
         const { error } = await supabase
-          .from('HRMS_chat_messages')
+          .from('sms_hrms_chat_messages')
           .insert([newMessage]);
           
         if (error) {

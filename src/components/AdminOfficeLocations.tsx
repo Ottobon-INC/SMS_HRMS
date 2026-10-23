@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Plus, Trash2, Power, PowerOff, Save, Loader2, Navigation, X, Edit2 } from 'lucide-react';
 import { supabase } from '../lib/supabase-client';
+import { DB_TABLES } from '../core/database.tables';
 import { OfficeLocation, Language } from '../types';
 import { translations } from '../translations';
 
@@ -37,7 +38,7 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
   const fetchLocations = async () => {
     setIsLoading(true);
     const { data, error } = await supabase
-      .from('HRMS_office_locations')
+      .from(DB_TABLES.OFFICE_LOCATIONS)
       .select('*')
       .order('created_at', { ascending: false });
       
@@ -90,7 +91,7 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
     
     if (editingId) {
       const { error } = await supabase
-        .from('HRMS_office_locations')
+        .from(DB_TABLES.OFFICE_LOCATIONS)
         .update({
           name,
           latitude: parseFloat(latitude),
@@ -109,7 +110,7 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
         fetchLocations();
       }
     } else {
-      const { error } = await supabase.from('HRMS_office_locations').insert([
+      const { error } = await supabase.from(DB_TABLES.OFFICE_LOCATIONS).insert([
         {
           name,
           latitude: parseFloat(latitude),
@@ -133,7 +134,7 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
 
   const toggleStatus = async (id: string, currentStatus: boolean) => {
     const { error } = await supabase
-      .from('HRMS_office_locations')
+      .from(DB_TABLES.OFFICE_LOCATIONS)
       .update({ is_active: !currentStatus })
       .eq('id', id);
       
@@ -146,7 +147,7 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
     if (!confirm('Are you sure you want to delete this location?')) return;
     
     const { error } = await supabase
-      .from('HRMS_office_locations')
+      .from(DB_TABLES.OFFICE_LOCATIONS)
       .delete()
       .eq('id', id);
       

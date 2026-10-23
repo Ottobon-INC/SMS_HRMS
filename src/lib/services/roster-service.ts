@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { DutyRosterShift } from '../../types';
 
 export async function fetchRoster(weekStartDate: string): Promise<DutyRosterShift[]> {
@@ -7,7 +8,7 @@ export async function fetchRoster(weekStartDate: string): Promise<DutyRosterShif
   const weekEndDateStr = endDate.toISOString().split('T')[0];
 
   const { data, error } = await supabase
-    .from('HRMS_duty_roster')
+    .from(DB_TABLES.DUTY_ROSTER)
     .select('*')
     .gte('shift_date', weekStartDate)
     .lte('shift_date', weekEndDateStr);
@@ -31,7 +32,7 @@ export async function fetchRoster(weekStartDate: string): Promise<DutyRosterShif
 
 export async function upsertShiftEntry(shift: Omit<DutyRosterShift, 'id'>): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_duty_roster')
+    .from(DB_TABLES.DUTY_ROSTER)
     .upsert({
       employee_id: shift.employeeId,
       shift_date: shift.shiftDate,
@@ -50,7 +51,7 @@ export async function upsertShiftEntry(shift: Omit<DutyRosterShift, 'id'>): Prom
 
 export async function deleteShiftEntry(id: string): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_duty_roster')
+    .from(DB_TABLES.DUTY_ROSTER)
     .delete()
     .eq('id', id);
 
@@ -65,7 +66,7 @@ export async function publishRoster(weekStartDate: string): Promise<void> {
   const weekEndDateStr = endDate.toISOString().split('T')[0];
 
   const { error } = await supabase
-    .from('HRMS_duty_roster')
+    .from(DB_TABLES.DUTY_ROSTER)
     .update({ is_published: true })
     .gte('shift_date', weekStartDate)
     .lte('shift_date', weekEndDateStr);

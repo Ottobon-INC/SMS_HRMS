@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 
 export interface PayrollTier {
   id: string;
@@ -35,7 +36,7 @@ export const defaultPayrollConfig: PayrollConfig = {
 
 export async function fetchPayrollConfig(): Promise<PayrollConfig> {
   const { data, error } = await supabase
-    .from('HRMS_payroll_config')
+    .from(DB_TABLES.PAYROLL_CONFIG)
     .select('config_key, config_value, label');
 
   if (error) {
@@ -90,7 +91,7 @@ export async function fetchPayrollConfig(): Promise<PayrollConfig> {
 
 export async function upsertPayrollConfig(key: string, value: number, label?: string): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_payroll_config')
+    .from(DB_TABLES.PAYROLL_CONFIG)
     .upsert({
       config_key: key,
       config_value: value,

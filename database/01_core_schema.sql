@@ -6,7 +6,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Employees Table
-CREATE TABLE IF NOT EXISTS "HRMS_employees" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_employees" (
     "id" VARCHAR(255) PRIMARY KEY,
     "name" VARCHAR(255) NOT NULL,
     "email" VARCHAR(255) UNIQUE NOT NULL,
@@ -25,9 +25,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_employees" (
 );
 
 -- 2. Attendance Table
-CREATE TABLE IF NOT EXISTS "HRMS_attendance" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_attendance" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "date" DATE NOT NULL,
     "status" VARCHAR(100) NOT NULL,
     "check_in_time" TIME WITHOUT TIME ZONE,
@@ -44,9 +44,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_attendance" (
 );
 
 -- 3. Leave Requests Table
-CREATE TABLE IF NOT EXISTS "HRMS_leave_requests" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_leave_requests" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "leave_type" VARCHAR(100) NOT NULL CHECK ("leave_type" IN ('sick', 'casual', 'maternity', 'paternity', 'monthly')),
     "from_date" DATE NOT NULL,
     "to_date" DATE NOT NULL,
@@ -58,9 +58,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_leave_requests" (
 );
 
 -- 4. Leave Balances Table
-CREATE TABLE IF NOT EXISTS "HRMS_leave_balances" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_leave_balances" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "leave_type" VARCHAR(100) NOT NULL CHECK ("leave_type" IN ('sick', 'casual', 'maternity', 'paternity', 'monthly')),
     "total_allotted" INTEGER NOT NULL DEFAULT 0,
     "used" INTEGER NOT NULL DEFAULT 0,
@@ -69,9 +69,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_leave_balances" (
 );
 
 -- 5. Payroll Table
-CREATE TABLE IF NOT EXISTS "HRMS_payroll" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_payroll" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "month" VARCHAR(7) NOT NULL, -- Format: YYYY-MM
     "basic_pay" NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     "allowances" JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -87,9 +87,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_payroll" (
 );
 
 -- 6. Advance Requests Table
-CREATE TABLE IF NOT EXISTS "HRMS_advance_requests" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_advance_requests" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "amount" NUMERIC(12, 2) NOT NULL,
     "reason" TEXT NOT NULL,
     "advance_type" VARCHAR(50) DEFAULT 'salary' CHECK ("advance_type" IN ('salary', 'medical')),
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS "HRMS_advance_requests" (
 );
 
 -- 7. Invoices Table
-CREATE TABLE IF NOT EXISTS "HRMS_invoices" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_invoices" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     "invoice_number" VARCHAR(255) UNIQUE NOT NULL,
     "client_name" VARCHAR(255) NOT NULL,
@@ -119,9 +119,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_invoices" (
 );
 
 -- 8. Monthly Leave Quota Table
-CREATE TABLE IF NOT EXISTS "HRMS_monthly_leave_quota" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_monthly_leave_quota" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "month" VARCHAR(7) NOT NULL,
     "allotted" INTEGER NOT NULL DEFAULT 3,
     "used" INTEGER NOT NULL DEFAULT 0,
@@ -130,15 +130,15 @@ CREATE TABLE IF NOT EXISTS "HRMS_monthly_leave_quota" (
 );
 
 -- 9. Missed Punch Correction Requests
-CREATE TABLE IF NOT EXISTS "HRMS_missed_punches" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_missed_punches" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "missed_date" DATE NOT NULL,
     "punch_type" VARCHAR(10) NOT NULL CHECK ("punch_type" IN ('in', 'out')),
     "reason" TEXT,
     "status" VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK ("status" IN ('pending', 'approved', 'rejected')),
     "admin_note" TEXT,
     "resolved_at" TIMESTAMPTZ,
-    "resolved_by" VARCHAR(255) REFERENCES "HRMS_employees"("id"),
+    "resolved_by" VARCHAR(255) REFERENCES "sms_hrms_employees"("id"),
     "created_at" TIMESTAMPTZ DEFAULT NOW()
 );

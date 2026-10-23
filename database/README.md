@@ -11,7 +11,7 @@ This folder contains all the relational schemas and SQL migrations for the SMS H
 | `02_messaging_schema.sql` | Internal Chat & Channels | Chat Channels, Direct/Group Messages, Attachments |
 | `03_field_force_schema.sql` | Field Force Ops | Field Sessions, Field Visits, Geofence Tracking Events, Visit Proofs |
 | `04_location_roster_schema.sql` | Locations & Rostering | Geofenced Office Locations, Special Location Events, Assignees, Live Location Pins, Payroll Config, Duty Roster Shifts |
-| `05_work_assignment_schema.sql` | Daily Work Assignment | Work Assignments (`HRMS_tasks`), Status check constraints (`in_progress`, `completed`, `incomplete`), Realtime sync |
+| `05_work_assignment_schema.sql` | Daily Work Assignment | Work Assignments (`sms_hrms_tasks`), Status check constraints (`in_progress`, `completed`, `incomplete`), Realtime sync |
 
 ## How to Execute in Supabase
 

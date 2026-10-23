@@ -4,6 +4,7 @@ import { useMessaging } from '../hooks/useMessaging';
 import { Settings, Plus, Check, CheckCheck } from 'lucide-react';
 import { Employee } from '../types';
 import { supabase } from '../lib/supabase-client';
+import { DB_TABLES } from '../core/database.tables';
 
 interface MessagingModuleProps {
   currentUser: Employee;
@@ -48,11 +49,11 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
       
       if ('isGroup' in selectedUser) {
         if (selectedUser.id === 'group_all') {
-          const { data: existingChannels } = await supabase.from('HRMS_chat_channels').select('*').eq('name', 'group_all');
+          const { data: existingChannels } = await supabase.from(DB_TABLES.CHAT_CHANNELS).select('*').eq('name', 'group_all');
           if (existingChannels && existingChannels.length > 0) {
             setChannelId(existingChannels[0].id);
           } else {
-            const { data: newChannel } = await supabase.from('HRMS_chat_channels').insert([{ name: 'group_all', type: 'group' }]).select().single();
+            const { data: newChannel } = await supabase.from(DB_TABLES.CHAT_CHANNELS).insert([{ name: 'group_all', type: 'group' }]).select().single();
             if (newChannel) setChannelId(newChannel.id);
           }
         } else {
@@ -62,12 +63,12 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
         const participantsIds = [currentUser.id, selectedUser.id].sort();
         const channelName = `direct_${participantsIds[0]}_${participantsIds[1]}`;
 
-        const { data: existingChannels } = await supabase.from('HRMS_chat_channels').select('*').eq('name', channelName);
+        const { data: existingChannels } = await supabase.from(DB_TABLES.CHAT_CHANNELS).select('*').eq('name', channelName);
 
         if (existingChannels && existingChannels.length > 0) {
           setChannelId(existingChannels[0].id);
         } else {
-          const { data: newChannel } = await supabase.from('HRMS_chat_channels').insert([{ name: channelName, type: 'direct' }]).select().single();
+          const { data: newChannel } = await supabase.from(DB_TABLES.CHAT_CHANNELS).insert([{ name: channelName, type: 'direct' }]).select().single();
           if (newChannel) setChannelId(newChannel.id);
         }
       }
@@ -489,7 +490,7 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
                         if(newGroupName) {
                            await updateGroupName(newGroupName); 
                            if (!channelDetails?.admin_id) {
-                             await supabase.from('HRMS_chat_channels').update({ admin_id: currentUser.id }).eq('id', channelId);
+                             await supabase.from(DB_TABLES.CHAT_CHANNELS).update({ admin_id: currentUser.id }).eq('id', channelId);
                            }
                            alert("Saved!");
                         }

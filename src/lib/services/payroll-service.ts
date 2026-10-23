@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { Employee, Payslip } from '../../types';
 import { decrementInstallment } from './advance-service';
 import { fetchPayrollConfig, PayrollConfig } from './payroll-config-service';
@@ -41,7 +42,7 @@ export async function savePayslipToSupabase(empId: string, payslip: Payslip): Pr
     totalDeductions;
 
   const { data: existing } = await supabase
-    .from('HRMS_payroll')
+    .from(DB_TABLES.PAYROLL)
     .select('id')
     .eq('employee_id', empId)
     .eq('month', payslip.month)
@@ -63,13 +64,13 @@ export async function savePayslipToSupabase(empId: string, payslip: Payslip): Pr
 
   if (existing) {
     const { error } = await supabase
-      .from('HRMS_payroll')
+      .from(DB_TABLES.PAYROLL)
       .update(payload)
       .eq('id', existing.id);
     if (error) throw error;
   } else {
     const { error } = await supabase
-      .from('HRMS_payroll')
+      .from(DB_TABLES.PAYROLL)
       .insert([payload]);
     if (error) throw error;
   }

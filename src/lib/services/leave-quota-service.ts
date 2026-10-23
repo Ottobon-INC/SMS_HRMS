@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { MonthlyLeaveQuota } from '../../types';
 
 /**
@@ -15,7 +16,7 @@ export function getCurrentMonthStr(): string {
 export async function getMonthlyQuota(empId: string, month: string = getCurrentMonthStr()): Promise<MonthlyLeaveQuota | null> {
   // Try to fetch existing
   const { data, error } = await supabase
-    .from('HRMS_monthly_leave_quota')
+    .from(DB_TABLES.MONTHLY_LEAVE_QUOTA)
     .select('*')
     .eq('employee_id', empId)
     .eq('month', month)
@@ -38,7 +39,7 @@ export async function getMonthlyQuota(empId: string, month: string = getCurrentM
 
   // If not found, initialize it (default 3 allotted)
   const { data: newData, error: insertError } = await supabase
-    .from('HRMS_monthly_leave_quota')
+    .from(DB_TABLES.MONTHLY_LEAVE_QUOTA)
     .insert([{
       employee_id: empId,
       month,
@@ -71,7 +72,7 @@ export async function incrementMonthlyQuotaUsed(empId: string, month: string, da
   if (!quota) return;
 
   const { error } = await supabase
-    .from('HRMS_monthly_leave_quota')
+    .from(DB_TABLES.MONTHLY_LEAVE_QUOTA)
     .update({ used: quota.used + days })
     .eq('id', quota.id);
 

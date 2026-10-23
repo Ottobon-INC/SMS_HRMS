@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { LocationPin, PinType } from '../../types';
 
 export async function addLocationPin(
@@ -27,7 +28,7 @@ export async function addLocationPin(
   if (photoUrl) payload.photo_url = photoUrl;
 
   const { error } = await supabase
-    .from('HRMS_location_pins')
+    .from(DB_TABLES.LOCATION_PINS)
     .insert([payload]);
 
   if (error) {
@@ -37,7 +38,7 @@ export async function addLocationPin(
 
 export async function fetchLocationPins(empId: string, date: string): Promise<LocationPin[]> {
   const { data, error } = await supabase
-    .from('HRMS_location_pins')
+    .from(DB_TABLES.LOCATION_PINS)
     .select('*')
     .eq('employee_id', empId)
     .eq('date', date)
@@ -63,7 +64,7 @@ export async function fetchLocationPins(empId: string, date: string): Promise<Lo
 
 export async function fetchAllPinsForDate(date: string): Promise<LocationPin[]> {
   const { data, error } = await supabase
-    .from('HRMS_location_pins')
+    .from(DB_TABLES.LOCATION_PINS)
     .select('*')
     .eq('date', date)
     .order('pinned_at', { ascending: true });

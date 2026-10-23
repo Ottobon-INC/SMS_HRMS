@@ -4,9 +4,9 @@
 -- ====================================================================
 
 -- 1. Field Sessions
-CREATE TABLE IF NOT EXISTS "HRMS_field_sessions" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_field_sessions" (
   "id"               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  "employee_id"      VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+  "employee_id"      VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
   "session_date"     DATE NOT NULL DEFAULT CURRENT_DATE,
   "status"           VARCHAR(50) NOT NULL DEFAULT 'active'
                      CHECK ("status" IN ('active', 'completed', 'cancelled')),
@@ -24,11 +24,11 @@ CREATE TABLE IF NOT EXISTS "HRMS_field_sessions" (
 );
 
 -- 2. Field Visits
-CREATE TABLE IF NOT EXISTS "HRMS_field_visits" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_field_visits" (
   "id"                    UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  "session_id"            UUID REFERENCES "HRMS_field_sessions"("id") ON DELETE SET NULL,
-  "employee_id"           VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
-  "assigned_by"           VARCHAR(255) REFERENCES "HRMS_employees"("id"),
+  "session_id"            UUID REFERENCES "sms_hrms_field_sessions"("id") ON DELETE SET NULL,
+  "employee_id"           VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
+  "assigned_by"           VARCHAR(255) REFERENCES "sms_hrms_employees"("id"),
   "visit_type"            VARCHAR(100) NOT NULL DEFAULT 'OTHER',
   "title"                 VARCHAR(255) NOT NULL,
   "description"           TEXT,
@@ -63,11 +63,11 @@ CREATE TABLE IF NOT EXISTS "HRMS_field_visits" (
 );
 
 -- 3. Field Visit Events
-CREATE TABLE IF NOT EXISTS "HRMS_field_visit_events" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_field_visit_events" (
   "id"             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  "visit_id"       UUID REFERENCES "HRMS_field_visits"("id") ON DELETE CASCADE,
-  "session_id"     UUID REFERENCES "HRMS_field_sessions"("id") ON DELETE SET NULL,
-  "employee_id"    VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+  "visit_id"       UUID REFERENCES "sms_hrms_field_visits"("id") ON DELETE CASCADE,
+  "session_id"     UUID REFERENCES "sms_hrms_field_sessions"("id") ON DELETE SET NULL,
+  "employee_id"    VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
   "event_type"     VARCHAR(100) NOT NULL
                    CHECK ("event_type" IN (
                      'FIELD_DUTY_STARTED','FIELD_DUTY_ENDED',
@@ -87,9 +87,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_field_visit_events" (
 );
 
 -- 4. Field Visit Proofs
-CREATE TABLE IF NOT EXISTS "HRMS_field_visit_proofs" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_field_visit_proofs" (
   "id"          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  "visit_id"    UUID NOT NULL REFERENCES "HRMS_field_visits"("id") ON DELETE CASCADE,
+  "visit_id"    UUID NOT NULL REFERENCES "sms_hrms_field_visits"("id") ON DELETE CASCADE,
   "proof_type"  VARCHAR(50) NOT NULL
                 CHECK ("proof_type" IN ('photo', 'note', 'signature', 'otp', 'document')),
   "content"     TEXT NOT NULL,
@@ -99,5 +99,5 @@ CREATE TABLE IF NOT EXISTS "HRMS_field_visit_proofs" (
   "created_at"  TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_field_visits_emp_date ON "HRMS_field_visits"("employee_id", "scheduled_date");
-CREATE INDEX IF NOT EXISTS idx_field_events_visit ON "HRMS_field_visit_events"("visit_id");
+CREATE INDEX IF NOT EXISTS idx_field_visits_emp_date ON "sms_hrms_field_visits"("employee_id", "scheduled_date");
+CREATE INDEX IF NOT EXISTS idx_field_events_visit ON "sms_hrms_field_visit_events"("visit_id");

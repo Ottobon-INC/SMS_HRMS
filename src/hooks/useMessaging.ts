@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase-client';
+import { DB_TABLES } from '../core/database.tables';
 
 export interface ChatMessage {
   id: string;
@@ -49,7 +50,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
       if (!channelId) return;
       
       const { data: msgData, error: msgError } = await supabase
-        .from('HRMS_chat_messages')
+        .from(DB_TABLES.CHAT_MESSAGES)
         .select('*')
         .eq('channel_id', channelId)
         .order('created_at', { ascending: true });
@@ -60,7 +61,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
 
       // Fetch channel details
       const { data: channelData } = await supabase
-        .from('HRMS_chat_channels')
+        .from(DB_TABLES.CHAT_CHANNELS)
         .select('*')
         .eq('id', channelId)
         .single();
@@ -68,14 +69,14 @@ export function useMessaging(channelId: string | null, userId: string | null) {
 
       // Fetch participants
       const { data: participantsData } = await supabase
-        .from('HRMS_chat_participants')
+        .from(DB_TABLES.CHAT_PARTICIPANTS)
         .select('*')
         .eq('channel_id', channelId);
       if (participantsData) setParticipants(participantsData);
 
       // Fetch message reads
       const { data: readsData } = await supabase
-        .from('HRMS_message_reads')
+        .from(DB_TABLES.MESSAGE_READS)
         .select('*')
         .eq('channel_id', channelId);
       if (readsData) setMessageReads(readsData);
@@ -103,7 +104,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
       setMessageReads(prev => [...prev, ...tempReads]);
       
       // DB
-      supabase.from('HRMS_message_reads').insert(newReads).then();
+      supabase.from(DB_TABLES.MESSAGE_READS).insert(newReads).then();
     }
   }, [messages, channelId, userId, messageReads]);
 
@@ -114,7 +115,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
     const channel = supabase.channel(`chat_${channelId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'HRMS_chat_messages', filter: `channel_id=eq.${channelId}` },
+        { event: '*', schema: 'public', table: DB_TABLES.CHAT_MESSAGES, filter: `channel_id=eq.${channelId}` },
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const newMessage = payload.new as ChatMessage;
@@ -130,7 +131,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
       )
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'HRMS_message_reads', filter: `channel_id=eq.${channelId}` },
+        { event: 'INSERT', schema: 'public', table: DB_TABLES.MESSAGE_READS, filter: `channel_id=eq.${channelId}` },
         (payload) => {
           setMessageReads((prev) => {
             if (prev.some(r => r.id === payload.new.id)) return prev;
@@ -140,7 +141,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'HRMS_chat_participants', filter: `channel_id=eq.${channelId}` },
+        { event: '*', schema: 'public', table: DB_TABLES.CHAT_PARTICIPANTS, filter: `channel_id=eq.${channelId}` },
         (payload) => {
           if (payload.eventType === 'INSERT') {
             setParticipants(prev => [...prev, payload.new as ChatParticipant]);
@@ -151,7 +152,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'HRMS_chat_channels', filter: `id=eq.${channelId}` },
+        { event: 'UPDATE', schema: 'public', table: DB_TABLES.CHAT_CHANNELS, filter: `id=eq.${channelId}` },
         (payload) => {
           setChannelDetails(payload.new as ChatChannel);
         }
@@ -194,7 +195,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
     if (attachment_name) payload.attachment_name = attachment_name;
 
     const { data, error } = await supabase
-      .from('HRMS_chat_messages')
+      .from(DB_TABLES.CHAT_MESSAGES)
       .insert([payload])
       .select()
       .single();
@@ -221,7 +222,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
     setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, deleted_for_sender: true } : m));
     
     const { error } = await supabase
-      .from('HRMS_chat_messages')
+      .from(DB_TABLES.CHAT_MESSAGES)
       .update({ deleted_for_sender: true })
       .eq('id', messageId);
       
@@ -237,7 +238,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
     setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, deleted_for_everyone: true } : m));
     
     const { error, data } = await supabase
-      .from('HRMS_chat_messages')
+      .from(DB_TABLES.CHAT_MESSAGES)
       .update({ deleted_for_everyone: true })
       .eq('id', messageId)
       .select()
@@ -277,7 +278,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
   const updateGroupName = useCallback(async (newName: string) => {
     if (!channelId || !userId) return;
     const { error } = await supabase
-      .from('HRMS_chat_channels')
+      .from(DB_TABLES.CHAT_CHANNELS)
       .update({ name: newName })
       .eq('id', channelId);
     if (error) console.error("Error updating group name", error);
@@ -286,7 +287,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
   const addParticipant = useCallback(async (newUserId: string) => {
     if (!channelId) return;
     const { error } = await supabase
-      .from('HRMS_chat_participants')
+      .from(DB_TABLES.CHAT_PARTICIPANTS)
       .insert([{ channel_id: channelId, user_id: newUserId }]);
     if (error) console.error("Error adding participant", error);
   }, [channelId]);
@@ -294,7 +295,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
   const removeParticipant = useCallback(async (userIdToRemove: string) => {
     if (!channelId) return;
     const { error } = await supabase
-      .from('HRMS_chat_participants')
+      .from(DB_TABLES.CHAT_PARTICIPANTS)
       .delete()
       .eq('channel_id', channelId)
       .eq('user_id', userIdToRemove);

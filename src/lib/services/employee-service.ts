@@ -1,21 +1,22 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { Employee, LeaveBalance, LeaveType, LeaveStatus, AttendanceRecord, AttendanceStatus, CheckInLog, Payslip, MonthlyLeaveQuota } from '../../types';
 
 export async function fetchAllEmployeesData(): Promise<Employee[]> {
   const { data: emps, error: empError } = await supabase
-    .from('HRMS_employees')
+    .from(DB_TABLES.EMPLOYEES)
     .select('*')
     .order('id', { ascending: true });
 
   if (empError) throw empError;
   if (!emps) return [];
 
-  const { data: att, error: attError } = await supabase.from('HRMS_attendance').select('*');
-  const { data: leaves, error: leavesError } = await supabase.from('HRMS_leave_requests').select('*');
-  const { data: balances, error: balError } = await supabase.from('HRMS_leave_balances').select('*');
-  const { data: payroll, error: payError } = await supabase.from('HRMS_payroll').select('*');
-  const { data: advances, error: advError } = await supabase.from('HRMS_advance_requests').select('*');
-  const { data: pins, error: pinsError } = await supabase.from('HRMS_location_pins').select('*');
+  const { data: att, error: attError } = await supabase.from(DB_TABLES.ATTENDANCE).select('*');
+  const { data: leaves, error: leavesError } = await supabase.from(DB_TABLES.LEAVE_REQUESTS).select('*');
+  const { data: balances, error: balError } = await supabase.from(DB_TABLES.LEAVE_BALANCES).select('*');
+  const { data: payroll, error: payError } = await supabase.from(DB_TABLES.PAYROLL).select('*');
+  const { data: advances, error: advError } = await supabase.from(DB_TABLES.ADVANCE_REQUESTS).select('*');
+  const { data: pins, error: pinsError } = await supabase.from(DB_TABLES.LOCATION_PINS).select('*');
 
   if (attError) console.error('Error fetching attendance:', attError);
   if (leavesError) console.error('Error fetching leave_requests:', leavesError);
@@ -24,7 +25,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
   if (advError) console.error('Error fetching advances:', advError);
   if (pinsError) console.error('Error fetching location_pins:', pinsError);
 
-  const { data: quotas, error: quotaError } = await supabase.from('HRMS_monthly_leave_quota').select('*');
+  const { data: quotas, error: quotaError } = await supabase.from(DB_TABLES.MONTHLY_LEAVE_QUOTA).select('*');
   if (quotaError) console.error('Error fetching monthly quotas:', quotaError);
   
   const currentMonth = new Date().toISOString().substring(0, 7);
@@ -214,7 +215,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
 
 export async function createEmployee(emp: Omit<Employee, 'isCheckedIn' | 'leaveBalance' | 'leaveRequests' | 'attendanceRecords' | 'checkInLogs' | 'payslips'>): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_employees')
+    .from(DB_TABLES.EMPLOYEES)
     .insert([{
       id: emp.id,
       name: emp.name,
@@ -247,7 +248,7 @@ export async function createEmployee(emp: Omit<Employee, 'isCheckedIn' | 'leaveB
       experience: emp.experience || 0
     };
     const { error: retryError } = await supabase
-      .from('HRMS_employees')
+      .from(DB_TABLES.EMPLOYEES)
       .insert([fallbackData]);
     if (retryError) {
       console.error("Retry insert failed:", retryError);
@@ -264,7 +265,7 @@ export async function createEmployee(emp: Omit<Employee, 'isCheckedIn' | 'leaveB
   } else if (emp.gender === 'male') {
     initialBalances.push({ employee_id: emp.id, leave_type: 'paternity', total_allotted: 7, used: 0 });
   }
-  await supabase.from('HRMS_leave_balances').insert(initialBalances);
+  await supabase.from(DB_TABLES.LEAVE_BALANCES).insert(initialBalances);
 }
 
 export async function updateEmployee(id: string, fields: Partial<Employee>): Promise<void> {
@@ -284,7 +285,7 @@ export async function updateEmployee(id: string, fields: Partial<Employee>): Pro
 
   if (Object.keys(updatePayload).length > 0) {
     const { error } = await supabase
-      .from('HRMS_employees')
+      .from(DB_TABLES.EMPLOYEES)
       .update(updatePayload)
       .eq('id', id);
     if (error) {
@@ -296,7 +297,7 @@ export async function updateEmployee(id: string, fields: Partial<Employee>): Pro
       delete updatePayload.bank_details;
       if (Object.keys(updatePayload).length > 0) {
         const { error: retryError } = await supabase
-          .from('HRMS_employees')
+          .from(DB_TABLES.EMPLOYEES)
           .update(updatePayload)
           .eq('id', id);
         if (retryError) throw retryError;
@@ -307,7 +308,7 @@ export async function updateEmployee(id: string, fields: Partial<Employee>): Pro
 
 export async function deleteEmployee(id: string): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_employees')
+    .from(DB_TABLES.EMPLOYEES)
     .delete()
     .eq('id', id);
   if (error) throw error;
@@ -315,7 +316,7 @@ export async function deleteEmployee(id: string): Promise<void> {
 
 export async function toggleEmployeeStatus(id: string, status: 'active' | 'inactive'): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_employees')
+    .from(DB_TABLES.EMPLOYEES)
     .update({ status })
     .eq('id', id);
   if (error) {
@@ -327,11 +328,11 @@ export async function seedInitialDatabase() {
   const employeesToSeed: any[] = [];
 
   const { count } = await supabase
-    .from('HRMS_employees')
+    .from(DB_TABLES.EMPLOYEES)
     .select('*', { count: 'exact', head: true });
 
   if (count === 0) {
-    const { error: empErr } = await supabase.from('HRMS_employees').insert(employeesToSeed);
+    const { error: empErr } = await supabase.from(DB_TABLES.EMPLOYEES).insert(employeesToSeed);
     if (empErr) console.error('Error seeding employees:', empErr);
 
     const leaveBalancesToSeed: any[] = [];
@@ -341,20 +342,20 @@ export async function seedInitialDatabase() {
         { employee_id: emp.id, leave_type: 'casual', total_allotted: 8, used: emp.id === 'EMP-2026-089' ? 3 : emp.id === 'EMP-2026-112' ? 1 : emp.id === 'EMP-2026-145' ? 2 : 0 }
       );
     });
-    await supabase.from('HRMS_leave_balances').insert(leaveBalancesToSeed);
+    await supabase.from(DB_TABLES.LEAVE_BALANCES).insert(leaveBalancesToSeed);
 
     const leaveRequestsToSeed = [
       { employee_id: 'EMP-2026-089', leave_type: 'sick', from_date: '2026-06-05', to_date: '2026-06-06', reason: 'Suffering from viral fever and cold.', status: 'Approved' },
       { employee_id: 'EMP-2026-089', leave_type: 'casual', from_date: '2026-06-22', to_date: '2026-06-23', reason: 'Attending family function in hometown.', status: 'Approved' },
       { employee_id: 'EMP-2026-112', leave_type: 'sick', from_date: '2026-06-12', to_date: '2026-06-12', reason: 'Severe migraine headache.', status: 'Approved' }
     ];
-    await supabase.from('HRMS_leave_requests').insert(leaveRequestsToSeed);
+    await supabase.from(DB_TABLES.LEAVE_REQUESTS).insert(leaveRequestsToSeed);
 
     const attendanceToSeed = [
       { employee_id: 'EMP-2026-089', date: '2026-07-13', status: 'Present', check_in_time: '09:05:22', check_out_time: '18:12:45' },
       { employee_id: 'EMP-2026-112', date: '2026-07-13', status: 'Present', check_in_time: '08:58:34' }
     ];
-    await supabase.from('HRMS_attendance').insert(attendanceToSeed);
+    await supabase.from(DB_TABLES.ATTENDANCE).insert(attendanceToSeed);
 
     const payrollToSeed = [{
       employee_id: 'EMP-2026-089', month: '2026-06', basic_pay: 45000,
@@ -362,7 +363,7 @@ export async function seedInitialDatabase() {
       deductions: [{ nameKey: 'providentFund', amount: 5400 }, { nameKey: 'professionalTax', amount: 200 }],
       net_pay: 58200
     }];
-    await supabase.from('HRMS_payroll').insert(payrollToSeed);
+    await supabase.from(DB_TABLES.PAYROLL).insert(payrollToSeed);
 
     const invoicesToSeed = [{
       invoice_number: 'INV-2026-042', client_name: 'Apollo Corporate Health Services',
@@ -374,6 +375,6 @@ export async function seedInitialDatabase() {
       ],
       total: 212000, payable_amount: 250160, tax_percent: 18, due_date: '2026-07-25'
     }];
-    await supabase.from('HRMS_invoices').insert(invoicesToSeed);
+    await supabase.from(DB_TABLES.INVOICES).insert(invoicesToSeed);
   }
 }

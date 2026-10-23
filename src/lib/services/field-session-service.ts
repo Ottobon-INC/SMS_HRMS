@@ -1,10 +1,11 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { FieldSession } from '../../types';
 import { logFieldEvent } from './field-event-service';
 
 export async function getActiveSession(employeeId: string, date: string): Promise<FieldSession | null> {
   const { data, error } = await supabase
-    .from('HRMS_field_sessions')
+    .from(DB_TABLES.FIELD_SESSIONS)
     .select('*')
     .eq('employee_id', employeeId)
     .eq('session_date', date)
@@ -47,7 +48,7 @@ export async function startSession(
   }
 
   const { data, error } = await supabase
-    .from('HRMS_field_sessions')
+    .from(DB_TABLES.FIELD_SESSIONS)
     .insert([{
       employee_id: employeeId,
       session_date: today,
@@ -84,7 +85,7 @@ export async function endSession(
   accuracyM?: number
 ): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_field_sessions')
+    .from(DB_TABLES.FIELD_SESSIONS)
     .update({
       status: 'completed',
       ended_at: new Date().toISOString(),

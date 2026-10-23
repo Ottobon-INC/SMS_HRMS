@@ -3,6 +3,7 @@ import * as attendanceService from '../lib/services/attendance-service';
 import * as leaveService from '../lib/services/leave-service';
 import { checkGeofence, resolveAllowedLocations } from '../lib/geofence';
 import { supabase } from '../lib/supabase-client';
+import { DB_TABLES } from '../core/database.tables';
 
 /** Helper: get GPS position with a configurable timeout and accuracy mode */
 function getPosition(enableHighAccuracy: boolean, timeout: number): Promise<GeolocationPosition> {
@@ -106,7 +107,7 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
         if (missedDate) {
           // Check if a PENDING request already exists for this date
           const { data: existing } = await supabase
-            .from('HRMS_missed_punch_requests')
+            .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
             .select('id')
             .eq('employee_id', empId)
             .eq('missed_date', missedDate)
@@ -160,7 +161,7 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
     
     // Find active session for that date
     const { data: activeSessions, error: fetchErr } = await supabase
-      .from('HRMS_attendance')
+      .from(DB_TABLES.ATTENDANCE)
       .select('id')
       .eq('employee_id', empId)
       .eq('date', date)
@@ -170,7 +171,7 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
     
     for (const session of activeSessions) {
       await supabase
-        .from('HRMS_attendance')
+        .from(DB_TABLES.ATTENDANCE)
         .update({ check_out_time: timeStr, punch_note: 'Forced close by Admin' })
         .eq('id', session.id);
     }

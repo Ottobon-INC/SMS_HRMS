@@ -20,7 +20,7 @@ export default function TickerAlert({ employees }: TickerAlertProps) {
 
   // Since we don't have a direct hook for special events in this component scope, 
   // we'll rely on what's passed or just show birthdays for now.
-  // The plan said "Medical Camps" from HRMS_special_location_events, 
+  // The plan said "Medical Camps" from sms_hrms_special_location_events, 
   // which might be fetched separately. For simplicity, if we don't have it here, 
   // we just show birthdays. To show camps, we can pass them in later.
 

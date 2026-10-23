@@ -7,7 +7,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. Employees Table
-CREATE TABLE IF NOT EXISTS "HRMS_employees" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_employees" (
     "id" VARCHAR(255) PRIMARY KEY,
     "name" VARCHAR(255) NOT NULL,
     "email" VARCHAR(255) UNIQUE NOT NULL,
@@ -26,9 +26,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_employees" (
 );
 
 -- 3. Attendance Table
-CREATE TABLE IF NOT EXISTS "HRMS_attendance" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_attendance" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "date" DATE NOT NULL,
     "status" VARCHAR(100) NOT NULL,
     "check_in_time" TIME WITHOUT TIME ZONE,
@@ -45,9 +45,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_attendance" (
 );
 
 -- 4. Leave Requests Table
-CREATE TABLE IF NOT EXISTS "HRMS_leave_requests" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_leave_requests" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "leave_type" VARCHAR(100) NOT NULL CHECK ("leave_type" IN ('sick', 'casual', 'maternity', 'paternity', 'monthly')),
     "from_date" DATE NOT NULL,
     "to_date" DATE NOT NULL,
@@ -59,9 +59,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_leave_requests" (
 );
 
 -- 5. Leave Balances Table
-CREATE TABLE IF NOT EXISTS "HRMS_leave_balances" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_leave_balances" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "leave_type" VARCHAR(100) NOT NULL CHECK ("leave_type" IN ('sick', 'casual', 'maternity', 'paternity', 'monthly')),
     "total_allotted" INTEGER NOT NULL DEFAULT 0,
     "used" INTEGER NOT NULL DEFAULT 0,
@@ -70,9 +70,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_leave_balances" (
 );
 
 -- 6. Payroll Table
-CREATE TABLE IF NOT EXISTS "HRMS_payroll" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_payroll" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "month" VARCHAR(7) NOT NULL,
     "basic_pay" NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     "allowances" JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -88,9 +88,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_payroll" (
 );
 
 -- 7. Advance Requests Table
-CREATE TABLE IF NOT EXISTS "HRMS_advance_requests" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_advance_requests" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "amount" NUMERIC(12, 2) NOT NULL,
     "reason" TEXT NOT NULL,
     "advance_type" VARCHAR(50) DEFAULT 'salary' CHECK ("advance_type" IN ('salary', 'medical')),
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS "HRMS_advance_requests" (
 );
 
 -- 8. Invoices Table
-CREATE TABLE IF NOT EXISTS "HRMS_invoices" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_invoices" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     "invoice_number" VARCHAR(255) UNIQUE NOT NULL,
     "client_name" VARCHAR(255) NOT NULL,
@@ -120,9 +120,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_invoices" (
 );
 
 -- 9. Monthly Leave Quota Table
-CREATE TABLE IF NOT EXISTS "HRMS_monthly_leave_quota" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_monthly_leave_quota" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "month" VARCHAR(7) NOT NULL,
     "allotted" INTEGER NOT NULL DEFAULT 3,
     "used" INTEGER NOT NULL DEFAULT 0,
@@ -131,21 +131,21 @@ CREATE TABLE IF NOT EXISTS "HRMS_monthly_leave_quota" (
 );
 
 -- 10. Missed Punch Correction Requests Table
-CREATE TABLE IF NOT EXISTS "HRMS_missed_punches" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_missed_punches" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "missed_date" DATE NOT NULL,
     "punch_type" VARCHAR(10) NOT NULL CHECK ("punch_type" IN ('in', 'out')),
     "reason" TEXT,
     "status" VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK ("status" IN ('pending', 'approved', 'rejected')),
     "admin_note" TEXT,
     "resolved_at" TIMESTAMPTZ,
-    "resolved_by" VARCHAR(255) REFERENCES "HRMS_employees"("id"),
+    "resolved_by" VARCHAR(255) REFERENCES "sms_hrms_employees"("id"),
     "created_at" TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 11. Office Locations Table (Geofencing)
-CREATE TABLE IF NOT EXISTS "HRMS_office_locations" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_office_locations" (
     "id"            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     "name"          VARCHAR(255) NOT NULL,
     "latitude"      NUMERIC(10, 7) NOT NULL,
@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS "HRMS_office_locations" (
 );
 
 -- 12. Special Location Events Table
-CREATE TABLE IF NOT EXISTS "HRMS_special_location_events" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_special_location_events" (
     "id"            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     "name"          VARCHAR(255) NOT NULL,
     "event_type"    VARCHAR(50) DEFAULT 'medical_camp',
@@ -165,21 +165,21 @@ CREATE TABLE IF NOT EXISTS "HRMS_special_location_events" (
     "radius_meters" INTEGER NOT NULL DEFAULT 50,
     "from_date"     DATE NOT NULL,
     "to_date"       DATE NOT NULL,
-    "created_by"    VARCHAR(255) REFERENCES "HRMS_employees"("id"),
+    "created_by"    VARCHAR(255) REFERENCES "sms_hrms_employees"("id"),
     "created_at"    TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 13. Special Event Assignees Table
-CREATE TABLE IF NOT EXISTS "HRMS_special_event_assignees" (
-    "event_id"    UUID REFERENCES "HRMS_special_location_events"("id") ON DELETE CASCADE,
-    "employee_id" VARCHAR(255) REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS "sms_hrms_special_event_assignees" (
+    "event_id"    UUID REFERENCES "sms_hrms_special_location_events"("id") ON DELETE CASCADE,
+    "employee_id" VARCHAR(255) REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     PRIMARY KEY ("event_id", "employee_id")
 );
 
 -- 14. Location Pins Table
-CREATE TABLE IF NOT EXISTS "HRMS_location_pins" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_location_pins" (
     "id"            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "employee_id"   VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "employee_id"   VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "date"          DATE NOT NULL DEFAULT CURRENT_DATE,
     "pinned_at"     TIME WITHOUT TIME ZONE NOT NULL,
     "label"         TEXT,
@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS "HRMS_location_pins" (
 );
 
 -- 15. Payroll Config Table
-CREATE TABLE IF NOT EXISTS "HRMS_payroll_config" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_payroll_config" (
   "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   "config_key" VARCHAR(100) UNIQUE NOT NULL,
   "config_value" NUMERIC(12,2) NOT NULL,
@@ -202,22 +202,22 @@ CREATE TABLE IF NOT EXISTS "HRMS_payroll_config" (
 );
 
 -- 16. Duty Roster Table
-CREATE TABLE IF NOT EXISTS "HRMS_duty_roster" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_duty_roster" (
   "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  "employee_id" VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+  "employee_id" VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
   "shift_date" DATE NOT NULL,
   "shift_start" TIME NOT NULL,
   "shift_end" TIME NOT NULL,
   "shift_label" VARCHAR(255),
   "notes" TEXT,
   "is_published" BOOLEAN DEFAULT FALSE,
-  "created_by" VARCHAR(255) REFERENCES "HRMS_employees"("id"),
+  "created_by" VARCHAR(255) REFERENCES "sms_hrms_employees"("id"),
   "created_at" TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT unique_roster_entry UNIQUE ("employee_id", "shift_date")
 );
 
 -- 17. Chat Channels Table
-CREATE TABLE IF NOT EXISTS "HRMS_chat_channels" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_chat_channels" (
     "id"            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     "name"          VARCHAR(255),
     "type"          VARCHAR(50) DEFAULT 'direct' CHECK ("type" IN ('direct', 'group')),
@@ -225,10 +225,10 @@ CREATE TABLE IF NOT EXISTS "HRMS_chat_channels" (
 );
 
 -- 18. Chat Messages Table
-CREATE TABLE IF NOT EXISTS "HRMS_chat_messages" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_chat_messages" (
     "id"            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    "channel_id"    UUID NOT NULL REFERENCES "HRMS_chat_channels"("id") ON DELETE CASCADE,
-    "sender_id"     VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+    "channel_id"    UUID NOT NULL REFERENCES "sms_hrms_chat_channels"("id") ON DELETE CASCADE,
+    "sender_id"     VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
     "text"          TEXT,
     "attachment_url" VARCHAR(255),
     "attachment_type" VARCHAR(50),
@@ -237,9 +237,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_chat_messages" (
 );
 
 -- 19. Field Sessions Table
-CREATE TABLE IF NOT EXISTS "HRMS_field_sessions" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_field_sessions" (
   "id"               UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  "employee_id"      VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+  "employee_id"      VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
   "session_date"     DATE NOT NULL DEFAULT CURRENT_DATE,
   "status"           VARCHAR(50) NOT NULL DEFAULT 'active'
                      CHECK ("status" IN ('active', 'completed', 'cancelled')),
@@ -257,11 +257,11 @@ CREATE TABLE IF NOT EXISTS "HRMS_field_sessions" (
 );
 
 -- 20. Field Visits Table
-CREATE TABLE IF NOT EXISTS "HRMS_field_visits" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_field_visits" (
   "id"                    UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  "session_id"            UUID REFERENCES "HRMS_field_sessions"("id") ON DELETE SET NULL,
-  "employee_id"           VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
-  "assigned_by"           VARCHAR(255) REFERENCES "HRMS_employees"("id"),
+  "session_id"            UUID REFERENCES "sms_hrms_field_sessions"("id") ON DELETE SET NULL,
+  "employee_id"           VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
+  "assigned_by"           VARCHAR(255) REFERENCES "sms_hrms_employees"("id"),
   "visit_type"            VARCHAR(100) NOT NULL DEFAULT 'OTHER',
   "title"                 VARCHAR(255) NOT NULL,
   "description"           TEXT,
@@ -296,11 +296,11 @@ CREATE TABLE IF NOT EXISTS "HRMS_field_visits" (
 );
 
 -- 21. Field Visit Events Table
-CREATE TABLE IF NOT EXISTS "HRMS_field_visit_events" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_field_visit_events" (
   "id"             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  "visit_id"       UUID REFERENCES "HRMS_field_visits"("id") ON DELETE CASCADE,
-  "session_id"     UUID REFERENCES "HRMS_field_sessions"("id") ON DELETE SET NULL,
-  "employee_id"    VARCHAR(255) NOT NULL REFERENCES "HRMS_employees"("id") ON DELETE CASCADE,
+  "visit_id"       UUID REFERENCES "sms_hrms_field_visits"("id") ON DELETE CASCADE,
+  "session_id"     UUID REFERENCES "sms_hrms_field_sessions"("id") ON DELETE SET NULL,
+  "employee_id"    VARCHAR(255) NOT NULL REFERENCES "sms_hrms_employees"("id") ON DELETE CASCADE,
   "event_type"     VARCHAR(100) NOT NULL
                    CHECK ("event_type" IN (
                      'FIELD_DUTY_STARTED','FIELD_DUTY_ENDED',
@@ -320,9 +320,9 @@ CREATE TABLE IF NOT EXISTS "HRMS_field_visit_events" (
 );
 
 -- 22. Field Visit Proofs Table
-CREATE TABLE IF NOT EXISTS "HRMS_field_visit_proofs" (
+CREATE TABLE IF NOT EXISTS "sms_hrms_field_visit_proofs" (
   "id"          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  "visit_id"    UUID NOT NULL REFERENCES "HRMS_field_visits"("id") ON DELETE CASCADE,
+  "visit_id"    UUID NOT NULL REFERENCES "sms_hrms_field_visits"("id") ON DELETE CASCADE,
   "proof_type"  VARCHAR(50) NOT NULL
                 CHECK ("proof_type" IN ('photo', 'note', 'signature', 'otp', 'document')),
   "content"     TEXT NOT NULL,
@@ -333,14 +333,14 @@ CREATE TABLE IF NOT EXISTS "HRMS_field_visit_proofs" (
 );
 
 -- 23. Work Assignment (Tasks) Table
-CREATE TABLE IF NOT EXISTS public."HRMS_tasks" (
+CREATE TABLE IF NOT EXISTS public."sms_hrms_tasks" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
     description TEXT,
     priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
     status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed', 'incomplete')),
-    assigned_to TEXT REFERENCES public."HRMS_employees"(id) ON DELETE SET NULL,
-    created_by TEXT REFERENCES public."HRMS_employees"(id) ON DELETE SET NULL,
+    assigned_to TEXT REFERENCES public."sms_hrms_employees"(id) ON DELETE SET NULL,
+    created_by TEXT REFERENCES public."sms_hrms_employees"(id) ON DELETE SET NULL,
     due_date DATE DEFAULT CURRENT_DATE,
     completed_at TIMESTAMPTZ,
     notes TEXT DEFAULT '',
@@ -349,46 +349,46 @@ CREATE TABLE IF NOT EXISTS public."HRMS_tasks" (
 );
 
 -- 24. Performance Indexes
-CREATE INDEX IF NOT EXISTS idx_hrms_tasks_assigned_to ON public."HRMS_tasks"(assigned_to);
-CREATE INDEX IF NOT EXISTS idx_hrms_tasks_status ON public."HRMS_tasks"(status);
-CREATE INDEX IF NOT EXISTS idx_hrms_tasks_priority ON public."HRMS_tasks"(priority);
-CREATE INDEX IF NOT EXISTS idx_hrms_tasks_due_date ON public."HRMS_tasks"(due_date);
-CREATE INDEX IF NOT EXISTS idx_hrms_tasks_created_at ON public."HRMS_tasks"(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON "HRMS_chat_messages"("channel_id");
-CREATE INDEX IF NOT EXISTS idx_field_visits_emp_date ON "HRMS_field_visits"("employee_id", "scheduled_date");
+CREATE INDEX IF NOT EXISTS idx_hrms_tasks_assigned_to ON public."sms_hrms_tasks"(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_hrms_tasks_status ON public."sms_hrms_tasks"(status);
+CREATE INDEX IF NOT EXISTS idx_hrms_tasks_priority ON public."sms_hrms_tasks"(priority);
+CREATE INDEX IF NOT EXISTS idx_hrms_tasks_due_date ON public."sms_hrms_tasks"(due_date);
+CREATE INDEX IF NOT EXISTS idx_hrms_tasks_created_at ON public."sms_hrms_tasks"(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON "sms_hrms_chat_messages"("channel_id");
+CREATE INDEX IF NOT EXISTS idx_field_visits_emp_date ON "sms_hrms_field_visits"("employee_id", "scheduled_date");
 
 -- 25. Row Level Security Configuration (Open Public Access for Client HRMS)
-ALTER TABLE "HRMS_employees" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_attendance" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_leave_requests" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_leave_balances" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_payroll" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_advance_requests" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_invoices" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_monthly_leave_quota" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_missed_punches" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_office_locations" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_special_location_events" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_special_event_assignees" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_chat_channels" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_chat_messages" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_location_pins" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_payroll_config" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_duty_roster" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_field_sessions" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_field_visits" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_field_visit_events" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE "HRMS_field_visit_proofs" DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public."HRMS_tasks" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_employees" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_attendance" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_leave_requests" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_leave_balances" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_payroll" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_advance_requests" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_invoices" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_monthly_leave_quota" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_missed_punches" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_office_locations" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_special_location_events" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_special_event_assignees" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_chat_channels" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_chat_messages" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_location_pins" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_payroll_config" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_duty_roster" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_field_sessions" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_field_visits" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_field_visit_events" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_field_visit_proofs" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public."sms_hrms_tasks" DISABLE ROW LEVEL SECURITY;
 
 -- 26. Realtime Publication
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'HRMS_tasks'
+    WHERE pubname = 'supabase_realtime' AND tablename = 'sms_hrms_tasks'
   ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public."HRMS_tasks";
+    ALTER PUBLICATION supabase_realtime ADD TABLE public."sms_hrms_tasks";
   END IF;
 END $$;
 

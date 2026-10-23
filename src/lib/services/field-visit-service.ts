@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { FieldVisit, FieldVisitStatus, FieldEventType, FieldVisitType } from '../../types';
 import { logFieldEvent } from './field-event-service';
 import { addProof } from './field-proof-service';
@@ -40,7 +41,7 @@ function mapVisit(data: any): FieldVisit {
 
 export async function getVisitsForDate(employeeId: string, date: string): Promise<FieldVisit[]> {
   const { data, error } = await supabase
-    .from('HRMS_field_visits')
+    .from(DB_TABLES.FIELD_VISITS)
     .select('*')
     .eq('employee_id', employeeId)
     .eq('scheduled_date', date)
@@ -52,7 +53,7 @@ export async function getVisitsForDate(employeeId: string, date: string): Promis
 
 export async function getAllVisitsForDate(date: string): Promise<FieldVisit[]> {
   const { data, error } = await supabase
-    .from('HRMS_field_visits')
+    .from(DB_TABLES.FIELD_VISITS)
     .select('*')
     .eq('scheduled_date', date);
 
@@ -62,7 +63,7 @@ export async function getAllVisitsForDate(date: string): Promise<FieldVisit[]> {
 
 export async function createVisit(visit: Partial<FieldVisit>): Promise<FieldVisit> {
   const { data, error } = await supabase
-    .from('HRMS_field_visits')
+    .from(DB_TABLES.FIELD_VISITS)
     .insert([{
       employee_id: visit.employeeId,
       session_id: visit.sessionId,
@@ -103,7 +104,7 @@ export async function updateVisitStatus(
 ): Promise<FieldVisit> {
   // Fetch existing visit first
   const { data: existing, error: fetchErr } = await supabase
-    .from('HRMS_field_visits')
+    .from(DB_TABLES.FIELD_VISITS)
     .select('*')
     .eq('id', visitId)
     .single();
@@ -182,7 +183,7 @@ export async function updateVisitStatus(
   }
 
   const { data, error } = await supabase
-    .from('HRMS_field_visits')
+    .from(DB_TABLES.FIELD_VISITS)
     .update(updatePayload)
     .eq('id', visitId)
     .select()

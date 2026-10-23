@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { Task, TaskPriority, TaskStatus } from '../../types';
 
 const LOCAL_STORAGE_KEY = 'hrms_tasks_local';
@@ -48,7 +49,7 @@ function mapDbRowToTask(row: any, employeesMap?: Record<string, string>): Task {
 export async function fetchTasks(employeesMap?: Record<string, string>): Promise<Task[]> {
   try {
     const { data, error } = await supabase
-      .from('HRMS_tasks')
+      .from(DB_TABLES.TASKS)
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -72,7 +73,7 @@ export async function fetchTasks(employeesMap?: Record<string, string>): Promise
     if (pastOpenIds.length > 0) {
       Promise.resolve(
         supabase
-          .from('HRMS_tasks')
+          .from(DB_TABLES.TASKS)
           .update({ status: 'incomplete', updated_at: new Date().toISOString() })
           .in('id', pastOpenIds)
       ).catch(err => console.warn("Background task auto-close sync:", err));
@@ -110,7 +111,7 @@ export async function createTask(
 
   try {
     const { data, error } = await supabase
-      .from('HRMS_tasks')
+      .from(DB_TABLES.TASKS)
       .insert([insertPayload])
       .select('*')
       .single();
@@ -191,7 +192,7 @@ export async function updateTask(
 
   try {
     const { error } = await supabase
-      .from('HRMS_tasks')
+      .from(DB_TABLES.TASKS)
       .update(updatePayload)
       .eq('id', taskId);
 
@@ -227,7 +228,7 @@ export async function updateTaskStatus(
 export async function deleteTask(taskId: string): Promise<void> {
   try {
     const { error } = await supabase
-      .from('HRMS_tasks')
+      .from(DB_TABLES.TASKS)
       .delete()
       .eq('id', taskId);
 

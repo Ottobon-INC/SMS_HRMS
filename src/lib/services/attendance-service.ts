@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { AttendanceStatus, PunchType } from '../../types';
 
 export async function autoExpireMissedPunches(empId: string): Promise<void> {
@@ -8,7 +9,7 @@ export async function autoExpireMissedPunches(empId: string): Promise<void> {
 
   // Find expired pending out-punch requests
   const { data: expiredRequests, error: fetchErr } = await supabase
-    .from('HRMS_missed_punch_requests')
+    .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
     .select('id, missed_date')
     .eq('employee_id', empId)
     .eq('punch_type', 'out')
@@ -20,7 +21,7 @@ export async function autoExpireMissedPunches(empId: string): Promise<void> {
   for (const req of expiredRequests) {
     // 1. Update attendance record to Half-day
     const { data: att } = await supabase
-      .from('HRMS_attendance')
+      .from(DB_TABLES.ATTENDANCE)
       .select('id')
       .eq('employee_id', empId)
       .eq('date', req.missed_date)
@@ -28,14 +29,14 @@ export async function autoExpireMissedPunches(empId: string): Promise<void> {
 
     if (att && att.length > 0) {
       await supabase
-        .from('HRMS_attendance')
+        .from(DB_TABLES.ATTENDANCE)
         .update({ status: 'Half-day', check_out_time: '18:00:00', punch_note: 'Auto-closed by system (Missed punch)' })
         .eq('id', att[0].id);
     }
 
     // 2. Update request status to rejected
     await supabase
-      .from('HRMS_missed_punch_requests')
+      .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
       .update({
         status: 'rejected',
         admin_note: 'Auto-expired: 24-hr window passed. Marked as half-day.',
@@ -50,7 +51,7 @@ export async function checkMissedPunchOut(empId: string): Promise<string | null>
   
   // Look for any session for this employee where check_out_time is null, and date is strictly less than today
   const { data, error } = await supabase
-    .from('HRMS_attendance')
+    .from(DB_TABLES.ATTENDANCE)
     .select('date')
     .eq('employee_id', empId)
     .is('check_out_time', null)
@@ -65,7 +66,7 @@ export async function checkMissedPunchOut(empId: string): Promise<string | null>
   if (data && data.length > 0) {
     for (const session of data) {
       const { data: approvedReq } = await supabase
-        .from('HRMS_missed_punch_requests')
+        .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
         .select('id')
         .eq('employee_id', empId)
         .eq('missed_date', session.date)
@@ -77,7 +78,7 @@ export async function checkMissedPunchOut(empId: string): Promise<string | null>
       } else {
         // If it was approved but the session is still open, auto-fix it
         await supabase
-          .from('HRMS_attendance')
+          .from(DB_TABLES.ATTENDANCE)
           .update({ check_out_time: '18:00:00', punch_note: 'Auto-closed by system (Previously Approved)' })
           .eq('employee_id', empId)
           .eq('date', session.date)
@@ -102,7 +103,7 @@ export async function clockInEmployee(
 
   // Find max session number for today
   const { data: existingSessions, error: sessionErr } = await supabase
-    .from('HRMS_attendance')
+    .from(DB_TABLES.ATTENDANCE)
     .select('session_number')
     .eq('employee_id', empId)
     .eq('date', todayStr);
@@ -129,13 +130,13 @@ export async function clockInEmployee(
   if (photoUrl) payload.check_in_photo_url = photoUrl;
 
   const { error } = await supabase
-    .from('HRMS_attendance')
+    .from(DB_TABLES.ATTENDANCE)
     .insert([payload]);
 
   if (error && (error.code === '42703' || error.code === 'PGRST204') && photoUrl) {
     console.warn("check_in_photo_url column missing, falling back to without photo");
     delete payload.check_in_photo_url;
-    const retry = await supabase.from('HRMS_attendance').insert([payload]);
+    const retry = await supabase.from(DB_TABLES.ATTENDANCE).insert([payload]);
     if (retry.error) throw retry.error;
   } else if (error) {
     throw error;
@@ -153,7 +154,7 @@ export async function clockOutEmployee(
 
   // Find the most recent active session
   const { data: existingSessions, error: fetchErr } = await supabase
-    .from('HRMS_attendance')
+    .from(DB_TABLES.ATTENDANCE)
     .select('id, session_number, check_out_time')
     .eq('employee_id', empId)
     .eq('date', todayStr)
@@ -172,7 +173,7 @@ export async function clockOutEmployee(
     if (latLng) payload.check_out_lat_lng = latLng;
     
     const { error } = await supabase
-      .from('HRMS_attendance')
+      .from(DB_TABLES.ATTENDANCE)
       .update(payload)
       .eq('id', activeSession.id);
     if (error) throw error;
@@ -180,7 +181,7 @@ export async function clockOutEmployee(
     // If no active session found to clock out, just return or create a new session if needed.
     // For now, if somehow missing, we just create a new row.
     const { data: allSessions } = await supabase
-      .from('HRMS_attendance')
+      .from(DB_TABLES.ATTENDANCE)
       .select('session_number')
       .eq('employee_id', empId)
       .eq('date', todayStr);
@@ -202,7 +203,7 @@ export async function clockOutEmployee(
     if (latLng) payload.check_out_lat_lng = latLng;
     
     const { error } = await supabase
-      .from('HRMS_attendance')
+      .from(DB_TABLES.ATTENDANCE)
       .insert([payload]);
     if (error) throw error;
   }
@@ -216,7 +217,7 @@ export async function updateAttendanceRecord(
   checkOut?: string
 ): Promise<void> {
   const { data: existing, error: fetchErr } = await supabase
-    .from('HRMS_attendance')
+    .from(DB_TABLES.ATTENDANCE)
     .select('id')
     .eq('employee_id', empId)
     .eq('date', date)
@@ -232,7 +233,7 @@ export async function updateAttendanceRecord(
 
   if (firstSession) {
     const { error } = await supabase
-      .from('HRMS_attendance')
+      .from(DB_TABLES.ATTENDANCE)
       .update({ 
         status: dbStatus, 
         check_in_time: checkIn || null, 
@@ -242,7 +243,7 @@ export async function updateAttendanceRecord(
     if (error) throw error;
   } else {
     const { error } = await supabase
-      .from('HRMS_attendance')
+      .from(DB_TABLES.ATTENDANCE)
       .insert([{ 
         employee_id: empId, 
         date: date, 

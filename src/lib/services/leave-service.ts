@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { LeaveRequest, LeaveType } from '../../types';
 
 export async function submitLeaveRequest(empId: string, leave: Omit<LeaveRequest, 'id'>): Promise<void> {
@@ -17,7 +18,7 @@ export async function submitLeaveRequest(empId: string, leave: Omit<LeaveRequest
   }
 
   const { error } = await supabase
-    .from('HRMS_leave_requests')
+    .from(DB_TABLES.LEAVE_REQUESTS)
     .insert([{
       employee_id: empId,
       leave_type: leave.type,
@@ -32,7 +33,7 @@ export async function submitLeaveRequest(empId: string, leave: Omit<LeaveRequest
 
 export async function updateLeaveRequestStatus(requestId: string, status: 'Approved' | 'Rejected', adminNote?: string): Promise<void> {
   const { data: request, error: fetchErr } = await supabase
-    .from('HRMS_leave_requests')
+    .from(DB_TABLES.LEAVE_REQUESTS)
     .select('*')
     .eq('id', requestId)
     .single();
@@ -40,7 +41,7 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
   if (fetchErr) throw fetchErr;
 
   const { error } = await supabase
-    .from('HRMS_leave_requests')
+    .from(DB_TABLES.LEAVE_REQUESTS)
     .update({ status: status, admin_note: adminNote || '' })
     .eq('id', requestId);
 
@@ -55,7 +56,7 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
       const monthStr = from.toISOString().substring(0, 7); // YYYY-MM
       // Ensure the row exists or initialize it
       const { data: quota } = await supabase
-        .from('HRMS_monthly_leave_quota')
+        .from(DB_TABLES.MONTHLY_LEAVE_QUOTA)
         .select('*')
         .eq('employee_id', request.employee_id)
         .eq('month', monthStr)
@@ -63,12 +64,12 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
 
       if (quota) {
         await supabase
-          .from('HRMS_monthly_leave_quota')
+          .from(DB_TABLES.MONTHLY_LEAVE_QUOTA)
           .update({ used: Number(quota.used || 0) + diffDays })
           .eq('id', quota.id);
       } else {
         await supabase
-          .from('HRMS_monthly_leave_quota')
+          .from(DB_TABLES.MONTHLY_LEAVE_QUOTA)
           .insert([{
             employee_id: request.employee_id,
             month: monthStr,
@@ -78,7 +79,7 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
       }
     } else {
       const { data: balance } = await supabase
-        .from('HRMS_leave_balances')
+        .from(DB_TABLES.LEAVE_BALANCES)
         .select('*')
         .eq('employee_id', request.employee_id)
         .eq('leave_type', request.leave_type)
@@ -86,7 +87,7 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
 
     if (balance) {
       await supabase
-        .from('HRMS_leave_balances')
+        .from(DB_TABLES.LEAVE_BALANCES)
         .update({ used: Number(balance.used || 0) + diffDays })
         .eq('id', balance.id);
     } else {
@@ -97,7 +98,7 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
       else if (request.leave_type === 'paternity') allotted = 7;
 
       await supabase
-        .from('HRMS_leave_balances')
+        .from(DB_TABLES.LEAVE_BALANCES)
         .insert([{
           employee_id: request.employee_id,
           leave_type: request.leave_type,
@@ -112,7 +113,7 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
     while (current <= end) {
       const dateStr = current.toISOString().split('T')[0];
       const { data: att } = await supabase
-        .from('HRMS_attendance')
+        .from(DB_TABLES.ATTENDANCE)
         .select('id')
         .eq('employee_id', request.employee_id)
         .eq('date', dateStr)
@@ -120,12 +121,12 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
 
       if (att) {
         await supabase
-          .from('HRMS_attendance')
+          .from(DB_TABLES.ATTENDANCE)
           .update({ status: 'Leave' })
           .eq('id', att.id);
       } else {
         await supabase
-          .from('HRMS_attendance')
+          .from(DB_TABLES.ATTENDANCE)
           .insert([{ employee_id: request.employee_id, date: dateStr, status: 'Leave' }]);
       }
       current.setDate(current.getDate() + 1);
@@ -137,7 +138,7 @@ export async function updateLeaveBalances(empId: string, leaveType: LeaveType, a
   if (leaveType === 'monthly') {
     const currentMonth = new Date().toISOString().substring(0, 7);
     const { data: quota } = await supabase
-      .from('HRMS_monthly_leave_quota')
+      .from(DB_TABLES.MONTHLY_LEAVE_QUOTA)
       .select('id')
       .eq('employee_id', empId)
       .eq('month', currentMonth)
@@ -145,19 +146,19 @@ export async function updateLeaveBalances(empId: string, leaveType: LeaveType, a
       
     if (quota) {
       await supabase
-        .from('HRMS_monthly_leave_quota')
+        .from(DB_TABLES.MONTHLY_LEAVE_QUOTA)
         .update({ allotted, used })
         .eq('id', quota.id);
     } else {
       await supabase
-        .from('HRMS_monthly_leave_quota')
+        .from(DB_TABLES.MONTHLY_LEAVE_QUOTA)
         .insert([{ employee_id: empId, month: currentMonth, allotted, used }]);
     }
     return;
   }
 
   const { data: balance, error: fetchErr } = await supabase
-    .from('HRMS_leave_balances')
+    .from(DB_TABLES.LEAVE_BALANCES)
     .select('id')
     .eq('employee_id', empId)
     .eq('leave_type', leaveType)
@@ -167,13 +168,13 @@ export async function updateLeaveBalances(empId: string, leaveType: LeaveType, a
 
   if (balance) {
     const { error } = await supabase
-      .from('HRMS_leave_balances')
+      .from(DB_TABLES.LEAVE_BALANCES)
       .update({ total_allotted: allotted, used: used })
       .eq('id', balance.id);
     if (error) throw error;
   } else {
     const { error } = await supabase
-      .from('HRMS_leave_balances')
+      .from(DB_TABLES.LEAVE_BALANCES)
       .insert([{ employee_id: empId, leave_type: leaveType, total_allotted: allotted, used: used }]);
     if (error) throw error;
   }
@@ -181,7 +182,7 @@ export async function updateLeaveBalances(empId: string, leaveType: LeaveType, a
 
 export async function deductPenaltyLeave(empId: string, leaveType: LeaveType, penaltyDays: number): Promise<void> {
   const { data: balance, error: fetchErr } = await supabase
-    .from('HRMS_leave_balances')
+    .from(DB_TABLES.LEAVE_BALANCES)
     .select('*')
     .eq('employee_id', empId)
     .eq('leave_type', leaveType)
@@ -191,7 +192,7 @@ export async function deductPenaltyLeave(empId: string, leaveType: LeaveType, pe
 
   if (balance) {
     const { error } = await supabase
-      .from('HRMS_leave_balances')
+      .from(DB_TABLES.LEAVE_BALANCES)
       .update({ used: Number(balance.used || 0) + penaltyDays })
       .eq('id', balance.id);
     if (error) throw error;
@@ -202,7 +203,7 @@ export async function deductPenaltyLeave(empId: string, leaveType: LeaveType, pe
     else if (leaveType === 'casual') allotted = 8;
     
     const { error } = await supabase
-      .from('HRMS_leave_balances')
+      .from(DB_TABLES.LEAVE_BALANCES)
       .insert([{ employee_id: empId, leave_type: leaveType, total_allotted: allotted, used: penaltyDays }]);
     if (error) throw error;
   }

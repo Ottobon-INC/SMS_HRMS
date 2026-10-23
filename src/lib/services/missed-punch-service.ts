@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { DB_TABLES } from '../../core/database.tables';
 import { MissedPunchRequest, MissedPunchStatus } from '../../types';
 
 /** Employee submits a missed punch request */
@@ -10,7 +11,7 @@ export async function submitMissedPunchRequest(
 ): Promise<void> {
   // Prevent duplicate: if a pending request already exists for that date and type, skip
   const { data: existing } = await supabase
-    .from('HRMS_missed_punch_requests')
+    .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
     .select('id')
     .eq('employee_id', empId)
     .eq('missed_date', missedDate)
@@ -21,7 +22,7 @@ export async function submitMissedPunchRequest(
   if (existing) return; // Already requested, don't duplicate
 
   const { error } = await supabase
-    .from('HRMS_missed_punch_requests')
+    .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
     .insert([{
       employee_id: empId,
       missed_date: missedDate,
@@ -38,7 +39,7 @@ export async function fetchMissedPunchRequests(
   statusFilter?: MissedPunchStatus
 ): Promise<MissedPunchRequest[]> {
   let query = supabase
-    .from('HRMS_missed_punch_requests')
+    .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
     .select(`
       id,
       employee_id,
@@ -81,7 +82,7 @@ export async function fetchEmployeeMissedPunches(
   empId: string
 ): Promise<MissedPunchRequest[]> {
   const { data, error } = await supabase
-    .from('HRMS_missed_punch_requests')
+    .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
     .select(`
       id,
       employee_id,
@@ -129,7 +130,7 @@ export async function approveMissedPunchRequest(
   if (punchType === 'out') {
     // 1. Close the open attendance session
     const { data: openSessions, error: fetchErr } = await supabase
-      .from('HRMS_attendance')
+      .from(DB_TABLES.ATTENDANCE)
       .select('id')
       .eq('employee_id', empId)
       .eq('date', missedDate)
@@ -140,7 +141,7 @@ export async function approveMissedPunchRequest(
     if (openSessions && openSessions.length > 0) {
       for (const session of openSessions) {
         const { error: updateErr } = await supabase
-          .from('HRMS_attendance')
+          .from(DB_TABLES.ATTENDANCE)
           .update({
             check_out_time: correctionTime,
             punch_note: adminNote || 'Closed by Admin — Missed Punch-Out Approved'
@@ -152,7 +153,7 @@ export async function approveMissedPunchRequest(
   } else if (punchType === 'in') {
     // Check if session exists
     const { data: existingSessions, error: fetchErr } = await supabase
-      .from('HRMS_attendance')
+      .from(DB_TABLES.ATTENDANCE)
       .select('id')
       .eq('employee_id', empId)
       .eq('date', missedDate)
@@ -162,7 +163,7 @@ export async function approveMissedPunchRequest(
 
     if (existingSessions && existingSessions.length > 0) {
       const { error: updateErr } = await supabase
-        .from('HRMS_attendance')
+        .from(DB_TABLES.ATTENDANCE)
         .update({
           check_in_time: correctionTime,
           check_out_time: checkInTime || '18:00:00',
@@ -172,7 +173,7 @@ export async function approveMissedPunchRequest(
       if (updateErr) throw updateErr;
     } else {
       const { error: insertErr } = await supabase
-        .from('HRMS_attendance')
+        .from(DB_TABLES.ATTENDANCE)
         .insert([{
           employee_id: empId,
           date: missedDate,
@@ -188,7 +189,7 @@ export async function approveMissedPunchRequest(
 
   // 2. Update request status
   const { error } = await supabase
-    .from('HRMS_missed_punch_requests')
+    .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
     .update({
       status: 'approved',
       admin_note: adminNote || null,
@@ -207,7 +208,7 @@ export async function rejectMissedPunchRequest(
   adminNote?: string
 ): Promise<void> {
   const { error } = await supabase
-    .from('HRMS_missed_punch_requests')
+    .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
     .update({
       status: 'rejected',
       admin_note: adminNote || null,
@@ -222,7 +223,7 @@ export async function rejectMissedPunchRequest(
 /** Count pending requests — used for admin badge */
 export async function countPendingMissedPunches(): Promise<number> {
   const { count, error } = await supabase
-    .from('HRMS_missed_punch_requests')
+    .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
     .select('*', { count: 'exact', head: true })
     .eq('status', 'pending');
 
