@@ -83,6 +83,9 @@ export default function LoginScreen({ language, employees, onLoginSuccess }: Log
       if (matched.status === 'inactive') {
         setError(loginText.errInactive);
       } else {
+        if (!localStorage.getItem('hrms_auth_token')) {
+          localStorage.setItem('hrms_auth_token', 'offline_demo_token_' + matched.id);
+        }
         onLoginSuccess(matched);
       }
     } else {
@@ -106,6 +109,9 @@ export default function LoginScreen({ language, employees, onLoginSuccess }: Log
         localStorage.setItem('hrms_auth_token', data.token);
       }
     } catch {}
+    if (!localStorage.getItem('hrms_auth_token')) {
+      localStorage.setItem('hrms_auth_token', 'offline_demo_token_' + emp.id);
+    }
     onLoginSuccess(emp);
   };
 
