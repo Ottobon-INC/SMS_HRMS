@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Task, TaskPriority, TaskStatus, Employee } from '../types';
 import * as taskService from '../lib/services/task-service';
 import { supabase } from '../lib/supabase-client';
-import { DB_TABLES } from '../core/database.tables';
+import { DB_TABLES, DB_SCHEMA } from '../core/database.tables';
 
 export function useTaskModule(employees: Employee[] = []) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -41,7 +41,7 @@ export function useTaskModule(employees: Employee[] = []) {
       .channel('hrms-tasks-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: DB_TABLES.TASKS },
+        { event: '*', schema: DB_SCHEMA, table: DB_TABLES.TASKS },
         () => {
           loadTasks();
         }

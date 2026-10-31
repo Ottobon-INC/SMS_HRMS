@@ -43,13 +43,36 @@ export default function LoginScreen({ language, employees, onLoginSuccess }: Log
     }
   }[language];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (!email || !password) {
       setError(language === 'te' ? 'అన్ని వివరాలు పూరించండి' : 'Please fill all fields');
       return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.employee) {
+        if (data.employee.status === 'inactive') {
+          setError(loginText.errInactive);
+          return;
+        }
+        if (data.token) {
+          localStorage.setItem('hrms_auth_token', data.token);
+        }
+        onLoginSuccess(data.employee);
+        return;
+      }
+    } catch {
+      // Backend request failed, fall back to local cached employees
     }
 
     const matched = employees.find(
@@ -67,12 +90,23 @@ export default function LoginScreen({ language, employees, onLoginSuccess }: Log
     }
   };
 
-  const handleQuickLogin = (emp: Employee) => {
+  const handleQuickLogin = async (emp: Employee) => {
     if (emp.status === 'inactive') {
       setError(loginText.errInactive);
-    } else {
-      onLoginSuccess(emp);
+      return;
     }
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emp.email.trim(), password: emp.password || 'password' })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.token) {
+        localStorage.setItem('hrms_auth_token', data.token);
+      }
+    } catch {}
+    onLoginSuccess(emp);
   };
 
   return (
@@ -147,8 +181,6 @@ export default function LoginScreen({ language, employees, onLoginSuccess }: Log
               </button>
             </div>
           </div>
-
-
 
           {/* Submit Button */}
           <button

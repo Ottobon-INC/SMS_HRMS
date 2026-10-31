@@ -179,6 +179,25 @@ export default function App() {
     localStorage.removeItem('hrms_active_tab');
   };
 
+  // If user is not logged in, render Login Screen
+  if (!currentUserId || !currentUser) {
+    return (
+      <LoginScreen
+        language={language}
+        employees={employees}
+        onLoginSuccess={(emp) => {
+          login(emp.id, emp);
+          loadData();
+          if (emp.role === 'admin') {
+            setActiveTab('adminDashboard');
+          } else {
+            setActiveTab('dashboard');
+          }
+        }}
+      />
+    );
+  }
+
   // Center spinner for initial database loading
   if (isLoading && employees.length === 0) {
     return (
@@ -223,24 +242,6 @@ export default function App() {
           </div>
         </div>
       </div>
-    );
-  }
-
-  // If user is not logged in, render Login Screen
-  if (!currentUserId || !currentUser) {
-    return (
-      <LoginScreen
-        language={language}
-        employees={employees}
-        onLoginSuccess={(emp) => {
-          login(emp.id);
-          if (emp.role === 'admin') {
-            setActiveTab('adminDashboard');
-          } else {
-            setActiveTab('dashboard');
-          }
-        }}
-      />
     );
   }
 

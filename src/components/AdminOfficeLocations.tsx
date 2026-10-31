@@ -31,12 +31,48 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
     setEditingId(null);
   };
 
+  const callOfficeLocationsApi = async (path = '', options: RequestInit = {}) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('hrms_auth_token') : null;
+    if (!token) return null;
+    const res = await fetch(`/api/hrms/office-locations${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(options.headers || {}),
+      },
+    });
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.error || `Request failed (${res.status})`);
+    }
+    return res.json().catch(() => ({}));
+  };
+
   useEffect(() => {
     fetchLocations();
   }, []);
 
   const fetchLocations = async () => {
     setIsLoading(true);
+    try {
+      const json = await callOfficeLocationsApi();
+      if (json && Array.isArray(json.locations)) {
+        setLocations(json.locations.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          latitude: parseFloat(d.latitude),
+          longitude: parseFloat(d.longitude),
+          radius_meters: d.radius_meters,
+          is_active: d.is_active
+        })));
+        setIsLoading(false);
+        return;
+      }
+    } catch (apiErr) {
+      console.warn("API office locations fetch notice:", apiErr);
+    }
+
     const { data, error } = await supabase
       .from(DB_TABLES.OFFICE_LOCATIONS)
       .select('*')
@@ -45,7 +81,7 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
     if (error) {
       console.error("Error fetching locations", error);
     } else {
-      setLocations(data.map(d => ({
+      setLocations((data || []).map(d => ({
         id: d.id,
         name: d.name,
         latitude: parseFloat(d.latitude),
@@ -89,6 +125,35 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
     
     setIsSubmitting(true);
     
+    const payload = {
+      name,
+      latitude: parseFloat(latitude),
+      longitude: parseFloat(longitude),
+      radius_meters: parseInt(radius),
+      is_active: true
+    };
+
+    try {
+      if (editingId) {
+        await callOfficeLocationsApi(`/${encodeURIComponent(editingId)}`, {
+          method: 'PATCH',
+          body: JSON.stringify(payload)
+        });
+      } else {
+        await callOfficeLocationsApi('', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+      }
+      setIsSubmitting(false);
+      setShowForm(false);
+      resetForm();
+      fetchLocations();
+      return;
+    } catch (apiErr: any) {
+      console.warn("API location save failed, trying Supabase fallback:", apiErr);
+    }
+
     if (editingId) {
       const { error } = await supabase
         .from(DB_TABLES.OFFICE_LOCATIONS)
@@ -133,6 +198,15 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
   };
 
   const toggleStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      await callOfficeLocationsApi(`/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: !currentStatus })
+      });
+      fetchLocations();
+      return;
+    } catch {}
+
     const { error } = await supabase
       .from(DB_TABLES.OFFICE_LOCATIONS)
       .update({ is_active: !currentStatus })
@@ -146,6 +220,14 @@ export default function AdminOfficeLocations({ language }: AdminOfficeLocationsP
   const deleteLocation = async (id: string) => {
     if (!confirm('Are you sure you want to delete this location?')) return;
     
+    try {
+      await callOfficeLocationsApi(`/${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+      fetchLocations();
+      return;
+    } catch {}
+
     const { error } = await supabase
       .from(DB_TABLES.OFFICE_LOCATIONS)
       .delete()

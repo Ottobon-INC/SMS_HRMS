@@ -64,6 +64,30 @@ export async function resolveAllowedLocations(
   employeeId: string,
   today: string // YYYY-MM-DD
 ): Promise<OfficeLocation[]> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('hrms_auth_token') : null;
+  if (token) {
+    try {
+      const res = await fetch(`/api/hrms/allowed-locations?employeeId=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(today)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        if (Array.isArray(json.locations)) {
+          return json.locations.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            latitude: Number(m.latitude),
+            longitude: Number(m.longitude),
+            radius_meters: Number(m.radius_meters),
+            is_active: m.is_active !== false
+          }));
+        }
+      }
+    } catch (apiErr) {
+      console.warn("API allowed-locations fetch notice:", apiErr);
+    }
+  }
+
   // 1. Fetch permanent active office locations
   const { data: offices } = await supabase
     .from(DB_TABLES.OFFICE_LOCATIONS)

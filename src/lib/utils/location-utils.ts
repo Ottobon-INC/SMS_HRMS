@@ -1,8 +1,12 @@
-export function getPosition(enableHighAccuracy: boolean, timeout: number): Promise<GeolocationPosition> {
+export function getPosition(enableHighAccuracy: boolean, timeout: number, maximumAge: number = 180000): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation is not supported by your browser."));
+      return;
+    }
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       timeout,
-      maximumAge: 60000,
+      maximumAge, // Allow cached GPS up to 3 minutes for instant indoor check-ins
       enableHighAccuracy,
     });
   });
@@ -34,9 +38,9 @@ export async function getCurrentLocationSafe(): Promise<{ latitude?: number; lon
   try {
     let position: GeolocationPosition | null = null;
     try {
-      position = await getPosition(false, 5000);
+      position = await getPosition(false, 6000, 180000);
     } catch {
-      position = await getPosition(true, 10000);
+      position = await getPosition(true, 20000, 60000);
     }
 
     const { latitude, longitude } = position.coords;
@@ -45,10 +49,10 @@ export async function getCurrentLocationSafe(): Promise<{ latitude?: number; lon
     return { latitude, longitude, address: address || "Location details unavailable" };
   } catch (err: any) {
     console.warn("Could not get location:", err);
-    let errMsg = "Could not get your GPS location. Please enable location services and try again.";
-    if (err?.code === 1) errMsg = "Location access denied. Please allow Location permissions.";
-    if (err?.code === 2) errMsg = "Your GPS is turned off. Please enable it in your settings.";
-    if (err?.code === 3) errMsg = "Location request timed out. Please move to an open area.";
+    let errMsg = "Could not get your GPS location. Please ensure location services are enabled on your device.";
+    if (err?.code === 1) errMsg = "Location access denied in your browser.\n\nPlease tap the lock icon 🔒 next to the website address in Chrome, set Location to 'Allow', and reload.";
+    if (err?.code === 2) errMsg = "Location is turned off or unavailable on this device.\n\nPlease turn on Location in your phone's quick settings and ensure Chrome has location permission in Android Settings.";
+    if (err?.code === 3) errMsg = "GPS satellite signal timed out.\n\nPlease move closer to a window, door, or open area and try again.";
     return { error: errMsg };
   }
 }

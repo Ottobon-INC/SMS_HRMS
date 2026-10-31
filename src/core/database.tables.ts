@@ -3,6 +3,7 @@
  * Centralized source of truth for all Supabase database table names.
  */
 
+export const DB_SCHEMA = 'dlabs';
 export const TABLE_PREFIX = 'sms_hrms_';
 
 export const DB_TABLES = {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase-client';
-import { DB_TABLES } from '../core/database.tables';
+import { DB_TABLES, DB_SCHEMA } from '../core/database.tables';
 
 export interface ChatMessage {
   id: string;
@@ -115,7 +115,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
     const channel = supabase.channel(`chat_${channelId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: DB_TABLES.CHAT_MESSAGES, filter: `channel_id=eq.${channelId}` },
+        { event: '*', schema: DB_SCHEMA, table: DB_TABLES.CHAT_MESSAGES, filter: `channel_id=eq.${channelId}` },
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const newMessage = payload.new as ChatMessage;
@@ -131,7 +131,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
       )
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: DB_TABLES.MESSAGE_READS, filter: `channel_id=eq.${channelId}` },
+        { event: 'INSERT', schema: DB_SCHEMA, table: DB_TABLES.MESSAGE_READS, filter: `channel_id=eq.${channelId}` },
         (payload) => {
           setMessageReads((prev) => {
             if (prev.some(r => r.id === payload.new.id)) return prev;
@@ -141,7 +141,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: DB_TABLES.CHAT_PARTICIPANTS, filter: `channel_id=eq.${channelId}` },
+        { event: '*', schema: DB_SCHEMA, table: DB_TABLES.CHAT_PARTICIPANTS, filter: `channel_id=eq.${channelId}` },
         (payload) => {
           if (payload.eventType === 'INSERT') {
             setParticipants(prev => [...prev, payload.new as ChatParticipant]);
@@ -152,7 +152,7 @@ export function useMessaging(channelId: string | null, userId: string | null) {
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: DB_TABLES.CHAT_CHANNELS, filter: `id=eq.${channelId}` },
+        { event: 'UPDATE', schema: DB_SCHEMA, table: DB_TABLES.CHAT_CHANNELS, filter: `id=eq.${channelId}` },
         (payload) => {
           setChannelDetails(payload.new as ChatChannel);
         }

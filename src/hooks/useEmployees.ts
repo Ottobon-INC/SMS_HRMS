@@ -16,7 +16,19 @@ export function useEmployees() {
 
   const saveLocalData = (emps: Employee[]) => {
     try {
-      localStorage.setItem('hrms_local_employees', JSON.stringify(emps));
+      // Strip heavy fields before saving to localStorage to avoid QuotaExceededError
+      const lightEmps = emps.map(emp => ({
+        ...emp,
+        checkInLogs: (emp.checkInLogs || []).slice(0, 10).map(log => ({
+          ...log,
+          photoUrl: undefined,
+        })),
+        attendanceRecords: (emp.attendanceRecords || []).slice(0, 30).map(att => ({
+          ...att,
+          photoUrl: undefined,
+        })),
+      }));
+      localStorage.setItem('hrms_local_employees', JSON.stringify(lightEmps));
     } catch (storageErr) {
       console.warn('Could not cache employees to localStorage:', storageErr);
     }

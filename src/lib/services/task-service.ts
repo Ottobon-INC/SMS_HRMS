@@ -47,6 +47,36 @@ function mapDbRowToTask(row: any, employeesMap?: Record<string, string>): Task {
 }
 
 export async function fetchTasks(employeesMap?: Record<string, string>): Promise<Task[]> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('hrms_auth_token') : null;
+  if (token) {
+    try {
+      const res = await fetch('/api/tasks', {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token
+        }
+      });
+      if (res.status === 401) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('hrms_auth_token');
+          window.dispatchEvent(new CustomEvent('hrms:unauthorized'));
+        }
+        const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+        return cached ? JSON.parse(cached) : [];
+      }
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        if (Array.isArray(json.tasks)) {
+          const tasks = json.tasks.map((row: any) => mapDbRowToTask(row, employeesMap));
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tasks));
+          return tasks;
+        }
+      }
+    } catch (apiErr) {
+      console.warn('API tasks fetch fallback notice:', apiErr);
+    }
+  }
+
   try {
     const { data, error } = await supabase
       .from(DB_TABLES.TASKS)

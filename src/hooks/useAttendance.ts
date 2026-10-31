@@ -6,11 +6,15 @@ import { supabase } from '../lib/supabase-client';
 import { DB_TABLES } from '../core/database.tables';
 
 /** Helper: get GPS position with a configurable timeout and accuracy mode */
-function getPosition(enableHighAccuracy: boolean, timeout: number): Promise<GeolocationPosition> {
+function getPosition(enableHighAccuracy: boolean, timeout: number, maximumAge: number = 180000): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation is not supported by your browser."));
+      return;
+    }
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       timeout,
-      maximumAge: 60000,
+      maximumAge, // Allow cached GPS up to 3 minutes for instant indoor check-ins
       enableHighAccuracy,
     });
   });
@@ -27,21 +31,46 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
     try {
       let locationStr: string | undefined = undefined;
       let latLngStr: string | undefined = undefined;
+      let latitude: number | null = null;
+      let longitude: number | null = null;
 
+      // STEP 1: GPS Position Acquisition
       try {
-        // Fast-first GPS: try a quick network-based location first (5s),
-        // then fall back to high-accuracy GPS (10s) if needed.
         let position: GeolocationPosition | null = null;
         try {
-          position = await getPosition(false, 5000);
+          // Fast-first: try network/cached location first (6s timeout, 3-minute cache)
+          position = await getPosition(false, 6000, 180000);
         } catch {
-          position = await getPosition(true, 10000);
+          // High-accuracy fallback: give 20 seconds for satellite fix indoors
+          position = await getPosition(true, 20000, 60000);
         }
 
-        const { latitude, longitude } = position.coords;
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
         latLngStr = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+      } catch (gpsErr: any) {
+        console.warn("Could not get GPS position:", gpsErr);
 
-        // Reverse geocoding with strict 3-second timeout
+        if (punchType === 'out_of_office' || isCurrentlyCheckedIn) {
+          locationStr = isCurrentlyCheckedIn
+            ? "Punch-out - Location Unknown (GPS Unavailable)"
+            : "Out of Office - Location Unknown (GPS Unavailable)";
+          latLngStr = "0,0";
+        } else {
+          let errMsg = "Could not get your GPS location. Please ensure location services are enabled on your device.";
+          if (gpsErr?.code === 1) {
+            errMsg = "Location access denied in your browser.\n\nPlease tap the lock icon 🔒 next to the website address in Chrome, set Location to 'Allow', and reload.";
+          } else if (gpsErr?.code === 2) {
+            errMsg = "Location is turned off or unavailable on this device.\n\nPlease turn on Location in your phone's quick settings and ensure Chrome has location permission in Android Settings.";
+          } else if (gpsErr?.code === 3) {
+            errMsg = "GPS satellite signal timed out.\n\nPlease move closer to a window, door, or open area and try again.";
+          }
+          return { success: false, error: errMsg };
+        }
+      }
+
+      // STEP 2: Reverse Geocoding (Optional text address)
+      if (latitude !== null && longitude !== null) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
         try {
@@ -60,10 +89,15 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
         } catch {
           locationStr = "Location details unavailable";
         }
+      }
 
-        // Geofence check: ONLY run on punch-IN and only for in_office type.
-        // Punch-OUT should never be blocked by geofence — employee may have left the premises.
-        if (!isCurrentlyCheckedIn && punchType !== 'out_of_office') {
+      // STEP 3: Geofence Verification (Decoupled from GPS error handling!)
+      if (!isCurrentlyCheckedIn && punchType !== 'out_of_office') {
+        if (latitude === null || longitude === null) {
+          return { success: false, error: "GPS coordinates are required for in-office check-in." };
+        }
+
+        try {
           const today = new Date().toISOString().split('T')[0];
           const allowedLocations = await resolveAllowedLocations(empId, today);
           const geoCheck = checkGeofence(latitude, longitude, allowedLocations);
@@ -71,27 +105,15 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
             return { success: false, geoError: geoCheck };
           }
           locationStr = geoCheck.matchedLocation || locationStr;
-        } else if (punchType === 'out_of_office') {
-          locationStr = `Out of Office - ${locationStr || 'Location Unknown'}`;
+        } catch (geoErr: any) {
+          console.error("Geofence verification error:", geoErr);
+          return {
+            success: false,
+            error: `Unable to verify office location: ${geoErr.message || 'Server connection error'}. Please try again.`
+          };
         }
-
-      } catch (err: any) {
-        console.warn("Could not get location:", err);
-
-        if (punchType === 'out_of_office' || isCurrentlyCheckedIn) {
-          // For punch-out or out-of-office, allow attendance without GPS
-          locationStr = isCurrentlyCheckedIn
-            ? "Punch-out - Location Unknown (GPS Failed)"
-            : "Out of Office - Location Unknown (GPS Failed)";
-          latLngStr = "0,0";
-        } else {
-          // For in-office punch-in, GPS is required for geofencing
-          let errMsg = "Could not get your GPS location. Please enable location services and try again.";
-          if (err?.code === 1) errMsg = "Location access denied.\n\nPlease tap the lock icon 🔒 next to the URL in your browser and set Location to 'Allow', then reload the page.";
-          if (err?.code === 2) errMsg = "Your GPS/Location is turned off. Please enable it in your phone settings and try again.";
-          if (err?.code === 3) errMsg = "Location request timed out. Please move to an open area and try again.";
-          return { success: false, error: errMsg };
-        }
+      } else if (punchType === 'out_of_office') {
+        locationStr = `Out of Office - ${locationStr || 'Location Unknown'}`;
       }
 
       if (isCurrentlyCheckedIn) {

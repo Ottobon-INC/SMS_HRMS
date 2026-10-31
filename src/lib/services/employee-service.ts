@@ -3,40 +3,96 @@ import { DB_TABLES } from '../../core/database.tables';
 import { Employee, LeaveBalance, LeaveType, LeaveStatus, AttendanceRecord, AttendanceStatus, CheckInLog, Payslip, MonthlyLeaveQuota } from '../../types';
 
 export async function fetchAllEmployeesData(): Promise<Employee[]> {
-  const { data: emps, error: empError } = await supabase
-    .from(DB_TABLES.EMPLOYEES)
-    .select('*')
-    .order('id', { ascending: true });
+  let emps: any[] = [];
+  let attendanceList: any[] = [];
+  let leavesList: any[] = [];
+  let balancesList: any[] = [];
+  let payrollList: any[] = [];
+  let advancesList: any[] = [];
+  let pinsList: any[] = [];
+  let quotaList: any[] = [];
 
-  if (empError) throw empError;
-  if (!emps) return [];
+  const token = typeof window !== 'undefined' ? localStorage.getItem('hrms_auth_token') : null;
+  let fetchedFromDirectory = false;
 
-  const { data: att, error: attError } = await supabase.from(DB_TABLES.ATTENDANCE).select('*');
-  const { data: leaves, error: leavesError } = await supabase.from(DB_TABLES.LEAVE_REQUESTS).select('*');
-  const { data: balances, error: balError } = await supabase.from(DB_TABLES.LEAVE_BALANCES).select('*');
-  const { data: payroll, error: payError } = await supabase.from(DB_TABLES.PAYROLL).select('*');
-  const { data: advances, error: advError } = await supabase.from(DB_TABLES.ADVANCE_REQUESTS).select('*');
-  const { data: pins, error: pinsError } = await supabase.from(DB_TABLES.LOCATION_PINS).select('*');
+  if (token) {
+    try {
+      const res = await fetch('/api/hrms/directory', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.status === 401) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('hrms_auth_token');
+          window.dispatchEvent(new CustomEvent('hrms:unauthorized'));
+        }
+        return [];
+      }
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        if (Array.isArray(json.employees) && json.employees.length > 0) {
+          emps = json.employees;
+          attendanceList = json.sms_hrms_attendance || [];
+          leavesList = json.sms_hrms_leave_requests || [];
+          balancesList = json.sms_hrms_leave_balances || [];
+          payrollList = json.sms_hrms_payroll || [];
+          advancesList = json.sms_hrms_advance_requests || [];
+          pinsList = json.sms_hrms_location_pins || [];
+          quotaList = json.sms_hrms_monthly_leave_quota || [];
+          fetchedFromDirectory = true;
+        }
+      }
+    } catch {
+      // directory request failed, fallback to Supabase
+    }
+  }
 
-  if (attError) console.error('Error fetching attendance:', attError);
-  if (leavesError) console.error('Error fetching leave_requests:', leavesError);
-  if (balError) console.error('Error fetching leave_balances:', balError);
-  if (payError) console.error('Error fetching payroll:', payError);
-  if (advError) console.error('Error fetching advances:', advError);
-  if (pinsError) console.error('Error fetching location_pins:', pinsError);
+  if (!fetchedFromDirectory) {
+    if (!token) {
+      const cached = typeof window !== 'undefined' ? localStorage.getItem('hrms_local_employees') : null;
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {}
+      }
+      return [];
+    }
 
-  const { data: quotas, error: quotaError } = await supabase.from(DB_TABLES.MONTHLY_LEAVE_QUOTA).select('*');
-  if (quotaError) console.error('Error fetching monthly quotas:', quotaError);
-  
+    const { data: dbEmps, error: empError } = await supabase
+      .from(DB_TABLES.EMPLOYEES)
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (empError) {
+      console.warn('Supabase directory fetch noticed:', empError.message);
+      const cached = typeof window !== 'undefined' ? localStorage.getItem('hrms_local_employees') : null;
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {}
+      }
+      return [];
+    }
+    if (!dbEmps) return [];
+    emps = dbEmps;
+
+    const { data: att } = await supabase.from(DB_TABLES.ATTENDANCE).select('*');
+    const { data: leaves } = await supabase.from(DB_TABLES.LEAVE_REQUESTS).select('*');
+    const { data: balances } = await supabase.from(DB_TABLES.LEAVE_BALANCES).select('*');
+    const { data: payroll } = await supabase.from(DB_TABLES.PAYROLL).select('*');
+    const { data: advances } = await supabase.from(DB_TABLES.ADVANCE_REQUESTS).select('*');
+    const { data: pins } = await supabase.from(DB_TABLES.LOCATION_PINS).select('*');
+    const { data: quotas } = await supabase.from(DB_TABLES.MONTHLY_LEAVE_QUOTA).select('*');
+
+    attendanceList = att || [];
+    leavesList = leaves || [];
+    balancesList = balances || [];
+    payrollList = payroll || [];
+    advancesList = advances || [];
+    pinsList = pins || [];
+    quotaList = quotas || [];
+  }
+
   const currentMonth = new Date().toISOString().substring(0, 7);
-  const quotaList = quotas || [];
-
-  const attendanceList = att || [];
-  const leavesList = leaves || [];
-  const balancesList = balances || [];
-  const payrollList = payroll || [];
-  const advancesList = advances || [];
-  const pinsList = pins || [];
 
   return emps.map(emp => {
     // Map leave balances
@@ -325,56 +381,7 @@ export async function toggleEmployeeStatus(id: string, status: 'active' | 'inact
 }
 
 export async function seedInitialDatabase() {
-  const employeesToSeed: any[] = [];
-
-  const { count } = await supabase
-    .from(DB_TABLES.EMPLOYEES)
-    .select('*', { count: 'exact', head: true });
-
-  if (count === 0) {
-    const { error: empErr } = await supabase.from(DB_TABLES.EMPLOYEES).insert(employeesToSeed);
-    if (empErr) console.error('Error seeding employees:', empErr);
-
-    const leaveBalancesToSeed: any[] = [];
-    employeesToSeed.forEach(emp => {
-      leaveBalancesToSeed.push(
-        { employee_id: emp.id, leave_type: 'sick', total_allotted: 6, used: emp.id === 'EMP-2026-089' ? 2 : emp.id === 'EMP-2026-112' ? 1 : 0 },
-        { employee_id: emp.id, leave_type: 'casual', total_allotted: 8, used: emp.id === 'EMP-2026-089' ? 3 : emp.id === 'EMP-2026-112' ? 1 : emp.id === 'EMP-2026-145' ? 2 : 0 }
-      );
-    });
-    await supabase.from(DB_TABLES.LEAVE_BALANCES).insert(leaveBalancesToSeed);
-
-    const leaveRequestsToSeed = [
-      { employee_id: 'EMP-2026-089', leave_type: 'sick', from_date: '2026-06-05', to_date: '2026-06-06', reason: 'Suffering from viral fever and cold.', status: 'Approved' },
-      { employee_id: 'EMP-2026-089', leave_type: 'casual', from_date: '2026-06-22', to_date: '2026-06-23', reason: 'Attending family function in hometown.', status: 'Approved' },
-      { employee_id: 'EMP-2026-112', leave_type: 'sick', from_date: '2026-06-12', to_date: '2026-06-12', reason: 'Severe migraine headache.', status: 'Approved' }
-    ];
-    await supabase.from(DB_TABLES.LEAVE_REQUESTS).insert(leaveRequestsToSeed);
-
-    const attendanceToSeed = [
-      { employee_id: 'EMP-2026-089', date: '2026-07-13', status: 'Present', check_in_time: '09:05:22', check_out_time: '18:12:45' },
-      { employee_id: 'EMP-2026-112', date: '2026-07-13', status: 'Present', check_in_time: '08:58:34' }
-    ];
-    await supabase.from(DB_TABLES.ATTENDANCE).insert(attendanceToSeed);
-
-    const payrollToSeed = [{
-      employee_id: 'EMP-2026-089', month: '2026-06', basic_pay: 45000,
-      allowances: [{ nameKey: 'hra', amount: 18000 }, { nameKey: 'medicalAllow', amount: 3000 }, { nameKey: 'conveyanceAllow', amount: 1500 }],
-      deductions: [{ nameKey: 'providentFund', amount: 5400 }, { nameKey: 'professionalTax', amount: 200 }],
-      net_pay: 58200
-    }];
-    await supabase.from(DB_TABLES.PAYROLL).insert(payrollToSeed);
-
-    const invoicesToSeed = [{
-      invoice_number: 'INV-2026-042', client_name: 'Apollo Corporate Health Services',
-      client_details: 'Plot No. 10, VIP Road, Visakhapatnam, Andhra Pradesh - 530003\nAttn: Accounts & Payroll Department\nPayment Term: Net 15 Days',
-      items: [
-        { id: '1', description: 'Consultant Pathologist Professional Services (July 2026)', quantity: 1, rate: 120000 },
-        { id: '2', description: 'On-site Medical Officer Charge - Contract Staffing', quantity: 22, rate: 3500 },
-        { id: '3', description: 'Administrative Support & Payroll Management Fee', quantity: 1, rate: 15000 }
-      ],
-      total: 212000, payable_amount: 250160, tax_percent: 18, due_date: '2026-07-25'
-    }];
-    await supabase.from(DB_TABLES.INVOICES).insert(invoicesToSeed);
-  }
+  // Remote database schema and tables are already provisioned on backend.
+  // Avoid client-side PostgREST writes under RLS.
+  return;
 }
