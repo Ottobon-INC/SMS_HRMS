@@ -4,8 +4,16 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from both server directory and parent workspace directory
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config();
 
 const app = express();
@@ -20,20 +28,23 @@ const io = new Server(httpServer, {
   }
 });
 
-// Initialize Supabase Client with schema 'dlabs'
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://srv1674496.hstgr.cloud';
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3Nzg4NjkwNTEsImV4cCI6MjA5NDIyOTA1MX0.03wXynvolkn0WKEGR9SjR8Qk1eNPfDsvjFOVMvhWjn0';
+// Initialize Supabase Client strictly from environment variables
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  db: { schema: 'dlabs' },
+if (!supabaseUrl) {
+  console.warn("⚠️ SUPABASE_URL / VITE_SUPABASE_URL missing from environment (.env)!");
+}
+if (!supabaseKey) {
+  console.warn("⚠️ SUPABASE_SERVICE_ROLE_KEY missing from environment (.env)! Admin DB queries will fail.");
+}
+
+const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey, {
+  db: { schema: process.env.SUPABASE_SCHEMA || 'dlabs' },
   auth: { persistSession: false }
-});
+}) : null;
 
-const JWT_SECRET = process.env.JWT_SECRET || 'sms_hrms_jwt_secret_2026';
+const JWT_SECRET = process.env.JWT_SECRET || (supabaseKey ? supabaseKey.slice(-32) : 'sms_hrms_jwt_secret');
 
 function signJwt(payload, secret = JWT_SECRET) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
@@ -55,12 +66,23 @@ function verifyJwt(token, secret = JWT_SECRET) {
 
 // Basic health check endpoint
 app.get(['/health', '/api/health'], (req, res) => {
-  res.json({ status: 'ok', service: 'SMS HRMS Backend', time: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    service: 'SMS HRMS Backend',
+    databaseConfigured: !!supabase,
+    time: new Date().toISOString()
+  });
 });
 
 // --- AUTHENTICATION API ---
 app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
   try {
+    if (!supabase) {
+      return res.status(503).json({
+        error: 'Database configuration missing. Please verify SUPABASE_SERVICE_ROLE_KEY and SUPABASE_URL in .env'
+      });
+    }
+
     const { email, password } = req.body || {};
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -73,7 +95,7 @@ app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
 
     if (error) {
       console.error('Supabase employee lookup error:', error);
-      return res.status(500).json({ error: 'Database query failed' });
+      return res.status(500).json({ error: 'Database query failed', details: error.message });
     }
 
     const emp = (emps || []).find(e => (e.password || 'password') === password);
@@ -99,13 +121,17 @@ app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
     });
   } catch (err) {
     console.error('Login error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error', details: err?.message || String(err) });
   }
 });
 
 // --- DIRECTORY API ---
 app.get(['/api/hrms/directory', '/hrms/directory'], async (req, res) => {
   try {
+    if (!supabase) {
+      return res.status(503).json({ error: 'Database configuration missing' });
+    }
+
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -113,13 +139,13 @@ app.get(['/api/hrms/directory', '/hrms/directory'], async (req, res) => {
 
     const [
       { data: employees, error: empErr },
-      { data: attendance, error: attErr },
-      { data: leaveRequests, error: lReqErr },
-      { data: leaveBalances, error: lBalErr },
-      { data: payroll, error: payErr },
-      { data: advanceRequests, error: advErr },
-      { data: locationPins, error: pinErr },
-      { data: monthlyLeaveQuota, error: qErr }
+      { data: attendance },
+      { data: leaveRequests },
+      { data: leaveBalances },
+      { data: payroll },
+      { data: advanceRequests },
+      { data: locationPins },
+      { data: monthlyLeaveQuota }
     ] = await Promise.all([
       supabase.from('sms_hrms_employees').select('*').order('id', { ascending: true }),
       supabase.from('sms_hrms_attendance').select('*'),
@@ -145,101 +171,109 @@ app.get(['/api/hrms/directory', '/hrms/directory'], async (req, res) => {
     });
   } catch (err) {
     console.error('Directory fetch error:', err);
-    return res.status(500).json({ error: 'Failed to fetch directory data' });
+    return res.status(500).json({ error: 'Failed to fetch directory data', details: err?.message });
   }
 });
 
 // --- OFFICE LOCATIONS API ---
 app.get(['/api/hrms/office-locations', '/hrms/office-locations'], async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
     const { data, error } = await supabase.from('sms_hrms_office_locations').select('*');
     if (error) throw error;
     return res.json({ locations: data || [] });
   } catch (err) {
     console.error('Office locations fetch error:', err);
-    return res.status(500).json({ error: 'Failed to fetch office locations' });
+    return res.status(500).json({ error: 'Failed to fetch office locations', details: err?.message });
   }
 });
 
 app.post(['/api/hrms/office-locations', '/hrms/office-locations'], async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
     const { data, error } = await supabase.from('sms_hrms_office_locations').insert([req.body]).select('*').single();
     if (error) throw error;
     return res.json({ location: data });
   } catch (err) {
     console.error('Office location create error:', err);
-    return res.status(500).json({ error: 'Failed to create office location' });
+    return res.status(500).json({ error: 'Failed to create office location', details: err?.message });
   }
 });
 
 app.delete(['/api/hrms/office-locations/:id', '/hrms/office-locations/:id'], async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
     const { id } = req.params;
     const { error } = await supabase.from('sms_hrms_office_locations').delete().eq('id', id);
     if (error) throw error;
     return res.json({ success: true });
   } catch (err) {
     console.error('Office location delete error:', err);
-    return res.status(500).json({ error: 'Failed to delete office location' });
+    return res.status(500).json({ error: 'Failed to delete office location', details: err?.message });
   }
 });
 
 // --- ALLOWED LOCATIONS API ---
 app.get(['/api/hrms/allowed-locations', '/hrms/allowed-locations'], async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
     const { data, error } = await supabase.from('sms_hrms_office_locations').select('*').eq('is_active', true);
     if (error) throw error;
     return res.json({ locations: data || [] });
   } catch (err) {
     console.error('Allowed locations fetch error:', err);
-    return res.status(500).json({ error: 'Failed to fetch allowed locations' });
+    return res.status(500).json({ error: 'Failed to fetch allowed locations', details: err?.message });
   }
 });
 
 // --- TASKS API ---
 app.get(['/api/tasks', '/tasks'], async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
     const { data, error } = await supabase.from('sms_hrms_tasks').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     return res.json({ tasks: data || [] });
   } catch (err) {
     console.error('Tasks fetch error:', err);
-    return res.status(500).json({ error: 'Failed to fetch tasks' });
+    return res.status(500).json({ error: 'Failed to fetch tasks', details: err?.message });
   }
 });
 
 app.post(['/api/tasks', '/tasks'], async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
     const { data, error } = await supabase.from('sms_hrms_tasks').insert([req.body]).select('*').single();
     if (error) throw error;
     return res.json({ task: data });
   } catch (err) {
     console.error('Task create error:', err);
-    return res.status(500).json({ error: 'Failed to create task' });
+    return res.status(500).json({ error: 'Failed to create task', details: err?.message });
   }
 });
 
 app.patch(['/api/tasks/:id', '/tasks/:id'], async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
     const { id } = req.params;
     const { data, error } = await supabase.from('sms_hrms_tasks').update(req.body).eq('id', id).select('*').single();
     if (error) throw error;
     return res.json({ task: data });
   } catch (err) {
     console.error('Task update error:', err);
-    return res.status(500).json({ error: 'Failed to update task' });
+    return res.status(500).json({ error: 'Failed to update task', details: err?.message });
   }
 });
 
 app.delete(['/api/tasks/:id', '/tasks/:id'], async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
     const { id } = req.params;
     const { error } = await supabase.from('sms_hrms_tasks').delete().eq('id', id);
     if (error) throw error;
     return res.json({ success: true });
   } catch (err) {
     console.error('Task delete error:', err);
-    return res.status(500).json({ error: 'Failed to delete task' });
+    return res.status(500).json({ error: 'Failed to delete task', details: err?.message });
   }
 });
 
