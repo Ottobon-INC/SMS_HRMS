@@ -18,13 +18,13 @@ services:
   backend:
     build:
       context: ./server
-    ports:
-      - "9640:9640"
+    network_mode: host
     restart: always
     env_file:
       - .env
     environment:
       - NODE_ENV=production
+      - PORT=9640
       - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
       - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}

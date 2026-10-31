@@ -5,8 +5,16 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import path from 'path';
+import dns from 'dns';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
+
+// Prioritize IPv4 over IPv6 in Node to avoid IPv6 drops in Docker bridge networks
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (e) {
+  // Ignored on environments where unsupported
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -95,7 +103,12 @@ app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
 
     if (error) {
       console.error('Supabase employee lookup error:', error);
-      return res.status(500).json({ error: 'Database query failed', details: error.message });
+      return res.status(500).json({
+        error: 'Database query failed',
+        details: error.message,
+        cause: error.cause ? (error.cause.message || String(error.cause)) : undefined,
+        code: error.code || error.cause?.code
+      });
     }
 
     const emp = (emps || []).find(e => (e.password || 'password') === password);
@@ -121,7 +134,11 @@ app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
     });
   } catch (err) {
     console.error('Login error:', err);
-    return res.status(500).json({ error: 'Internal server error', details: err?.message || String(err) });
+    return res.status(500).json({
+      error: 'Internal server error',
+      details: err?.message || String(err),
+      cause: err?.cause ? (err.cause.message || String(err.cause)) : undefined
+    });
   }
 });
 
@@ -323,6 +340,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 9640;
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SMS HRMS API & Chat Server running on port ${PORT}`);
 });
