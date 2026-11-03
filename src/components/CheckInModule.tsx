@@ -146,7 +146,7 @@ export default function CheckInModule({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        const photoData = canvas.toDataURL('image/jpeg', 0.55);
         stopCamera();
 
         setIsProcessing(true);
@@ -190,7 +190,7 @@ export default function CheckInModule({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        const photoData = canvas.toDataURL('image/jpeg', 0.55);
         stopCamera();
         await handlePinSubmit(photoData);
       }

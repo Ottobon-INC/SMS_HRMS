@@ -135,7 +135,8 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
       return { success: true };
     } catch (err: any) {
       console.error("Check-in error:", err);
-      return { success: false, error: "Failed to record attendance. Please try again." };
+      const msg = err?.message || err?.details || "Failed to record attendance. Please try again.";
+      return { success: false, error: msg };
     }
   };
 

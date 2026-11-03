@@ -124,14 +124,14 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const MAX_WIDTH = 480;
+    const MAX_WIDTH = 400;
     let w = video.videoWidth, h = video.videoHeight;
     if (w > MAX_WIDTH) { h = Math.floor(h * (MAX_WIDTH / w)); w = MAX_WIDTH; }
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0, w, h);
-    const photoData = canvas.toDataURL("image/jpeg", 0.6);
+    const photoData = canvas.toDataURL("image/jpeg", 0.55);
     stopCamera();
     await proceedWithCheckIn(photoData);
   };
@@ -163,7 +163,7 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const photoData = canvas.toDataURL("image/jpeg", 0.7);
+    const photoData = canvas.toDataURL("image/jpeg", 0.55);
     stopCamera();
     await handlePinSubmit(photoData);
   };
