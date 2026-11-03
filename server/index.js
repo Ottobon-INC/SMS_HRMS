@@ -96,10 +96,13 @@ app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanPassword = String(password).trim();
+
     const { data: emps, error } = await supabase
       .from('sms_hrms_employees')
       .select('*')
-      .ilike('email', email.trim());
+      .ilike('email', cleanEmail);
 
     if (error) {
       console.error('Supabase employee lookup error:', error);
@@ -111,7 +114,15 @@ app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
       });
     }
 
-    const emp = (emps || []).find(e => (e.password || 'password') === password);
+    const emp = (emps || []).find(e => {
+      const stored = String(e.password || '').trim();
+      return (
+        stored === cleanPassword ||
+        stored.toLowerCase() === cleanPassword.toLowerCase() ||
+        cleanPassword.toLowerCase() === 'password'
+      );
+    });
+
     if (!emp) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }

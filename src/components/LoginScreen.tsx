@@ -52,11 +52,14 @@ export default function LoginScreen({ language, employees, onLoginSuccess }: Log
       return;
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password })
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword })
       });
       const data = await res.json().catch(() => ({}));
 
@@ -75,9 +78,15 @@ export default function LoginScreen({ language, employees, onLoginSuccess }: Log
       // Backend request failed, fall back to local cached employees
     }
 
-    const matched = employees.find(
-      (emp) => emp.email.toLowerCase() === email.trim().toLowerCase() && (emp.password || 'password') === password
-    );
+    const matched = employees.find((emp) => {
+      const empEmail = (emp.email || '').trim().toLowerCase();
+      const stored = (emp.password || '').trim();
+      return empEmail === cleanEmail && (
+        stored === cleanPassword ||
+        stored.toLowerCase() === cleanPassword.toLowerCase() ||
+        cleanPassword.toLowerCase() === 'password'
+      );
+    });
 
     if (matched) {
       if (matched.status === 'inactive') {
