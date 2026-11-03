@@ -18,7 +18,7 @@ export default defineConfig(() => {
       host: true,  // Allow access from any device on the same Wi-Fi network
       proxy: {
         '/api': {
-          target: 'http://srv1674496.hstgr.cloud:9640',
+          target: process.env.VITE_BACKEND_URL || process.env.BACKEND_URL || 'http://127.0.0.1:9640',
           changeOrigin: true,
           secure: false,
         },
