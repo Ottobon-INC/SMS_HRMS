@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyRound, Mail, Sparkles, UserCheck, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, Mail, Eye, EyeOff } from 'lucide-react';
 import { Language, Employee } from '../types';
 import { translations } from '../translations';
 import SmsLogo from './SmsLogo';
@@ -21,24 +21,18 @@ export default function LoginScreen({ language, employees, onLoginSuccess }: Log
   const loginText = {
     en: {
       subtitle: "Please sign in to your HR Portal account.",
-      quickDemo: "Select a Demo Profile to log in instantly:",
-      orEmail: "Or enter credentials below:",
       emailLabel: "Email Address",
       passLabel: "Password",
       btnIn: "Sign In",
-      errInvalid: "Invalid email or password. Hint: password is 'password'",
-      hintText: "Pre-configured demo password is 'password'",
+      errInvalid: "Invalid email or password. Please check your credentials.",
       errInactive: "Your account is inactive. Please contact your administrator.",
     },
     te: {
       subtitle: "దయచేసి మీ హచ్.ఆర్ పోర్టల్ ఖాతాకు లాగిన్ అవ్వండి.",
-      quickDemo: "వెంటనే లాగిన్ అవ్వడానికి క్రింది డెమో ప్రొఫైల్‌లలో ఒకటి ఎంచుకోండి:",
-      orEmail: "లేదా క్రింద మీ వివరాలు రాయండి:",
       emailLabel: "ఈమెయిల్ చిరునామా",
       passLabel: "పాస్‌వర్డ్",
       btnIn: "లాగిన్ అవ్వండి",
-      errInvalid: "ఈమెయిల్ లేదా పాస్‌వర్డ్ తప్పు. హింట్: పాస్‌వర్డ్ 'password'",
-      hintText: "డెమో కోసం పాస్‌వర్డ్ 'password' ఉపయోగించండి",
+      errInvalid: "ఈమెయిల్ లేదా పాస్‌వర్డ్ తప్పు. దయచేసి వివరాలను సరిచూసుకోండి.",
       errInactive: "మీ ఖాతా యాక్టివ్ గా లేదు. దయచేసి అడ్మిన్ ని సంప్రదించండి.",
     }
   }[language];
@@ -73,99 +67,38 @@ export default function LoginScreen({ language, employees, onLoginSuccess }: Log
         }
         onLoginSuccess(data.employee);
         return;
+      } else {
+        setError(data.error || loginText.errInvalid);
+        return;
       }
     } catch {
-      // Backend request failed, fall back to local cached employees
-    }
-
-    const matched = employees.find((emp) => {
-      const empEmail = (emp.email || '').trim().toLowerCase();
-      const stored = (emp.password || '').trim();
-      return empEmail === cleanEmail && (
-        stored === cleanPassword ||
-        stored.toLowerCase() === cleanPassword.toLowerCase() ||
-        cleanPassword.toLowerCase() === 'password'
-      );
-    });
-
-    if (matched) {
-      if (matched.status === 'inactive') {
-        setError(loginText.errInactive);
-      } else {
-        if (!localStorage.getItem('hrms_auth_token')) {
-          localStorage.setItem('hrms_auth_token', 'offline_demo_token_' + matched.id);
-        }
-        onLoginSuccess(matched);
-      }
-      return;
-    }
-
-    // Direct admin safeguard fallback if backend was temporarily unreachable or returned 401
-    const isSureshAdmin = cleanEmail === 'suresh@smslabs.in' && (
-      cleanPassword.toLowerCase() === 'sms@050217' ||
-      cleanPassword.toLowerCase() === 'password' ||
-      cleanPassword.includes('050217')
-    );
-
-    if (isSureshAdmin) {
-      const adminEmp: Employee = {
-        id: 'ADM-2026-001',
-        name: 'Rajana.Suresh Kumar',
-        email: 'suresh@smslabs.in',
-        password: 'Sms@050217',
-        role: 'admin',
-        designation: 'Admin',
-        joining_date: '2018-09-01',
-        basic_pay: 50000,
-        created_at: '2026-07-14T18:39:33.668324+00:00',
-        gender: 'male',
-        experience: 7,
-        status: 'active',
-        phone: '07702294163',
-        department: 'Administration',
-        attendanceRecords: [],
-        checkInLogs: [],
-        leaveRequests: [],
-        leaveBalances: [],
-        payslips: [],
-        advances: []
-      };
-      if (!localStorage.getItem('hrms_auth_token')) {
-        localStorage.setItem('hrms_auth_token', 'offline_auth_token_ADM-2026-001_' + Date.now());
-      }
-      onLoginSuccess(adminEmp);
-      return;
-    }
-
-    setError(loginText.errInvalid);
-  };
-
-  const handleQuickLogin = async (emp: Employee) => {
-    if (emp.status === 'inactive') {
-      setError(loginText.errInactive);
-      return;
-    }
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emp.email.trim(), password: emp.password || 'password' })
+      // Backend request failed, check if cached employees exist
+      const matched = employees.find((emp) => {
+        const empEmail = (emp.email || '').trim().toLowerCase();
+        const stored = (emp.password || '').trim();
+        return empEmail === cleanEmail && (
+          stored === cleanPassword ||
+          stored.toLowerCase() === cleanPassword.toLowerCase()
+        );
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.token) {
-        localStorage.setItem('hrms_auth_token', data.token);
+
+      if (matched) {
+        if (matched.status === 'inactive') {
+          setError(loginText.errInactive);
+        } else {
+          onLoginSuccess(matched);
+        }
+        return;
       }
-    } catch {}
-    if (!localStorage.getItem('hrms_auth_token')) {
-      localStorage.setItem('hrms_auth_token', 'offline_demo_token_' + emp.id);
+
+      setError(language === 'te' ? 'సర్వర్ కనెక్ట్ అవ్వడం లేదు' : 'Unable to connect to server. Please verify your connection.');
     }
-    onLoginSuccess(emp);
   };
 
   return (
     <div id="login-container" className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 font-sans antialiased">
       <div className="w-full max-w-xl bg-white rounded-[32px] border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden flex flex-col p-6 sm:p-10 md:p-12 space-y-8">
-        
+
         {/* Portal Header */}
         <div className="text-center space-y-4 flex flex-col items-center">
           <SmsLogo className="justify-center" textSize="text-2xl sm:text-3xl font-black" />

@@ -166,15 +166,7 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
     }
     
     try {
-      const token = localStorage.getItem('hrms_auth_token');
-      await fetch('/api/hrms/attendance/force-close', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ empId, date, time })
-      });
+      await attendanceService.forceCloseAttendanceSession(empId, date, time);
     } catch (err) {
       console.error("Error in force close session:", err);
     }
