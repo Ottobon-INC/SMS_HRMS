@@ -2,8 +2,6 @@ import { AttendanceStatus, PunchType } from '../types';
 import * as attendanceService from '../lib/services/attendance-service';
 import * as leaveService from '../lib/services/leave-service';
 import { checkGeofence, resolveAllowedLocations } from '../lib/geofence';
-import { supabase } from '../lib/supabase-client';
-import { DB_TABLES } from '../core/database.tables';
 
 /** Helper: get GPS position with a configurable timeout and accuracy mode */
 function getPosition(enableHighAccuracy: boolean, timeout: number, maximumAge: number = 180000): Promise<GeolocationPosition> {
@@ -125,22 +123,10 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
         await attendanceService.autoExpireMissedPunches(empId);
 
         // 2. Check for missed punch-out from previous days before allowing punch in
-        const missedDate = await attendanceService.checkMissedPunchOut(empId);
-        if (missedDate) {
-          // Check if a PENDING request already exists for this date
-          const { data: existing } = await supabase
-            .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
-            .select('id')
-            .eq('employee_id', empId)
-            .eq('missed_date', missedDate)
-            .eq('status', 'pending')
-            .maybeSingle();
-            
-          if (!existing) {
-            // No request yet — prompt employee to submit one
-            return { success: false, error: `missed_punchout:${missedDate}` };
-          }
-          // If existing pending request found, allow punch in for today while admin reviews
+        const missedCheck = await attendanceService.checkMissedPunchOut(empId);
+        if (missedCheck && missedCheck.missedDate && !missedCheck.hasPending) {
+          // No pending request yet — prompt employee to submit one
+          return { success: false, error: `missed_punchout:${missedCheck.missedDate}` };
         }
         await attendanceService.clockInEmployee(empId, locationStr, latLngStr, photoData, punchType, punchNote);
       }
@@ -179,23 +165,18 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
       return;
     }
     
-    const timeStr = time || '18:00:00'; // Default to 6 PM if not provided
-    
-    // Find active session for that date
-    const { data: activeSessions, error: fetchErr } = await supabase
-      .from(DB_TABLES.ATTENDANCE)
-      .select('id')
-      .eq('employee_id', empId)
-      .eq('date', date)
-      .is('check_out_time', null);
-      
-    if (fetchErr || !activeSessions || activeSessions.length === 0) return;
-    
-    for (const session of activeSessions) {
-      await supabase
-        .from(DB_TABLES.ATTENDANCE)
-        .update({ check_out_time: timeStr, punch_note: 'Forced close by Admin' })
-        .eq('id', session.id);
+    try {
+      const token = localStorage.getItem('hrms_auth_token');
+      await fetch('/api/hrms/attendance/force-close', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ empId, date, time })
+      });
+    } catch (err) {
+      console.error("Error in force close session:", err);
     }
     
     await loadData();

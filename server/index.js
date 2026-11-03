@@ -192,6 +192,369 @@ app.get(['/api/hrms/directory', '/hrms/directory'], async (req, res) => {
   }
 });
 
+// --- ATTENDANCE MANAGEMENT APIS ---
+app.post(['/api/hrms/attendance/record', '/hrms/attendance/record'], async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    const { empId, date, status, checkIn, checkOut } = req.body || {};
+    if (!empId || !date || !status) {
+      return res.status(400).json({ error: 'empId, date, and status are required' });
+    }
+
+    // Capitalize status for DB consistency (Present, Absent, Half-day, Leave, Holiday, Mispunch, Weekoff)
+    const dbStatus = status.charAt(0).toUpperCase() + status.slice(1);
+
+    // Check if an attendance record exists for this employee and date
+    const { data: existing, error: fetchErr } = await supabase
+      .from('sms_hrms_attendance')
+      .select('id, session_number')
+      .eq('employee_id', empId)
+      .eq('date', date)
+      .order('session_number', { ascending: true })
+      .limit(1);
+
+    if (fetchErr) throw fetchErr;
+
+    let result;
+    if (existing && existing.length > 0) {
+      const updatePayload = {
+        status: dbStatus
+      };
+      if (checkIn !== undefined) updatePayload.check_in_time = checkIn || null;
+      if (checkOut !== undefined) updatePayload.check_out_time = checkOut || null;
+
+      const { data, error } = await supabase
+        .from('sms_hrms_attendance')
+        .update(updatePayload)
+        .eq('id', existing[0].id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      result = data;
+    } else {
+      const insertPayload = {
+        employee_id: empId,
+        date: date,
+        status: dbStatus,
+        check_in_time: checkIn || null,
+        check_out_time: checkOut || null,
+        session_number: 1
+      };
+      const { data, error } = await supabase
+        .from('sms_hrms_attendance')
+        .insert([insertPayload])
+        .select('*')
+        .single();
+      if (error) throw error;
+      result = data;
+    }
+
+    // If marked absent, deduct penalty leave (casual, 2 days)
+    if (status.toLowerCase() === 'absent') {
+      try {
+        const { data: balance } = await supabase
+          .from('sms_hrms_leave_balances')
+          .select('*')
+          .eq('employee_id', empId)
+          .eq('leave_type', 'casual')
+          .maybeSingle();
+
+        if (balance) {
+          await supabase
+            .from('sms_hrms_leave_balances')
+            .update({ used: Number(balance.used || 0) + 2 })
+            .eq('id', balance.id);
+        } else {
+          await supabase
+            .from('sms_hrms_leave_balances')
+            .insert([{ employee_id: empId, leave_type: 'casual', total_allotted: 8, used: 2 }]);
+        }
+      } catch (leaveErr) {
+        console.warn('Leave penalty deduction warning:', leaveErr);
+      }
+    }
+
+    return res.json({ success: true, record: result });
+  } catch (err) {
+    console.error('Update attendance record error:', err);
+    return res.status(500).json({ error: 'Failed to update attendance record', details: err?.message });
+  }
+});
+
+app.post(['/api/hrms/attendance/force-close', '/hrms/attendance/force-close'], async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    const { empId, date, time } = req.body || {};
+    if (!empId || !date) {
+      return res.status(400).json({ error: 'empId and date are required' });
+    }
+
+    const timeStr = time || '18:00:00';
+    const { data: activeSessions, error: fetchErr } = await supabase
+      .from('sms_hrms_attendance')
+      .select('id')
+      .eq('employee_id', empId)
+      .eq('date', date)
+      .is('check_out_time', null);
+
+    if (fetchErr) throw fetchErr;
+
+    if (activeSessions && activeSessions.length > 0) {
+      for (const session of activeSessions) {
+        await supabase
+          .from('sms_hrms_attendance')
+          .update({ check_out_time: timeStr, punch_note: 'Forced close by Admin' })
+          .eq('id', session.id);
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Force close session error:', err);
+    return res.status(500).json({ error: 'Failed to force close session', details: err?.message });
+  }
+});
+
+app.post(['/api/hrms/attendance/clock-in', '/hrms/attendance/clock-in'], async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    const { empId, location, latLng, photoUrl, punchType, punchNote } = req.body || {};
+    if (!empId) {
+      return res.status(400).json({ error: 'empId is required' });
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const timeStr = new Date().toTimeString().split(' ')[0];
+
+    const { data: existingSessions, error: sessionErr } = await supabase
+      .from('sms_hrms_attendance')
+      .select('session_number')
+      .eq('employee_id', empId)
+      .eq('date', todayStr);
+
+    if (sessionErr) throw sessionErr;
+
+    let nextSessionNumber = 1;
+    if (existingSessions && existingSessions.length > 0) {
+      const maxSession = Math.max(...existingSessions.map((s) => s.session_number || 1));
+      nextSessionNumber = maxSession + 1;
+    }
+
+    const payload = {
+      employee_id: empId,
+      date: todayStr,
+      status: 'Present',
+      check_in_time: timeStr,
+      check_in_location: location || null,
+      check_in_lat_lng: latLng || null,
+      punch_type: punchType || 'in_office',
+      punch_note: punchNote || null,
+      session_number: nextSessionNumber
+    };
+    if (photoUrl) payload.check_in_photo_url = photoUrl;
+
+    const { data, error } = await supabase
+      .from('sms_hrms_attendance')
+      .insert([payload])
+      .select('*')
+      .single();
+
+    if (error && (error.code === '42703' || error.code === 'PGRST204') && photoUrl) {
+      delete payload.check_in_photo_url;
+      const retry = await supabase.from('sms_hrms_attendance').insert([payload]).select('*').single();
+      if (retry.error) throw retry.error;
+      return res.json({ success: true, record: retry.data });
+    } else if (error) {
+      throw error;
+    }
+
+    return res.json({ success: true, record: data });
+  } catch (err) {
+    console.error('Clock-in error:', err);
+    return res.status(500).json({ error: 'Failed to clock in', details: err?.message });
+  }
+});
+
+app.post(['/api/hrms/attendance/clock-out', '/hrms/attendance/clock-out'], async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    const { empId, photoUrl, location, latLng } = req.body || {};
+    if (!empId) {
+      return res.status(400).json({ error: 'empId is required' });
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const timeStr = new Date().toTimeString().split(' ')[0];
+
+    const { data: existingSessions, error: fetchErr } = await supabase
+      .from('sms_hrms_attendance')
+      .select('id, session_number, check_out_time')
+      .eq('employee_id', empId)
+      .eq('date', todayStr)
+      .order('session_number', { ascending: false });
+
+    if (fetchErr) throw fetchErr;
+
+    const activeSession = existingSessions?.find(s => s.check_out_time === null);
+
+    if (activeSession) {
+      const payload = {
+        check_out_time: timeStr
+      };
+      if (photoUrl) payload.check_out_photo_url = photoUrl;
+      if (location) payload.check_out_location = location;
+      if (latLng) payload.check_out_lat_lng = latLng;
+
+      const { data, error } = await supabase
+        .from('sms_hrms_attendance')
+        .update(payload)
+        .eq('id', activeSession.id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      return res.json({ success: true, record: data });
+    } else {
+      let nextSession = 1;
+      if (existingSessions && existingSessions.length > 0) {
+        nextSession = Math.max(...existingSessions.map(s => s.session_number || 1)) + 1;
+      }
+
+      const payload = {
+        employee_id: empId,
+        date: todayStr,
+        status: 'Present',
+        check_out_time: timeStr,
+        session_number: nextSession
+      };
+      if (photoUrl) payload.check_out_photo_url = photoUrl;
+      if (location) payload.check_out_location = location;
+      if (latLng) payload.check_out_lat_lng = latLng;
+
+      const { data, error } = await supabase
+        .from('sms_hrms_attendance')
+        .insert([payload])
+        .select('*')
+        .single();
+      if (error) throw error;
+      return res.json({ success: true, record: data });
+    }
+  } catch (err) {
+    console.error('Clock-out error:', err);
+    return res.status(500).json({ error: 'Failed to clock out', details: err?.message });
+  }
+});
+
+app.get(['/api/hrms/attendance/missed-punchout', '/hrms/attendance/missed-punchout'], async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    const { empId } = req.query;
+    if (!empId) return res.status(400).json({ error: 'empId is required' });
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('sms_hrms_attendance')
+      .select('date')
+      .eq('employee_id', empId)
+      .is('check_out_time', null)
+      .lt('date', todayStr)
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      for (const session of data) {
+        const { data: approvedReq } = await supabase
+          .from('sms_hrms_missed_punch_requests')
+          .select('id')
+          .eq('employee_id', empId)
+          .eq('missed_date', session.date)
+          .eq('status', 'approved')
+          .maybeSingle();
+
+        if (approvedReq) {
+          await supabase
+            .from('sms_hrms_attendance')
+            .update({ check_out_time: '18:00:00', punch_note: 'Auto-closed by system (Previously Approved)' })
+            .eq('employee_id', empId)
+            .eq('date', session.date)
+            .is('check_out_time', null);
+        } else {
+          // Check if a pending request exists
+          const { data: pendingReq } = await supabase
+            .from('sms_hrms_missed_punch_requests')
+            .select('id')
+            .eq('employee_id', empId)
+            .eq('missed_date', session.date)
+            .eq('status', 'pending')
+            .maybeSingle();
+
+          return res.json({ missedDate: session.date, hasPending: !!pendingReq });
+        }
+      }
+    }
+
+    return res.json({ missedDate: null, hasPending: false });
+  } catch (err) {
+    console.error('Check missed punchout error:', err);
+    return res.status(500).json({ error: 'Failed to check missed punchout', details: err?.message });
+  }
+});
+
+app.post(['/api/hrms/attendance/auto-expire-missed', '/hrms/attendance/auto-expire-missed'], async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    const { empId } = req.body || {};
+    if (!empId) return res.status(400).json({ error: 'empId is required' });
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const cutoffTime = yesterday.toISOString();
+
+    const { data: expiredRequests, error: fetchErr } = await supabase
+      .from('sms_hrms_missed_punch_requests')
+      .select('id, missed_date')
+      .eq('employee_id', empId)
+      .eq('punch_type', 'out')
+      .eq('status', 'pending')
+      .lt('created_at', cutoffTime);
+
+    if (fetchErr) throw fetchErr;
+
+    if (expiredRequests && expiredRequests.length > 0) {
+      for (const reqItem of expiredRequests) {
+        const { data: att } = await supabase
+          .from('sms_hrms_attendance')
+          .select('id')
+          .eq('employee_id', empId)
+          .eq('date', reqItem.missed_date)
+          .limit(1);
+
+        if (att && att.length > 0) {
+          await supabase
+            .from('sms_hrms_attendance')
+            .update({ status: 'Half-day', check_out_time: '18:00:00', punch_note: 'Auto-closed by system (Missed punch)' })
+            .eq('id', att[0].id);
+        }
+
+        await supabase
+          .from('sms_hrms_missed_punch_requests')
+          .update({
+            status: 'rejected',
+            admin_note: 'Auto-expired: 24-hr window passed. Marked as half-day.',
+            resolved_at: new Date().toISOString()
+          })
+          .eq('id', reqItem.id);
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Auto expire missed punches error:', err);
+    return res.status(500).json({ error: 'Failed to auto-expire missed punches', details: err?.message });
+  }
+});
+
 // --- OFFICE LOCATIONS API ---
 app.get(['/api/hrms/office-locations', '/hrms/office-locations'], async (req, res) => {
   try {
