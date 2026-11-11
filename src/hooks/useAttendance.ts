@@ -4,7 +4,7 @@ import * as leaveService from '../lib/services/leave-service';
 import { checkGeofence, resolveAllowedLocations } from '../lib/geofence';
 
 /** Helper: get GPS position with a configurable timeout and accuracy mode */
-function getPosition(enableHighAccuracy: boolean, timeout: number, maximumAge: number = 180000): Promise<GeolocationPosition> {
+function getPosition(enableHighAccuracy: boolean, timeout: number, maximumAge: number = 0): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error("Geolocation is not supported by your browser."));
@@ -12,7 +12,7 @@ function getPosition(enableHighAccuracy: boolean, timeout: number, maximumAge: n
     }
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       timeout,
-      maximumAge, // Allow cached GPS up to 3 minutes for instant indoor check-ins
+      maximumAge, // 0 = real-time fresh coordinates, preventing stale travel cache
       enableHighAccuracy,
     });
   });
@@ -32,19 +32,23 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
       let latitude: number | null = null;
       let longitude: number | null = null;
 
-      // STEP 1: GPS Position Acquisition
+      let accuracyMeters: number | undefined = undefined;
+
+      // STEP 1: GPS Position Acquisition (Always prioritize fresh high-accuracy satellite/Wi-Fi GPS)
       try {
         let position: GeolocationPosition | null = null;
         try {
-          // Fast-first: try network/cached location first (6s timeout, 3-minute cache)
-          position = await getPosition(false, 6000, 180000);
-        } catch {
-          // High-accuracy fallback: give 20 seconds for satellite fix indoors
-          position = await getPosition(true, 20000, 60000);
+          // High-accuracy first (satellite + Wi-Fi) with fresh 0s cache (no stale commute location)
+          position = await getPosition(true, 10000, 0);
+        } catch (highAccErr) {
+          console.warn("High-accuracy GPS attempt note:", highAccErr);
+          // Fallback to network location if satellite lock times out
+          position = await getPosition(false, 6000, 5000);
         }
 
         latitude = position.coords.latitude;
         longitude = position.coords.longitude;
+        accuracyMeters = position.coords.accuracy;
         latLngStr = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
       } catch (gpsErr: any) {
         console.warn("Could not get GPS position:", gpsErr);
@@ -98,7 +102,7 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
         try {
           const today = new Date().toISOString().split('T')[0];
           const allowedLocations = await resolveAllowedLocations(empId, today);
-          const geoCheck = checkGeofence(latitude, longitude, allowedLocations);
+          const geoCheck = checkGeofence(latitude, longitude, allowedLocations, accuracyMeters);
           if (!geoCheck.allowed) {
             return { success: false, geoError: geoCheck };
           }

@@ -26,7 +26,8 @@ export interface GeoCheckResult {
 /** Check if employee GPS is within any allowed location's radius */
 export function checkGeofence(
   userLat: number, userLng: number,
-  allowedLocations: OfficeLocation[]
+  allowedLocations: OfficeLocation[],
+  accuracyMeters?: number
 ): GeoCheckResult {
   if (allowedLocations.length === 0) {
     return { allowed: false, nearestOfficeName: "No configured locations" };
@@ -42,7 +43,11 @@ export function checkGeofence(
       minDistance = dist;
       nearestOffice = loc;
     }
-    if (dist <= loc.radius_meters) {
+    // Effective radius: use configured radius (minimum 100m for clinical buildings)
+    // plus device accuracy tolerance for indoor attenuation (capped at 50m)
+    const baseRadius = Math.max(loc.radius_meters || 100, 100);
+    const accuracyBuffer = (accuracyMeters && accuracyMeters > 0) ? Math.min(accuracyMeters, 50) : 0;
+    if (dist <= (baseRadius + accuracyBuffer)) {
       matchedOffice = loc;
       break;
     }
