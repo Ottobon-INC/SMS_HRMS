@@ -29,10 +29,11 @@ export default function LeaveModule({
   const t = translations[language];
 
   // Local Form state
-  const [leaveType, setLeaveType] = useState<LeaveType>('monthly');
+  const [leaveType, setLeaveType] = useState<LeaveType>('casual');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [reason, setReason] = useState('');
+  const [isEmergency, setIsEmergency] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -41,7 +42,7 @@ export default function LeaveModule({
 
   // Form submission handler
   const [showManageModal, setShowManageModal] = useState(false);
-  const [manageType, setManageType] = useState<LeaveType>('monthly');
+  const [manageType, setManageType] = useState<LeaveType>('casual');
   const [manageAllotted, setManageAllotted] = useState(0);
   const [manageUsed, setManageUsed] = useState(0);
 
@@ -64,6 +65,7 @@ export default function LeaveModule({
     }
     setShowManageModal(false);
   };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -79,54 +81,105 @@ export default function LeaveModule({
       return;
     }
 
-    const diffTime = Math.abs(new Date(toDate).getTime() - new Date(fromDate).getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    // Date grace checks: Emergency vs Regular
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedFrom = new Date(fromDate);
+    selectedFrom.setHours(0, 0, 0, 0);
 
-    if (leaveType === 'monthly') {
-      const remaining = monthlyQuota?.remaining || 0;
-      if (diffDays > remaining) {
+    if (isEmergency) {
+      // Emergency grace period: within 24-36h (today or yesterday)
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (selectedFrom < yesterday) {
         setErrorMsg(
           language === 'te'
-            ? `క్షమించండి! మీ దగ్గర తగినన్ని నెలవారీ సెలవులు లేవు. మీకు ${remaining} మాత్రమే మిగిలి ఉన్నాయి.`
-            : `Insufficient balance! You requested ${diffDays} days but only have ${remaining} days left.`
-        );
-        return;
-      }
-      if (diffDays > 3) {
-        setErrorMsg(
-          language === 'te'
-            ? `నిరంతర సెలవు 3 రోజులకు మించకూడదు. దయచేసి మీ అభ్యర్థనను విభజించండి.`
-            : `Monthly leave cannot exceed 3 days per month.`
+            ? 'అత్యవసర సెలవు కేవలం గత 24 గంటల్లోపు (ఈ రోజు లేదా నిన్న) మాత్రమే సమర్పించవచ్చు.'
+            : 'Emergency leave must be submitted within 24 hours of absence (today or yesterday).'
         );
         return;
       }
     } else {
+      if (selectedFrom < today) {
+        setErrorMsg(
+          language === 'te'
+            ? 'గత తేదీలకు సాధారణ సెలవులను దరఖాస్తు చేయలేరు. గత 24 గంటల లోపు సెలవు కోసం "అత్యవసర సెలవు" ఎంపికను ఎంచుకోండి.'
+            : 'Regular leaves cannot be applied for past dates. For retroactive requests within 24h, check "Emergency Leave".'
+        );
+        return;
+      }
+    }
+
+    const diffTime = Math.abs(new Date(toDate).getTime() - new Date(fromDate).getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    // Consecutive duration validations
+    if (leaveType === 'casual' || leaveType === 'sick' || leaveType === 'lop' || leaveType === 'monthly') {
+      if (diffDays > 3) {
+        setErrorMsg(
+          language === 'te'
+            ? 'నిరంతర సెలవు 3 రోజులకు మించకూడదు. 4వ రోజు నుండి హాజరు రాలేదు (Absent) గా నమోదు చేయబడుతుంది.'
+            : 'Continuous leave cannot exceed 3 days. Any absence beyond 3 consecutive days will be marked as Absent.'
+        );
+        return;
+      }
+    } else if (leaveType === 'paternity') {
+      if (diffDays > 7) {
+        setErrorMsg(
+          language === 'te'
+            ? 'పితృత్వ సెలవు ఒకేసారి గరిష్టంగా వరుసగా 7 రోజులు మాత్రమే తీసుకోవచ్చు. 7 రోజుల తర్వాత మిగిలిన సెలవుల కోసం మళ్లీ దరఖాస్తు చేసుకోవాలి.'
+            : 'Paternity leave can only be taken up to 7 consecutive days per application. You must re-apply for remaining days after 7 days.'
+        );
+        return;
+      }
+    } else if (leaveType === 'maternity') {
+      if (diffDays > 90) {
+        setErrorMsg(language === 'te' ? 'ప్రసూతి సెలవు 90 రోజులకు మించకూడదు.' : 'Maternity leave cannot exceed 90 days.');
+        return;
+      }
+    }
+
+    // Quota and balance checks
+    if (leaveType === 'casual' || leaveType === 'sick') {
       const balance = leaveBalance[leaveType];
-      if (balance) {
-        const remaining = balance.allowed - balance.taken;
-        if (diffDays > remaining) {
-          setErrorMsg(
-            language === 'te'
-              ? `క్షమించండి! మీ దగ్గర తగినన్ని సెలవులు లేవు. మీకు ${remaining} మాత్రమే మిగిలి ఉన్నాయి.`
-              : `Insufficient balance! You requested ${diffDays} days but only have ${remaining} days left.`
-          );
-          return;
-        }
-        
-        if ((leaveType === 'sick' || leaveType === 'casual') && diffDays > 3) {
-          setErrorMsg(
-            language === 'te'
-              ? `నిరంతర సెలవు 3 రోజులకు మించకూడదు. దయచేసి మీ అభ్యర్థనను విభజించండి.`
-              : `Continuous leave cannot exceed 3 days for this leave type.`
-          );
-          return;
-        } else if (leaveType === 'maternity' && diffDays > 90) {
-          setErrorMsg(`Maternity leave cannot exceed 90 days.`);
-          return;
-        } else if (leaveType === 'paternity' && diffDays > 7) {
-          setErrorMsg(`Paternity leave cannot exceed 7 days.`);
-          return;
-        }
+      const remaining = balance ? Math.max(0, balance.allowed - balance.taken) : 0;
+      if (remaining === 0) {
+        setErrorMsg(
+          language === 'te'
+            ? `ఈ రకమైన సెలవు కోటా అందుబాటులో లేదు (1 సంవత్సరం సర్వీస్ పూర్తయిన తర్వాత మాత్రమే లేదా ఈ నెలకు పూర్తయింది). దయచేసి Loss of Pay (LOP) ఎంచుకోండి.`
+            : `No paid leave quota available for ${leaveType.toUpperCase()} (only credited after 1 year of tenure, or monthly quota used). Please select Loss of Pay (LOP).`
+        );
+        return;
+      }
+      if (diffDays > remaining) {
+        setErrorMsg(
+          language === 'te'
+            ? `మీకు ఈ నెలలో ${remaining} రోజు(లు) మాత్రమే మిగిలి ఉన్నాయి. మిగిలిన రోజుల కోసం Loss of Pay (LOP) ను ఎంచుకోండి.`
+            : `Insufficient balance! You requested ${diffDays} day(s) but only have ${remaining} day(s) remaining this month. Please select Loss of Pay (LOP).`
+        );
+        return;
+      }
+    } else if (leaveType === 'paternity') {
+      const balance = leaveBalance.paternity;
+      const remaining = balance ? Math.max(0, balance.allowed - balance.taken) : 0;
+      if (diffDays > remaining) {
+        setErrorMsg(
+          language === 'te'
+            ? `పితృత్వ సెలవుల కోటా సరిపోదు! మిగిలి ఉన్నవి: ${remaining} రోజులు.`
+            : `Insufficient paternity balance! Remaining: ${remaining} days.`
+        );
+        return;
+      }
+    } else if (leaveType === 'maternity') {
+      const balance = leaveBalance.maternity;
+      const remaining = balance ? Math.max(0, balance.allowed - balance.taken) : 0;
+      if (diffDays > remaining) {
+        setErrorMsg(
+          language === 'te'
+            ? `ప్రసూతి సెలవుల కోటా సరిపోదు! మిగిలి ఉన్నవి: ${remaining} రోజులు.`
+            : `Insufficient maternity balance! Remaining: ${remaining} days.`
+        );
+        return;
       }
     }
 
@@ -136,6 +189,7 @@ export default function LeaveModule({
       setFromDate('');
       setToDate('');
       setReason('');
+      setIsEmergency(false);
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || 'Failed to submit leave. Please check your connection.');
@@ -209,69 +263,140 @@ export default function LeaveModule({
 
       {/* Leave Balances Header Cards */}
       <div id="leave-balances-grid" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Monthly Quota Card */}
+        {/* Casual Leave Card */}
         <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
           {onUpdateBalances && (
-             <button onClick={() => openManageModal('monthly')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+             <button onClick={() => openManageModal('casual')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                 <ShieldAlert className="w-4 h-4" />
              </button>
           )}
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Monthly Quota</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            {language === 'te' ? 'క్యాజువల్ లీవ్ (CL)' : 'Casual Leave (CL)'}
+          </span>
           <div className="mt-4 flex items-baseline gap-1">
-            <span className="text-3xl font-black font-mono text-slate-800">{monthlyQuota.remaining}</span>
-            <span className="text-xs text-slate-400 font-medium">/ {monthlyQuota.allotted} {t.leaveLeftOf.split(' ')[0]}</span>
+            <span className="text-3xl font-black font-mono text-slate-800">
+              {Math.max(0, leaveBalance.casual.allowed - leaveBalance.casual.taken)}
+            </span>
+            <span className="text-xs text-slate-400 font-medium">
+              / {leaveBalance.casual.allowed} {leaveBalance.casual.allowed === 0 ? '(Probation)' : 'left'}
+            </span>
           </div>
-          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
+          <p className="text-[10px] text-slate-400 mt-2 font-medium">
+            {leaveBalance.casual.allowed === 0 ? 'Unlocked after 1 yr' : '1 Paid / Month'}
+          </p>
+          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
             <div 
-              className="bg-indigo-500 h-full rounded-full transition-all duration-500" 
-              style={{ width: `${(monthlyQuota.remaining / monthlyQuota.allotted) * 100}%` }}
+              className="bg-teal-500 h-full rounded-full transition-all duration-500" 
+              style={{ width: `${leaveBalance.casual.allowed > 0 ? (Math.max(0, leaveBalance.casual.allowed - leaveBalance.casual.taken) / leaveBalance.casual.allowed) * 100 : 0}%` }}
             />
           </div>
         </div>
 
-        {/* Maternity Leave Card */}
-        {gender === 'female' && leaveBalance.maternity && (
+        {/* Sick Leave Card */}
+        <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
+          {onUpdateBalances && (
+             <button onClick={() => openManageModal('sick')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                <ShieldAlert className="w-4 h-4" />
+             </button>
+          )}
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            {language === 'te' ? 'సిక్ లీవ్ (SL)' : 'Sick Leave (SL)'}
+          </span>
+          <div className="mt-4 flex items-baseline gap-1">
+            <span className="text-3xl font-black font-mono text-slate-800">
+              {Math.max(0, leaveBalance.sick.allowed - leaveBalance.sick.taken)}
+            </span>
+            <span className="text-xs text-slate-400 font-medium">
+              / {leaveBalance.sick.allowed} {leaveBalance.sick.allowed === 0 ? '(Probation)' : 'left'}
+            </span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2 font-medium">
+            {leaveBalance.sick.allowed === 0 ? 'Unlocked after 1 yr' : '1 Paid / Month'}
+          </p>
+          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
+            <div 
+              className="bg-indigo-500 h-full rounded-full transition-all duration-500" 
+              style={{ width: `${leaveBalance.sick.allowed > 0 ? (Math.max(0, leaveBalance.sick.allowed - leaveBalance.sick.taken) / leaveBalance.sick.allowed) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Parental Leave Card: Maternity (Female) or Paternity (Male) */}
+        {gender === 'female' ? (
           <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
             {onUpdateBalances && (
               <button onClick={() => openManageModal('maternity')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                   <ShieldAlert className="w-4 h-4" />
               </button>
             )}
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.leaveMaternity || 'Maternity Leave'}</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              {t.leaveMaternity || 'Maternity Leave'}
+            </span>
             <div className="mt-4 flex items-baseline gap-1">
-              <span className="text-3xl font-black font-mono text-slate-800">{leaveBalance.maternity.allowed - leaveBalance.maternity.taken}</span>
-              <span className="text-xs text-slate-400 font-medium">/ {leaveBalance.maternity.allowed} {t.leaveLeftOf.split(' ')[0]}</span>
+              <span className="text-3xl font-black font-mono text-slate-800">
+                {Math.max(0, (leaveBalance.maternity?.allowed || 90) - (leaveBalance.maternity?.taken || 0))}
+              </span>
+              <span className="text-xs text-slate-400 font-medium">
+                / {leaveBalance.maternity?.allowed || 90} left
+              </span>
             </div>
-            <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
+            <p className="text-[10px] text-slate-400 mt-2 font-medium">Up to 90 Days Total</p>
+            <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
               <div 
                 className="bg-pink-400 h-full rounded-full transition-all duration-500" 
-                style={{ width: `${((leaveBalance.maternity.allowed - leaveBalance.maternity.taken) / leaveBalance.maternity.allowed) * 100}%` }}
+                style={{ width: `${(Math.max(0, (leaveBalance.maternity?.allowed || 90) - (leaveBalance.maternity?.taken || 0)) / (leaveBalance.maternity?.allowed || 90)) * 100}%` }}
               />
             </div>
           </div>
-        )}
-
-        {/* Paternity Leave Card */}
-        {gender === 'male' && leaveBalance.paternity && (
+        ) : (
           <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
             {onUpdateBalances && (
               <button onClick={() => openManageModal('paternity')} className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                   <ShieldAlert className="w-4 h-4" />
               </button>
             )}
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.leavePaternity || 'Paternity Leave'}</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              {t.leavePaternity || 'Paternity Leave'}
+            </span>
             <div className="mt-4 flex items-baseline gap-1">
-              <span className="text-3xl font-black font-mono text-slate-800">{leaveBalance.paternity.allowed - leaveBalance.paternity.taken}</span>
-              <span className="text-xs text-slate-400 font-medium">/ {leaveBalance.paternity.allowed} {t.leaveLeftOf.split(' ')[0]}</span>
+              <span className="text-3xl font-black font-mono text-slate-800">
+                {Math.max(0, (leaveBalance.paternity?.allowed || 15) - (leaveBalance.paternity?.taken || 0))}
+              </span>
+              <span className="text-xs text-slate-400 font-medium">
+                / {leaveBalance.paternity?.allowed || 15} left
+              </span>
             </div>
-            <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
+            <p className="text-[10px] text-slate-400 mt-2 font-medium">Max 7 Consecutive Days/App</p>
+            <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
               <div 
                 className="bg-blue-400 h-full rounded-full transition-all duration-500" 
-                style={{ width: `${((leaveBalance.paternity.allowed - leaveBalance.paternity.taken) / leaveBalance.paternity.allowed) * 100}%` }}
+                style={{ width: `${(Math.max(0, (leaveBalance.paternity?.allowed || 15) - (leaveBalance.paternity?.taken || 0)) / (leaveBalance.paternity?.allowed || 15)) * 100}%` }}
               />
             </div>
           </div>
         )}
+
+        {/* Loss of Pay (LOP) Card */}
+        <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative group">
+          <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block">
+            {language === 'te' ? 'లాస్ ఆఫ్ పే (LOP)' : 'Loss of Pay (LOP)'}
+          </span>
+          <div className="mt-4 flex items-baseline gap-1">
+            <span className="text-3xl font-black font-mono text-rose-600">
+              {leaveBalance.lop?.taken || 0}
+            </span>
+            <span className="text-xs text-slate-400 font-medium">days taken</span>
+          </div>
+          <p className="text-[10px] text-rose-500 mt-2 font-semibold">
+            1 Day Salary Cut per Day
+          </p>
+          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
+            <div 
+              className="bg-rose-500 h-full rounded-full transition-all duration-500" 
+              style={{ width: `${Math.min(100, ((leaveBalance.lop?.taken || 0) / 10) * 100)}%` }}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Main Content Pane */}
@@ -361,9 +486,29 @@ export default function LeaveModule({
                   onChange={(e) => setLeaveType(e.target.value as LeaveType)}
                   className="w-full border border-slate-200 bg-slate-50 hover:bg-slate-100/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20 focus:border-teal-600 font-medium transition-all"
                 >
-                  <option value="monthly">{language === 'te' ? 'నెలవారీ సెలవు కోటా' : 'Monthly Leave Quota'}</option>
-                  {gender === 'female' && <option value="maternity">{t.leaveMaternity || 'Maternity Leave'}</option>}
-                  {gender === 'male' && <option value="paternity">{t.leavePaternity || 'Paternity Leave'}</option>}
+                  <option value="casual">
+                    {language === 'te' ? 'క్యాజువల్ లీవ్ (Casual Leave - 1/నెల, పెయిడ్)' : 'Casual Leave (1/month, Paid)'}
+                    {leaveBalance.casual.allowed === 0 ? ' [Probation: 0 Balance]' : ` [${Math.max(0, leaveBalance.casual.allowed - leaveBalance.casual.taken)} left]`}
+                  </option>
+                  <option value="sick">
+                    {language === 'te' ? 'సిక్ లీవ్ (Sick Leave - 1/నెల, పెయిడ్)' : 'Sick Leave (1/month, Paid)'}
+                    {leaveBalance.sick.allowed === 0 ? ' [Probation: 0 Balance]' : ` [${Math.max(0, leaveBalance.sick.allowed - leaveBalance.sick.taken)} left]`}
+                  </option>
+                  {gender === 'female' && (
+                    <option value="maternity">
+                      {t.leaveMaternity || 'Maternity Leave (90 Days Total)'}
+                      {` [${Math.max(0, (leaveBalance.maternity?.allowed || 90) - (leaveBalance.maternity?.taken || 0))} left]`}
+                    </option>
+                  )}
+                  {(gender === 'male' || !gender) && (
+                    <option value="paternity">
+                      {t.leavePaternity || 'Paternity Leave (15 Days Total, Max 7 Days/App)'}
+                      {` [${Math.max(0, (leaveBalance.paternity?.allowed || 15) - (leaveBalance.paternity?.taken || 0))} left]`}
+                    </option>
+                  )}
+                  <option value="lop">
+                    {language === 'te' ? 'లాస్ ఆఫ్ పే (LOP) / అత్యవసర సెలవు (1 రోజు వేతనం తగ్గింపు)' : 'Loss of Pay (LOP) / Emergency Leave (1 Day Salary Cut)'}
+                  </option>
                 </select>
               </div>
 
@@ -394,6 +539,27 @@ export default function LeaveModule({
                 </div>
               </div>
 
+              {/* Emergency Leave Checkbox */}
+              <div className="flex items-start gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/70">
+                <input
+                  type="checkbox"
+                  id="emergency-leave-checkbox"
+                  checked={isEmergency}
+                  onChange={(e) => setIsEmergency(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer"
+                />
+                <label htmlFor="emergency-leave-checkbox" className="text-xs text-slate-700 cursor-pointer">
+                  <span className="font-bold text-slate-800">
+                    {language === 'te' ? 'అత్యవసర సెలవు (Emergency Leave)' : 'Emergency Leave (Within 24 Hours)'}
+                  </span>
+                  <span className="block text-[11px] text-slate-400 mt-0.5">
+                    {language === 'te' 
+                      ? 'అత్యవసర పరిస్థితిలో సెలవు తీసుకున్న 24 గంటల్లోపు దరఖాస్తు చేసుకోండి (ఈ రోజు లేదా నిన్నటి తేదీ).' 
+                      : 'Allows retroactive application within 24 hours of absence. Unapplied emergency absences count as Absent.'}
+                  </span>
+                </label>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                   {t.formReason}
@@ -406,6 +572,19 @@ export default function LeaveModule({
                   rows={3}
                   className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20 focus:border-teal-600 transition-all placeholder:text-slate-400"
                 />
+              </div>
+
+              {/* Policy Quick Reminder */}
+              <div className="bg-amber-50/70 border border-amber-200/60 rounded-xl p-3 text-[11px] text-amber-800 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                  Leave Policy Highlights
+                </p>
+                <p className="text-amber-700">
+                  • Max 3 consecutive days for regular leave. Absence beyond 3 days is marked as Absent.<br/>
+                  • Paternity leave: 15 days total, max 7 consecutive days per application.<br/>
+                  • Approved LOP: 1 day pay deduction. Unapproved Absent: 2 days pay penalty.
+                </p>
               </div>
 
               <button
@@ -459,9 +638,13 @@ export default function LeaveModule({
               </div>
             ) : (
               leaveRequests.slice().reverse().map((req) => {
-                const leaveTypeName = req.type === 'monthly' 
-                  ? (language === 'te' ? 'నెలవారీ సెలవు కోటా' : 'Monthly Leave Quota')
-                  : (t[`leave${req.type.charAt(0).toUpperCase() + req.type.slice(1)}` as keyof typeof t] || req.type);
+                const leaveTypeName = 
+                  req.type === 'casual' ? (language === 'te' ? 'క్యాజువల్ లీవ్ (Casual Leave)' : 'Casual Leave') :
+                  req.type === 'sick' ? (language === 'te' ? 'సిక్ లీవ్ (Sick Leave)' : 'Sick Leave') :
+                  req.type === 'lop' ? (language === 'te' ? 'లాస్ ఆఫ్ పే (LOP Leave)' : 'Loss of Pay (LOP)') :
+                  req.type === 'maternity' ? (t.leaveMaternity || 'Maternity Leave') :
+                  req.type === 'paternity' ? (t.leavePaternity || 'Paternity Leave') :
+                  (language === 'te' ? 'నెలవారీ సెలవు' : 'Monthly Leave');
                 const isPending = req.status === 'pending';
 
                 return (

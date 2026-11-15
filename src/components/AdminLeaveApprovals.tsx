@@ -137,7 +137,14 @@ export default function AdminLeaveApprovals({
                         {emp.name.split(' ').map(n => n[0]).join('')}
                       </div>
                       <div>
-                        <h4 className="text-xs font-bold text-slate-800">{emp.name}</h4>
+                        <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <span>{emp.name}</span>
+                          {emp.status === 'inactive' && (
+                            <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[9px] font-black rounded-md border border-rose-200">
+                              Deactivated
+                            </span>
+                          )}
+                        </h4>
                         <p className="text-[10px] text-slate-400">{emp.designation} • ID: {emp.id}</p>
                       </div>
                     </div>
@@ -188,7 +195,9 @@ export default function AdminLeaveApprovals({
                   <div className="flex flex-row lg:flex-col justify-end gap-3 lg:w-44 shrink-0 pt-4 lg:pt-0 border-t lg:border-t-0 lg:border-l border-slate-200/60 lg:pl-6">
                     <button
                       onClick={() => onApproveLeave(emp.id, req.id, noteText)}
-                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer shadow-md shadow-teal-600/10"
+                      disabled={emp.status === 'inactive'}
+                      title={emp.status === 'inactive' ? 'Cannot approve leave for deactivated staff' : undefined}
+                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer shadow-md shadow-teal-600/10"
                     >
                       <Check className="w-4 h-4" />
                       <span>{language === 'te' ? 'ఆమోదించు' : 'Approve'}</span>

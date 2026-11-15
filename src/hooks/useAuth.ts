@@ -54,6 +54,17 @@ export function useAuth(employees: Employee[]) {
         // Expired or missing token - clear session cleanly so user sees LoginScreen
         logout();
       } else {
+        // Also check if cached employee is inactive
+        try {
+          const cached = localStorage.getItem('hrms_current_user');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed.status === 'inactive') {
+              logout();
+              return;
+            }
+          }
+        } catch {}
         setCurrentUserId(saved);
       }
     }
@@ -62,11 +73,56 @@ export function useAuth(employees: Employee[]) {
       logout();
     };
 
+    // Cross-tab synchronization via localStorage storage event
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'hrms_status_sync' && e.newValue) {
+        try {
+          const sync = JSON.parse(e.newValue);
+          const currentId = localStorage.getItem('hrms_user_session');
+          if (sync.empId === currentId && sync.status === 'inactive') {
+            logout();
+            alert("Your account has been deactivated by administration. You have been signed out.");
+          }
+        } catch {}
+      }
+    };
+
+    // In-window event listener for employee status change
+    const handleStatusChanged = (e: any) => {
+      const currentId = localStorage.getItem('hrms_user_session');
+      if (e.detail?.id === currentId && e.detail?.status === 'inactive') {
+        logout();
+        alert("Your account has been deactivated by administration. You have been signed out.");
+      }
+    };
+
     window.addEventListener('hrms:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('hrms:unauthorized', handleUnauthorized);
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('hrms:employee-status-changed', handleStatusChanged);
+
+    return () => {
+      window.removeEventListener('hrms:unauthorized', handleUnauthorized);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('hrms:employee-status-changed', handleStatusChanged);
+    };
   }, []);
 
+  // Reactive eviction if employee list updates and currentUser becomes inactive
+  useEffect(() => {
+    if (currentUserId && employees.length > 0) {
+      const activeCheck = employees.find(e => e.id === currentUserId);
+      if (activeCheck && activeCheck.status === 'inactive') {
+        logout();
+        alert("Your account has been deactivated by administration. You have been signed out.");
+      }
+    }
+  }, [currentUserId, employees]);
+
   const login = (id: string, emp?: Employee, token?: string) => {
+    if (emp && emp.status === 'inactive') {
+      alert("Your account is inactive. Please contact administration.");
+      return;
+    }
     setCurrentUserId(id);
     try {
       localStorage.setItem('hrms_user_session', id);
@@ -82,11 +138,12 @@ export function useAuth(employees: Employee[]) {
   };
 
   const foundUser = currentUserId ? employees.find(e => e.id === currentUserId) : null;
-  const currentUser = foundUser || (cachedUser && cachedUser.id === currentUserId ? cachedUser : null);
+  const resolvedUser = foundUser || (cachedUser && cachedUser.id === currentUserId ? cachedUser : null);
+  const currentUser = resolvedUser && resolvedUser.status !== 'inactive' ? resolvedUser : null;
 
   return {
     currentUser,
-    currentUserId,
+    currentUserId: currentUser ? currentUserId : null,
     login,
     logout,
     isAuthenticated: !!currentUser

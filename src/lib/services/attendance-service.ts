@@ -147,6 +147,16 @@ export async function clockInEmployee(
   const timeStr = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
 
   try {
+    // Check if employee is inactive
+    const { data: empCheck } = await supabase
+      .from(DB_TABLES.EMPLOYEES)
+      .select('status')
+      .eq('id', empId)
+      .single();
+    if (empCheck && empCheck.status === 'inactive') {
+      throw new Error("Account has been deactivated. Punch in is disabled.");
+    }
+
     // Find max session number for today
     const { data: existingSessions } = await supabase
       .from(DB_TABLES.ATTENDANCE)
@@ -207,7 +217,9 @@ export async function clockOutEmployee(
   empId: string, 
   photoUrl?: string,
   location?: string,
-  latLng?: string
+  latLng?: string,
+  punchNote?: string,
+  status?: AttendanceStatus
 ): Promise<void> {
   const todayStr = new Date().toISOString().split('T')[0];
   const timeStr = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
@@ -215,7 +227,7 @@ export async function clockOutEmployee(
   try {
     const { data: existingSessions, error: fetchErr } = await supabase
       .from(DB_TABLES.ATTENDANCE)
-      .select('id, session_number, check_out_time')
+      .select('id, session_number, check_out_time, punch_note')
       .eq('employee_id', empId)
       .eq('date', todayStr)
       .order('session_number', { ascending: false });
@@ -230,6 +242,8 @@ export async function clockOutEmployee(
         if (photoUrl) payload.check_out_photo_url = photoUrl;
         if (location) payload.check_out_location = location;
         if (latLng) payload.check_out_lat_lng = latLng;
+        if (punchNote) payload.punch_note = activeSession.punch_note ? `${activeSession.punch_note} | ${punchNote}` : punchNote;
+        if (status) payload.status = status;
         
         const { error } = await supabase
           .from(DB_TABLES.ATTENDANCE)
@@ -245,13 +259,14 @@ export async function clockOutEmployee(
         const payload: any = { 
           employee_id: empId, 
           date: todayStr, 
-          status: 'Present', 
+          status: status || 'present', 
           check_out_time: timeStr,
           session_number: nextSession
         };
         if (photoUrl) payload.check_out_photo_url = photoUrl;
         if (location) payload.check_out_location = location;
         if (latLng) payload.check_out_lat_lng = latLng;
+        if (punchNote) payload.punch_note = punchNote;
         
         const { error } = await supabase
           .from(DB_TABLES.ATTENDANCE)
@@ -270,7 +285,7 @@ export async function clockOutEmployee(
       'Content-Type': 'application/json',
       ...getAuthHeader()
     },
-    body: JSON.stringify({ empId, photoUrl, location, latLng })
+    body: JSON.stringify({ empId, photoUrl, location, latLng, punchNote, status })
   }).catch(() => null);
 
   if (res && res.ok) return;

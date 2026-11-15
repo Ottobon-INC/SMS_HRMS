@@ -13,3 +13,4 @@ export * from './location.types';
 export * from './roster.types';
 export * from './field-force.types';
 export * from './work-assignment.types';
+export * from './document.types';

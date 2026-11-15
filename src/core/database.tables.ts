@@ -28,6 +28,7 @@ export const DB_TABLES = {
   LOCATION_PINS: `${TABLE_PREFIX}location_pins`,
   PAYROLL_CONFIG: `${TABLE_PREFIX}payroll_config`,
   DUTY_ROSTER: `${TABLE_PREFIX}duty_roster`,
+  SHIFT_TEMPLATES: `${TABLE_PREFIX}shift_templates`,
 
   // Chat & Messaging
   CHAT_CHANNELS: `${TABLE_PREFIX}chat_channels`,
@@ -43,6 +44,9 @@ export const DB_TABLES = {
 
   // Tasks & Work Assignments
   TASKS: `${TABLE_PREFIX}tasks`,
+
+  // Documents & Experience Letters
+  EXPERIENCE_LETTERS: `${TABLE_PREFIX}experience_letters`,
 } as const;
 
 export type DbTableName = (typeof DB_TABLES)[keyof typeof DB_TABLES];

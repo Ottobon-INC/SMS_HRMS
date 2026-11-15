@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Sparkles, Camera, X, MapPin, AlertCircle } from "lucide-react";
+import { Sparkles, Camera, X, MapPin, AlertCircle, Lock, Clock, Monitor, ShieldCheck } from "lucide-react";
 import { Language, CheckInLog, AttendanceRecord, LeaveBalance, Payslip, Employee } from "../types";
 import { translations } from "../translations";
 import LocationPinTimeline from "./LocationPinTimeline";
 import TickerAlert from "./TickerAlert";
 import { submitMissedPunchRequest } from "../lib/services/missed-punch-service";
 import { fetchRoster } from "../lib/services/roster-service";
+import { getShiftPunchInWindow } from "../lib/utils/shift-window";
 
 interface DashboardSnapshotProps {
   language: Language;
@@ -16,7 +17,7 @@ interface DashboardSnapshotProps {
   leaveBalance: LeaveBalance;
   payslips: Payslip[];
   setActiveTab: (tab: string) => void;
-  onToggleCheckIn: (photoData?: string, punchType?: import("../types").PunchType, punchNote?: string) => Promise<{success: boolean, geoError?: any, error?: string} | void>;
+  onToggleCheckIn: (photoData?: string, punchType?: import("../types").PunchType, punchNote?: string, statusOverride?: import("../types").AttendanceStatus) => Promise<{success: boolean, geoError?: any, error?: string} | void>;
   pins: import("../types").LocationPin[];
   onAddPin: (pinType: import("../types").PinType, label?: string, photoData?: string) => Promise<{ success: boolean; error?: string }>;
 }
@@ -33,8 +34,13 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
   const [isProcessing, setIsProcessing] = useState(false);
   const [punchType, setPunchType] = useState<import("../types").PunchType>("in_office");
   const [punchNote, setPunchNote] = useState("");
+  const [isEarlyPunchModalOpen, setIsEarlyPunchModalOpen] = useState(false);
+  const [earlyReason, setEarlyReason] = useState("");
+  const [isHalfDayEarly, setIsHalfDayEarly] = useState(false);
+  const [statusOverride, setStatusOverride] = useState<import("../types").AttendanceStatus | undefined>(undefined);
   const [missedPunchDate, setMissedPunchDate] = useState<string | null>(null);
   const [missedPunchReason, setMissedPunchReason] = useState("");
+  const [missedPunchType, setMissedPunchType] = useState<'in' | 'out'>('out');
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -42,6 +48,12 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
   const [pinLabel, setPinLabel] = useState("");
   const [isPinning, setIsPinning] = useState(false);
   const [todayShift, setTodayShift] = useState<import("../types").DutyRosterShift | null>(null);
+  const [lastPhotoData, setLastPhotoData] = useState<string | undefined>(undefined);
+  const [isSystemModalOpen, setIsSystemModalOpen] = useState(false);
+  const [systemReason, setSystemReason] = useState("Desktop PC without Webcam");
+  const [systemCustomDetails, setSystemCustomDetails] = useState("");
+  const [campReason, setCampReason] = useState("Medical Camp");
+  const [campDetails, setCampDetails] = useState("");
 
   useEffect(() => {
     const fetchTodayShift = async () => {
@@ -49,16 +61,20 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
       // To get the start of the week for fetchRoster
       const d = new Date(today);
       const day = d.getDay() || 7; 
-      if (day !== 1) d.setHours(-24 * (day - 1));
+      if (day !== 1) d.setDate(d.getDate() - (day - 1));
       d.setHours(0, 0, 0, 0);
       const weekStartStr = d.toLocaleDateString('en-CA');
       
       const data = await fetchRoster(weekStartStr);
       const todayStr = today.toLocaleDateString('en-CA');
-      const publishedShift = data.find(s => s.employeeId === currentUser.id && s.shiftDate === todayStr && s.isPublished);
-      setTodayShift(publishedShift || null);
+      const activeShift = data.find(s => s.employeeId === currentUser.id && s.shiftDate === todayStr && s.isPublished !== false);
+      setTodayShift(activeShift || null);
     };
     fetchTodayShift();
+
+    const handleRosterUpdated = () => fetchTodayShift();
+    window.addEventListener('hrms:roster-updated', handleRosterUpdated);
+    return () => window.removeEventListener('hrms:roster-updated', handleRosterUpdated);
   }, [currentUser.id]);
 
   // BUG FIX: Attach stream using useEffect so the video DOM element is guaranteed to be mounted
@@ -108,14 +124,20 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
   };
 
   const proceedWithCheckIn = async (photoData?: string) => {
+    setLastPhotoData(photoData);
     setIsProcessing(true);
-    const result = await onToggleCheckIn(photoData, punchType, punchNote);
+    const result = await onToggleCheckIn(photoData, punchType, punchNote, statusOverride);
     setIsProcessing(false);
     if (result && !result.success) {
       if (result.geoError) setGeoError(result.geoError);
       else if (result.error) {
-        if (result.error.startsWith("missed_punchout:")) setMissedPunchDate(result.error.split(":")[1]);
-        else alert(result.error);
+        if (result.error.startsWith("missed_punchout:")) {
+          setMissedPunchType('out');
+          setMissedPunchDate(result.error.split(":")[1]);
+          setRequestSubmitted(false);
+        } else {
+          alert(result.error);
+        }
       }
     }
   };
@@ -140,7 +162,11 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
     if (!missedPunchDate) return;
     setIsSubmittingRequest(true);
     try {
-      await submitMissedPunchRequest(currentUser.id, missedPunchDate, "out", missedPunchReason);
+      await submitMissedPunchRequest(currentUser.id, missedPunchDate, missedPunchType, missedPunchReason);
+      if (missedPunchType === 'in') {
+        // Start active attendance session so employee can complete their 8 hours and punch out
+        await onToggleCheckIn(undefined, 'in_office', `[Missed Punch-In: ${missedPunchReason}]`);
+      }
       setRequestSubmitted(true);
     } catch (err: any) {
       alert("Failed to submit: " + (err.message || JSON.stringify(err)));
@@ -193,6 +219,71 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
     : "₹28,450";
   const salaryMonth = latestPayslip ? (language==="te"?"నికర జీతం":`Net Salary`) : "Net Salary";
 
+  const monthlyEarlyExits = attendanceRecords.filter(r => 
+    r.date.startsWith(currentMonthStr) && 
+    (r.status === 'half-day' || (r.punchNote && r.punchNote.includes('Early Exit')))
+  ).length;
+
+  const shiftWindow = getShiftPunchInWindow(todayShift);
+  const isShiftLate = !isCheckedIn && !hasCheckedOutToday && currentUser.status !== 'inactive' && shiftWindow.isLate;
+
+  const handlePunchButtonClick = () => {
+    if (currentUser.status === 'inactive' || hasCheckedOutToday) return;
+
+    if (!isCheckedIn) {
+      if (shiftWindow.isLate) {
+        setMissedPunchType('in');
+        setMissedPunchDate(todayStr);
+        setMissedPunchReason('');
+        setRequestSubmitted(false);
+        return;
+      }
+    }
+
+    if (isCheckedIn) {
+      // Check if punching out before 8 full hours
+      const checkInTime = latestCheckIn?.checkInTime;
+      let isEarly = false;
+      if (checkInTime) {
+        const now = new Date();
+        const [h, m, s] = checkInTime.split(':').map(Number);
+        const inDate = new Date();
+        inDate.setHours(h, m, s || 0, 0);
+        const workedHrs = (now.getTime() - inDate.getTime()) / (1000 * 3600);
+        if (workedHrs < 8.0) {
+          isEarly = true;
+        }
+      }
+
+      if (isEarly) {
+        setIsHalfDayEarly(monthlyEarlyExits >= 2);
+        setIsEarlyPunchModalOpen(true);
+        return;
+      }
+    }
+
+    startCamera(false);
+  };
+
+  const handleConfirmEarlyPunchOut = () => {
+    if (!earlyReason.trim()) {
+      alert(language === 'te' ? 'దయచేసి ముందుగా వెళ్ళడానికి సరైన కారణాన్ని నమోదు చేయండి.' : 'Please enter a mandatory reason for early departure.');
+      return;
+    }
+
+    const exitNum = monthlyEarlyExits + 1;
+    const isPenaltyHalfDay = monthlyEarlyExits >= 2 || isHalfDayEarly;
+    const note = `[Early Exit #${exitNum}: ${earlyReason.trim()}]`;
+
+    setPunchNote(prev => prev ? `${prev} | ${note}` : note);
+    if (isPenaltyHalfDay) {
+      setStatusOverride('half-day');
+    }
+
+    setIsEarlyPunchModalOpen(false);
+    startCamera(false);
+  };
+
   return (
     <div id="dashboard-snapshot-container" className="space-y-6 sm:space-y-8 animate-fadeIn">
       <TickerAlert employees={[currentUser]} />
@@ -201,27 +292,131 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
         <div id="today-status-snap" className="lg:col-span-8 bg-white rounded-[32px] p-8 shadow-sm border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="space-y-4 text-center sm:text-left">
             <div>
-              <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${isCheckedIn?"bg-teal-100 text-teal-700 animate-pulse":"bg-slate-100 text-slate-500"}`}>
-                {isCheckedIn?(language==="te"?"పనిలో ఉన్నారు":"Active Now"):(language==="te"?"హాజరు కాలేదు":"Not Checked-In")}
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-800 mt-3 leading-tight">{isCheckedIn?t.checkedIn:t.checkedOut}</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                {currentUser.status === 'inactive' ? (
+                  <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200">
+                    {language === 'te' ? 'ఖాతా నిలిపివేయబడింది (Deactivated)' : 'Account Deactivated'}
+                  </span>
+                ) : (
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${isCheckedIn?"bg-teal-100 text-teal-700 animate-pulse":"bg-slate-100 text-slate-500"}`}>
+                    {isCheckedIn?(language==="te"?"పనిలో ఉన్నారు":"Active Now"):(language==="te"?"హాజరు కాలేదు":"Not Checked-In")}
+                  </span>
+                )}
+                {currentUser.status !== 'inactive' && (
+                  todayShift ? (
+                    todayShift.shiftLabel === 'Off' ? (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                        Weekly Off
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                        {todayShift.shiftLabel} ({todayShift.shiftStart} - {todayShift.shiftEnd}{todayShift.isOvernight ? ' +1' : ''})
+                      </span>
+                    )
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-50 text-slate-500 border border-slate-200/60">
+                      Regular Hours (09:00 - 17:00)
+                    </span>
+                  )
+                )}
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-800 mt-3 leading-tight">
+                {currentUser.status === 'inactive'
+                  ? (language === 'te' ? 'అకౌంట్ నిలిపివేయబడింది' : 'Account Inactive')
+                  : (isCheckedIn ? t.checkedIn : t.checkedOut)}
+              </h2>
               <p className="text-slate-500 text-sm mt-1">
-                {isCheckedIn?`${language==="te"?"మీరు విజయవంతంగా లోపలికి వచ్చారు":"You are checked in"} (${latestCheckIn?.checkInTime||""})`:hasCheckedOutToday?(language==="te"?"ఈ రోజు మీ షిఫ్ట్ ముగిసింది":"You have completed your shift for today."):(language==="te"?"మీ హాజరును ఇప్పుడే రికార్డ్ చేయండి":"Tap to register your shift presence today.")}
+                {currentUser.status === 'inactive'
+                  ? (language === 'te' 
+                      ? 'మీ అకౌంట్ అడ్మినిస్ట్రేషన్ ద్వారా నిలిపివేయబడింది. హాజరు పంచ్ రికార్డ్ చేయడం సాధ్యపడదు.' 
+                      : 'Your account has been deactivated by administration. Attendance punches cannot be recorded.')
+                  : isCheckedIn
+                    ? `${language==="te"?"మీరు విజయవంతంగా లోపలికి వచ్చారు":"You are checked in"} (${latestCheckIn?.checkInTime||""})`
+                    : hasCheckedOutToday
+                      ? (language==="te"?"ఈ రోజు మీ షిఫ్ట్ ముగిసింది":"You have completed your shift for today.")
+                      : todayShift?.shiftLabel==='Off'
+                        ? (language==="te"?"ఈ రోజు మీకు సెలవు (వీక్లీ ఆఫ్)":"Today is your scheduled weekly off day.")
+                        : isShiftLate
+                          ? (language === 'te'
+                              ? `⚠️ షిఫ్ట్ పంచ్-ఇన్ సమయం (${shiftWindow.cutoffTime}) దాటిపోయింది. దయచేసి మిస్డ్ పంచ్ అప్లై చేసి పని ప్రారంభించండి.`
+                              : `⚠️ Punch-in cutoff (${shiftWindow.cutoffTime}) expired. Apply Missed Punch to start shift.`)
+                          : (language==="te"?"మీ హాజరును ఇప్పుడే రికార్డ్ చేయండి":"Tap to register your shift presence today.")}
               </p>
             </div>
             <div className="pt-2 flex flex-wrap justify-center sm:justify-start gap-4">
-              {[{label:"Shift Start",val:latestCheckIn?.checkInTime || todayShift?.shiftStart || "09:00 AM"},{label:"Worked Today",val:isCheckedIn?"Live Running":`${todayWorkedHrs} hrs`},{label:"Shift Stops",val:latestCheckIn?.checkOutTime || todayShift?.shiftEnd || "Pending"}].map(item=>(
-                <div key={item.label} className="text-center bg-slate-50 px-4 py-2 rounded-xl min-w-[100px]">
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">{item.label}</p>
-                  <p className="text-xs font-bold text-slate-700">{item.val}</p>
-                </div>
-              ))}
+              {todayShift?.shiftLabel === 'Off' ? (
+                [{label:"Schedule",val:"Weekly Off"},{label:"Worked Today",val:isCheckedIn?"Live Running":`${todayWorkedHrs} hrs`},{label:"Duty Status",val:"Scheduled Off"}].map(item=>(
+                  <div key={item.label} className="text-center bg-slate-50 px-4 py-2 rounded-xl min-w-[100px]">
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">{item.label}</p>
+                    <p className="text-xs font-bold text-slate-700">{item.val}</p>
+                  </div>
+                ))
+              ) : (
+                [{label:"Shift Start",val:latestCheckIn?.checkInTime || todayShift?.shiftStart || "09:00 AM"},{label:"Worked Today",val:isCheckedIn?"Live Running":`${todayWorkedHrs} hrs`},{label:"Shift Stops",val:latestCheckIn?.checkOutTime || todayShift?.shiftEnd || "05:00 PM"}].map(item=>(
+                  <div key={item.label} className="text-center bg-slate-50 px-4 py-2 rounded-xl min-w-[100px]">
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">{item.label}</p>
+                    <p className="text-xs font-bold text-slate-700">{item.val}</p>
+                  </div>
+                ))
+              )}
             </div>
-            {isCheckedIn&&(<div className="mt-6 flex justify-center sm:justify-start"><button onClick={()=>setIsPinModalOpen(true)} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl transition-colors active:scale-95 border border-slate-200"><MapPin className="w-4 h-4 text-rose-500"/>{language==="te"?"లొకేషన్ పిన్ చేయండి":"Pin Location Now"}</button></div>)}
+            {isCheckedIn && currentUser.status !== 'inactive' && (
+              <div className="mt-6 flex justify-center sm:justify-start">
+                <button onClick={()=>setIsPinModalOpen(true)} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl transition-colors active:scale-95 border border-slate-200">
+                  <MapPin className="w-4 h-4 text-rose-500"/>
+                  {language==="te"?"లొకేషన్ పిన్ చేయండి":"Pin Location Now"}
+                </button>
+              </div>
+            )}
           </div>
-          <button id="go-to-checkin-tab" onClick={hasCheckedOutToday?undefined:()=>startCamera(false)} disabled={hasCheckedOutToday||isProcessing} className={`w-40 h-40 rounded-full border-[12px] flex flex-col items-center justify-center text-white transition-all duration-300 relative ${hasCheckedOutToday?"border-slate-100 bg-slate-300 cursor-not-allowed":isCheckedIn?"border-rose-50 bg-rose-500 hover:bg-rose-600 shadow-xl shadow-rose-200 active:scale-95 cursor-pointer":"border-teal-50 bg-teal-600 hover:bg-teal-700 shadow-xl shadow-teal-100 active:scale-95 cursor-pointer"}`}>
-            {isProcessing?<span className="text-xs font-bold animate-pulse">Processing...</span>:<><span className="font-black uppercase tracking-tighter text-sm">{hasCheckedOutToday?"Completed":isCheckedIn?"Punch Out":"Punch In"}</span><span className="text-[10px] opacity-80 mt-1">{hasCheckedOutToday?"పూర్తయింది":isCheckedIn?"వెళ్ళిపోండి":"లోపలికి రండి"}</span></>}
-          </button>
+          <div className="flex flex-col items-center">
+            <button 
+              id="go-to-checkin-tab" 
+              onClick={hasCheckedOutToday || currentUser.status === 'inactive' ? undefined : handlePunchButtonClick} 
+              disabled={hasCheckedOutToday || isProcessing || currentUser.status === 'inactive'} 
+              className={`w-40 h-40 rounded-full border-[12px] flex flex-col items-center justify-center text-white transition-all duration-300 relative ${
+                currentUser.status === 'inactive' || hasCheckedOutToday
+                  ? "border-slate-100 bg-slate-300 cursor-not-allowed"
+                  : isShiftLate
+                    ? "border-amber-100 bg-amber-500 hover:bg-amber-600 shadow-xl shadow-amber-200 active:scale-95 cursor-pointer"
+                    : isCheckedIn
+                      ? "border-rose-50 bg-rose-500 hover:bg-rose-600 shadow-xl shadow-rose-200 active:scale-95 cursor-pointer"
+                      : "border-teal-50 bg-teal-600 hover:bg-teal-700 shadow-xl shadow-teal-100 active:scale-95 cursor-pointer"
+              }`}
+            >
+              {isProcessing ? (
+                <span className="text-xs font-bold animate-pulse">Processing...</span>
+              ) : currentUser.status === 'inactive' ? (
+                <>
+                  <span className="font-black uppercase tracking-tighter text-xs text-center px-2">Deactivated</span>
+                  <span className="text-[9px] opacity-80 mt-1">నిలిపివేయబడింది</span>
+                </>
+              ) : isShiftLate ? (
+                <>
+                  <Lock className="w-6 h-6 mb-1 text-white animate-pulse" />
+                  <span className="font-black uppercase tracking-tighter text-xs">Window Closed</span>
+                  <span className="text-[9px] opacity-90 mt-0.5">Apply Missed Punch</span>
+                </>
+              ) : (
+                <>
+                  <span className="font-black uppercase tracking-tighter text-sm">{hasCheckedOutToday?"Completed":isCheckedIn?"Punch Out":"Punch In"}</span>
+                  <span className="text-[10px] opacity-80 mt-1">{hasCheckedOutToday?"పూర్తయింది":isCheckedIn?"వెళ్ళిపోండి":"లోపలికి రండి"}</span>
+                </>
+              )}
+            </button>
+
+            {/* Desktop System Terminal Punch Option (No Camera) */}
+            {!isCheckedIn && !hasCheckedOutToday && currentUser.status !== 'inactive' && (
+              <button
+                type="button"
+                onClick={() => setIsSystemModalOpen(true)}
+                className="mt-3 text-[11px] font-semibold text-slate-500 hover:text-teal-700 flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200/80 transition-all cursor-pointer shadow-xs"
+              >
+                <Monitor className="w-3.5 h-3.5 text-teal-600" />
+                <span>{language === 'te' ? '🖥️ సిస్టమ్ పంచ్-ఇన్ (నో కెమెరా)' : '🖥️ System Punch-in (No Camera)'}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {pins.filter(p=>p.date===todayStr).length>0&&(<div className="lg:col-span-12"><LocationPinTimeline language={language} pins={pins.filter(p=>p.date===todayStr)}/></div>)}
@@ -293,37 +488,419 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
         </div>
       )}
 
-      {/* Missed Punch-Out Modal — rendered ONCE at root level, never nested */}
-      {missedPunchDate&&(
+      {/* Early Punch-Out Modal */}
+      {isEarlyPunchModalOpen && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fadeIn">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-4">
-            {!requestSubmitted?(<>
-              <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto"><AlertCircle className="w-8 h-8"/></div>
-              <h3 className="text-xl font-bold text-slate-800">{language==="te"?"పంచ్ అవుట్ మిస్ అయింది":"Missed Punch-Out Detected"}</h3>
-              <p className="text-sm text-slate-500 text-left bg-amber-50 rounded-xl p-3 border border-amber-100">{language==="te"?`మీరు ${missedPunchDate} న పంచ్ అవుట్ చేయలేదు.`:`You did not punch out on ${missedPunchDate}. Please submit a request to Admin.`}</p>
-              <div className="text-left"><label className="block text-xs font-bold text-slate-700 mb-1">{language==="te"?"కారణం (ఐచ్ఛికం)":"Reason (Optional)"}</label><textarea value={missedPunchReason} onChange={e=>setMissedPunchReason(e.target.value)} placeholder={language==="te"?"ఉదా: అత్యవసర పరిస్థితి":"e.g. Had an emergency"} rows={3} className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400/30"/></div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={()=>{setMissedPunchDate(null);setMissedPunchReason("");}} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-xs uppercase tracking-wider">{language==="te"?"రద్దు":"Cancel"}</button>
-                <button onClick={handleSubmitMissedPunchRequest} disabled={isSubmittingRequest} className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md disabled:opacity-60">{isSubmittingRequest?(language==="te"?"పంపుతున్నారు...":"Submitting..."):(language==="te"?"అడ్మిన్‌కు అభ్యర్థించు":"Request Admin Access")}</button>
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shrink-0">
+                <AlertCircle className="w-6 h-6" />
               </div>
-            </>):(<>
-              <div className="w-16 h-16 bg-teal-50 text-teal-500 rounded-full flex items-center justify-center mx-auto"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg></div>
-              <h3 className="text-xl font-bold text-slate-800">{language==="te"?"అభ్యర్థన పంపబడింది":"Request Submitted!"}</h3>
-              <p className="text-sm text-slate-500">{language==="te"?"మీ అభ్యర్థన అడ్మిన్‌కు పంపబడింది.":"Your request has been sent to Admin. Once approved, you can punch in normally."}</p>
-              <button onClick={()=>{setMissedPunchDate(null);setMissedPunchReason("");setRequestSubmitted(false);}} className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md">{language==="te"?"సరే":"Got It"}</button>
-            </>)}
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">
+                  {language === 'te' ? 'ముందుగా పంచ్ అవుట్ (Early Exit)' : 'Early Punch-Out Detected'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {language === 'te' ? 'పూర్తి 8 గంటల పని సమయం పూర్తికాలేదు' : 'Full 8-hour shift has not yet elapsed'}
+                </p>
+              </div>
+            </div>
+
+            {/* Shift Progress Warning */}
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/70 space-y-2">
+              <div className="flex justify-between text-xs font-semibold text-slate-600">
+                <span>Shift Requirement: 8.0 hrs</span>
+                <span className="font-mono text-teal-600 font-bold">Checked in: {latestCheckIn?.checkInTime}</span>
+              </div>
+              
+              {/* Strike Counter Notice */}
+              <div className={`p-3 rounded-xl border text-xs font-medium ${
+                monthlyEarlyExits < 2 
+                  ? 'bg-amber-50/70 text-amber-800 border-amber-200' 
+                  : 'bg-rose-50 text-rose-800 border-rose-200'
+              }`}>
+                {monthlyEarlyExits < 2 ? (
+                  <p>
+                    <span className="font-bold">Occurrence {monthlyEarlyExits + 1} of 3 (Grace Period):</span>{' '}
+                    {language === 'te' 
+                      ? 'నెలలో మొదటి 2 సార్లు ముందుగా వెళ్ళేందుకు అనుమతి ఉంది. తప్పనిసరి కారణం తెలియజేయాలి.' 
+                      : 'Permitted with mandatory explanation. Grace period applies for the first 2 occurrences.'}
+                  </p>
+                ) : monthlyEarlyExits === 2 ? (
+                  <p>
+                    <span className="font-bold">⚠️ 3rd Occurrence Alert:</span>{' '}
+                    {language === 'te' 
+                      ? 'ఇది ఈ నెలలో మీ 3వ ముందస్తు నిష్క్రమణ! ఈ రోజు హాజరు "హాఫ్-డే లీవ్" (0.5 రోజు కట్) గా నమోదు చేయబడుతుంది.' 
+                      : 'This is your 3rd early exit this month. Your attendance today will be recorded as Half-Day (0.5 day deduction).'}
+                  </p>
+                ) : (
+                  <p>
+                    <span className="font-bold">⚠️ Exceeded 3 Early Exits ({monthlyEarlyExits} previously):</span>{' '}
+                    {language === 'te' 
+                      ? 'పరిమితి మించిన ప్రతి ముందస్తు నిష్క్రమణకు "హాఫ్-డే లీవ్" (0.5 రోజు కట్) వర్తిస్తుంది.' 
+                      : 'Every subsequent early departure is recorded as a Half-Day (0.5 day deduction).'}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Mandatory Reason Input */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                {language === 'te' ? 'ముందుగా వెళ్ళడానికి గల కారణం (తప్పనిసరి) *' : 'Reason for Early Departure (Mandatory) *'}
+              </label>
+              <textarea
+                value={earlyReason}
+                onChange={(e) => setEarlyReason(e.target.value)}
+                placeholder={language === 'te' ? 'కారణం రాయండి (ఉదా: అత్యవసర వైద్య పరిస్థితి, అనుమతి తీసుకున్నది...)' : 'Please state reason (e.g. medical appointment, personal emergency...)'}
+                rows={3}
+                className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+              />
+            </div>
+
+            {/* Half-Day Option Checkbox */}
+            <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <input
+                type="checkbox"
+                id="half-day-early-checkbox"
+                checked={isHalfDayEarly || monthlyEarlyExits >= 2}
+                disabled={monthlyEarlyExits >= 2}
+                onChange={(e) => setIsHalfDayEarly(e.target.checked)}
+                className="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer disabled:opacity-70"
+              />
+              <label htmlFor="half-day-early-checkbox" className="text-xs text-slate-700 cursor-pointer font-medium">
+                <span className="font-bold text-slate-800">
+                  {language === 'te' ? 'హాఫ్-డే లీవ్‌గా గుర్తించండి (Half Day)' : 'Mark as Half-Day Leave'}
+                </span>
+                {monthlyEarlyExits >= 2 && (
+                  <span className="block text-[10px] text-rose-500 font-semibold">
+                    (Mandatory per 3rd occurrence policy)
+                  </span>
+                )}
+              </label>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEarlyPunchModalOpen(false);
+                  setEarlyReason("");
+                }}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-xs uppercase cursor-pointer"
+              >
+                {language === 'te' ? 'రద్దు' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEarlyPunchOut}
+                disabled={!earlyReason.trim()}
+                className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors text-xs uppercase cursor-pointer shadow-md shadow-teal-600/20"
+              >
+                {language === 'te' ? 'ధృవీకరించండి' : 'Confirm & Exit'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Geo-fence Error Modal */}
-      {geoError&&(
+      {/* Missed Punch Modal (In and Out) */}
+      {missedPunchDate && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fadeIn">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-4">
-            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto"><MapPin className="w-8 h-8"/></div>
-            <h3 className="text-xl font-bold text-slate-800">Outside Allowed Area</h3>
-            <p className="text-sm text-slate-500">{geoError.nearestOfficeName==="No configured locations"?"No Office Locations configured. Ask Admin to add one.":`You are ${geoError.distance}m away from ${geoError.nearestOfficeName}. Must be within the allowed radius.`}</p>
-            <button onClick={()=>setGeoError(null)} className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition-colors uppercase tracking-wider text-xs">Okay</button>
+            {!requestSubmitted ? (
+              <>
+                <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto">
+                  <AlertCircle className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">
+                  {missedPunchType === 'in' 
+                    ? (language === 'te' ? 'పంచ్-ఇన్ సమయం మించిపోయింది' : 'Missed Punch-In Request')
+                    : (language === 'te' ? 'పంచ్ అవుట్ మిస్ అయింది' : 'Missed Punch-Out Detected')}
+                </h3>
+                <p className="text-sm text-slate-500 text-left bg-amber-50 rounded-xl p-3 border border-amber-100">
+                  {missedPunchType === 'in'
+                    ? (language === 'te' 
+                        ? `మీ షిఫ్ట్ ప్రారంభ సమయం కంటే 30 నిమిషాలు దాటినందున డైరెక్ట్ పంచ్-ఇన్ లాక్ చేయబడింది. దయచేసి కారణంతో మిస్డ్ పంచ్ అప్లై చేసి 8 గంటల పని ప్రారంభించండి.` 
+                        : `The 30-minute punch-in window from your shift start has expired. Please apply with a clear mandatory reason to begin your 8-hour shift.`)
+                    : (language === 'te' 
+                        ? `మీరు ${missedPunchDate} న పంచ్ అవుట్ చేయలేదు. దయచేసి అడ్మిన్‌కు అభ్యర్థన సమర్పించండి.` 
+                        : `You did not punch out on ${missedPunchDate}. Please submit a request to Admin.`)}
+                </p>
+                <div className="text-left">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {language === 'te' ? 'కారణం (తప్పనిసరి) *' : 'Reason (Mandatory) *'}
+                  </label>
+                  <textarea
+                    value={missedPunchReason}
+                    onChange={(e) => setMissedPunchReason(e.target.value)}
+                    placeholder={missedPunchType === 'in' 
+                      ? (language === 'te' ? 'ఆలస్యానికి గల కారణం రాయండి...' : 'State reason (e.g. traffic delay, emergency work, forgot to punch)...')
+                      : (language === 'te' ? 'ఉదా: అత్యవసర పరిస్థితి వలన పంచ్ అవుట్ చేయలేదు...' : 'e.g. Emergency departure, forgotten punch out...')}
+                    rows={3}
+                    className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setMissedPunchDate(null);
+                      setMissedPunchReason("");
+                    }}
+                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-xs uppercase tracking-wider"
+                  >
+                    {language === 'te' ? 'రద్దు' : 'Cancel'}
+                  </button>
+                  <button
+                    onClick={handleSubmitMissedPunchRequest}
+                    disabled={isSubmittingRequest || !missedPunchReason.trim()}
+                    className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md"
+                  >
+                    {isSubmittingRequest 
+                      ? (language === 'te' ? 'పంపుతున్నారు...' : 'Submitting...') 
+                      : missedPunchType === 'in'
+                        ? (language === 'te' ? 'అప్లై & పని ప్రారంభించు' : 'Apply & Start Shift')
+                        : (language === 'te' ? 'అభ్యర్థన పంపు' : 'Submit Request')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 bg-teal-50 text-teal-500 rounded-full flex items-center justify-center mx-auto">
+                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">
+                  {language === 'te' ? 'అభ్యర్థన పంపబడింది!' : 'Request Submitted!'}
+                </h3>
+                <p className="text-sm text-slate-500">
+                  {missedPunchType === 'in'
+                    ? (language === 'te' 
+                        ? 'మీ మిస్డ్ పంచ్-ఇన్ అభ్యర్థన నమోదు చేయబడింది మరియు షిఫ్ట్ ప్రారంభించబడింది. దయచేసి 8 గంటలు పూర్తిచేసి తప్పనిసరిగా పంచ్ అవుట్ చేయండి.' 
+                        : 'Your missed punch-in request has been logged and your attendance session is live! Please complete your 8 hours and compulsorily punch out.')
+                    : (language === 'te' 
+                        ? 'మీ అభ్యర్థన అడ్మిన్‌కు పంపబడింది. ఆమోదించబడిన తర్వాత సాధారణంగా పంచ్ ఇన్ చేయవచ్చు.' 
+                        : 'Your request has been sent to Admin. Once approved, you can punch in normally.')}
+                </p>
+                <button
+                  onClick={() => {
+                    setMissedPunchDate(null);
+                    setMissedPunchReason("");
+                    setRequestSubmitted(false);
+                  }}
+                  className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md"
+                >
+                  {language === 'te' ? 'సరే' : 'Got It'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Geo-fence Error Modal with Camp Duty Option */}
+      {geoError && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-4">
+            <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+              <MapPin className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">
+              {language === 'te' ? 'ఆఫీస్ పరిధికి వెలుపల ఉన్నారు' : 'Outside Office Boundary'}
+            </h3>
+            <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 text-left">
+              {geoError.nearestOfficeName === "No configured locations"
+                ? "No Office Locations configured."
+                : `You are ${geoError.distance}m away from ${geoError.nearestOfficeName}.`}
+            </p>
+
+            <div className="text-left bg-teal-50/60 p-4 rounded-2xl border border-teal-100 space-y-3">
+              <div className="flex items-center gap-2 text-teal-800 font-bold text-xs">
+                <ShieldCheck className="w-4 h-4 text-teal-600" />
+                <span>{language === 'te' ? 'మెడికల్ క్యాంప్ లేదా ఫీల్డ్ డ్యూటీ లో ఉన్నారా?' : 'On duty at a Medical Camp or Field Visit?'}</span>
+              </div>
+              <p className="text-[11px] text-teal-700 leading-relaxed">
+                {language === 'te' 
+                  ? 'క్యాంప్ లేదా ఫీల్డ్ వర్క్ లో ఉన్నప్పుడు ఇక్కడ కారణం రాసి పంచ్ ఇన్ చేయవచ్చు. ఇది అడ్మిన్‌కు వెంటనే నోటిఫై చేయబడుతుంది.' 
+                  : 'You can punch in by specifying the camp site details. Admin will be instantly notified with your GPS coordinates.'}
+              </p>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  {language === 'te' ? 'డ్యూటీ రకం' : 'Duty Type'}
+                </label>
+                <select
+                  value={campReason}
+                  onChange={(e) => setCampReason(e.target.value)}
+                  className="w-full border border-teal-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                >
+                  <option value="Medical Camp">Medical Camp (మెడికల్ క్యాంప్)</option>
+                  <option value="Mobile Sample Collection">Mobile Sample Collection (శాంపిల్ సేకరణ)</option>
+                  <option value="Patient Home Visit">Patient Home Visit (రోగి ఇంటి సందర్శన)</option>
+                  <option value="Hospital Referral Visit">Hospital Referral Visit (హాస్పిటల్ విజిట్)</option>
+                  <option value="Other Field Assignment">Other Field Duty (ఇతర ఫీల్డ్ వర్క్)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  {language === 'te' ? 'క్యాంప్ స్థలం వివరాలు (తప్పనిసరి) *' : 'Camp / Site Location Details (Mandatory) *'}
+                </label>
+                <input
+                  type="text"
+                  value={campDetails}
+                  onChange={(e) => setCampDetails(e.target.value)}
+                  placeholder={language === 'te' ? 'ఉదా: గాజువాక క్యాంప్, స్టీల్ ప్లాంట్ డ్రైవ్...' : 'e.g. Gajuwaka Camp, Steel Plant Colony...'}
+                  className="w-full border border-teal-200 bg-white rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={!campDetails.trim() || isProcessing}
+                onClick={async () => {
+                  if (!campDetails.trim()) return;
+                  const note = `[CAMP DUTY: ${campReason} - ${campDetails.trim()}]`;
+                  setIsProcessing(true);
+                  const res = await onToggleCheckIn(lastPhotoData, 'camp', note);
+                  setIsProcessing(false);
+                  if (res && res.success) {
+                    setGeoError(null);
+                    setCampDetails('');
+                  } else if (res && res.error) {
+                    alert(res.error);
+                  }
+                }}
+                className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <MapPin className="w-4 h-4" />
+                <span>{language === 'te' ? 'క్యాంప్ పంచ్-ఇన్ చేయండి' : 'Punch In for Camp Duty'}</span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setGeoError(null)}
+              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors uppercase tracking-wider text-xs cursor-pointer"
+            >
+              {language === 'te' ? 'రద్దు చేయండి' : 'Close / Cancel'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* System Terminal Punch-in Modal (Desktop / No Camera) */}
+      {isSystemModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-4">
+            <div className="w-14 h-14 bg-slate-100 text-slate-700 rounded-2xl flex items-center justify-center mx-auto">
+              <Monitor className="w-7 h-7 text-teal-600" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">
+              {language === 'te' ? 'సిస్టమ్ టెర్మినల్ పంచ్-ఇన్' : 'Desktop System Punch-in'}
+            </h3>
+            <p className="text-xs text-slate-400">
+              {language === 'te' 
+                ? 'వెబ్‌క్యామ్ లేని డెస్క్‌టాప్ లేదా ల్యాబ్ కంప్యూటర్ల కోసం' 
+                : 'For lab workstations, testing benches, or desktops without webcams'}
+            </p>
+
+            <div className="text-left bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  {language === 'te' ? 'కారణాన్ని ఎంచుకోండి' : 'Select Reason (Mandatory)'}
+                </label>
+                <select
+                  value={systemReason}
+                  onChange={(e) => setSystemReason(e.target.value)}
+                  className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                >
+                  <option value="Desktop PC without Webcam">Desktop PC without Webcam</option>
+                  <option value="Lab Workstation Terminal">Lab Workstation Terminal</option>
+                  <option value="Camera Driver / Hardware Malfunction">Camera Driver / Hardware Issue</option>
+                  <option value="Browser Camera Permission Blocked">Browser Permission Blocked</option>
+                  <option value="Other Technical Reason">Other Technical Reason</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  {language === 'te' ? 'అదనపు వివరాలు (ఐచ్ఛికం)' : 'Terminal Notes (Optional)'}
+                </label>
+                <input
+                  type="text"
+                  value={systemCustomDetails}
+                  onChange={(e) => setSystemCustomDetails(e.target.value)}
+                  placeholder={language === 'te' ? 'ఉదా: ల్యాబ్ PC 3, బయోకెమిస్ట్రీ డిపార్ట్‌మెంట్' : 'e.g. Lab PC-3, Pathology Department'}
+                  className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                />
+              </div>
+
+              <div className="p-3 bg-teal-50/70 rounded-xl border border-teal-100 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-teal-800 leading-tight">
+                  {language === 'te' 
+                    ? 'ఈ పంచ్ సిస్టమ్ టెర్మినల్ బ్యాడ్జ్‌తో రికార్డ్ అవుతుంది మరియు మీ 8 గంటల పని సమయం ప్రారంభమవుతుంది.' 
+                    : 'A verified terminal badge will be generated for your attendance record, and your 8-hour shift begins.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSystemModalOpen(false);
+                  setSystemCustomDetails('');
+                }}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-xs uppercase cursor-pointer"
+              >
+                {language === 'te' ? 'రద్దు' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={async () => {
+                  // Generate canvas badge
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 400;
+                  canvas.height = 200;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(0, 0, 400, 200);
+                    ctx.fillStyle = '#10b981';
+                    ctx.font = 'bold 15px monospace';
+                    ctx.fillText('🖥️ SYSTEM TERMINAL PUNCH', 20, 35);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = '12px monospace';
+                    ctx.fillText(`EMP: ${currentUser.name} (${currentUser.id})`, 20, 65);
+                    ctx.fillText(`TIME: ${new Date().toLocaleString('en-IN')}`, 20, 92);
+                    ctx.fillText(`REASON: ${systemReason}`, 20, 118);
+                    if (systemCustomDetails) {
+                      ctx.fillText(`NOTE: ${systemCustomDetails.substring(0, 32)}`, 20, 144);
+                    }
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.font = 'bold 11px monospace';
+                    ctx.fillText('STATUS: VERIFIED DESKTOP WORKSTATION', 20, 175);
+                  }
+                  const badgeData = canvas.toDataURL('image/png');
+                  const note = `[🖥️ System Terminal: ${systemReason}${systemCustomDetails ? ` - ${systemCustomDetails}` : ''}]`;
+                  setIsProcessing(true);
+                  const res = await onToggleCheckIn(badgeData, 'system_terminal', note);
+                  setIsProcessing(false);
+                  setIsSystemModalOpen(false);
+                  if (res && res.error) {
+                    alert(res.error);
+                  }
+                }}
+                className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Monitor className="w-4 h-4" />
+                <span>{language === 'te' ? 'పంచ్ ఇన్' : 'Punch In'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

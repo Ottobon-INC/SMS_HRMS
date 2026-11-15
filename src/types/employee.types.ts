@@ -37,4 +37,5 @@ export interface Employee {
   locationPins?: LocationPin[];
   shifts?: DutyRosterShift[];
   bankDetails?: BankDetails;
+  missedPunchRequests?: MissedPunchRequest[];
 }

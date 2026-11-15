@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, ListCollapse, LogIn, LogOut, Camera, X, MapPin, Building2, Stethoscope, Plus, AlertCircle } from 'lucide-react';
+import { Clock, ListCollapse, LogIn, LogOut, Camera, X, MapPin, Building2, Stethoscope, Plus, AlertCircle, Lock, Monitor, ShieldCheck } from 'lucide-react';
 import { Language, CheckInLog, PunchType, LocationPin, PinType } from '../types';
 import { translations } from '../translations';
 import LocationPinTimeline from './LocationPinTimeline';
 import { submitMissedPunchRequest } from '../lib/services/missed-punch-service';
+import { fetchRoster } from '../lib/services/roster-service';
+import { getShiftPunchInWindow } from '../lib/utils/shift-window';
 
 interface CheckInModuleProps {
   language: Language;
@@ -38,17 +40,49 @@ export default function CheckInModule({
   const [showEndShiftConfirm, setShowEndShiftConfirm] = useState(false);
   const [missedPunchDate, setMissedPunchDate] = useState<string | null>(null);
   const [missedPunchReason, setMissedPunchReason] = useState('');
+  const [missedPunchType, setMissedPunchType] = useState<'in' | 'out'>('out');
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [requestSubmitted, setRequestSubmitted] = useState(false);
+  const [todayShift, setTodayShift] = useState<import("../types").DutyRosterShift | null>(null);
+  const [lastPhotoData, setLastPhotoData] = useState<string | undefined>(undefined);
+  const [isSystemModalOpen, setIsSystemModalOpen] = useState(false);
+  const [systemReason, setSystemReason] = useState("Desktop PC without Webcam");
+  const [systemCustomDetails, setSystemCustomDetails] = useState("");
+  const [campReason, setCampReason] = useState("Medical Camp");
+  const [campDetails, setCampDetails] = useState("");
+
+  useEffect(() => {
+    const fetchTodayShift = async () => {
+      const today = new Date();
+      const d = new Date(today);
+      const day = d.getDay() || 7; 
+      if (day !== 1) d.setDate(d.getDate() - (day - 1));
+      d.setHours(0, 0, 0, 0);
+      const weekStartStr = d.toLocaleDateString('en-CA');
+      
+      const data = await fetchRoster(weekStartStr);
+      const todayStr = today.toLocaleDateString('en-CA');
+      const activeShift = data.find(s => s.employeeId === employeeId && s.shiftDate === todayStr && s.isPublished !== false);
+      setTodayShift(activeShift || null);
+    };
+    fetchTodayShift();
+
+    const handleRosterUpdated = () => fetchTodayShift();
+    window.addEventListener('hrms:roster-updated', handleRosterUpdated);
+    return () => window.removeEventListener('hrms:roster-updated', handleRosterUpdated);
+  }, [employeeId]);
   
   const handleSubmitMissedPunchRequest = async () => {
     if (!missedPunchDate) return;
     setIsSubmittingRequest(true);
     try {
-      await submitMissedPunchRequest(employeeId, missedPunchDate, 'out', missedPunchReason);
+      await submitMissedPunchRequest(employeeId, missedPunchDate, missedPunchType, missedPunchReason);
+      if (missedPunchType === 'in') {
+        await onToggleCheckIn(undefined, 'in_office', `[Missed Punch-In: ${missedPunchReason}]`);
+      }
       setRequestSubmitted(true);
-    } catch (err) {
-      alert('Failed to submit request. Please try again.');
+    } catch (err: any) {
+      alert('Failed to submit request: ' + (err?.message || JSON.stringify(err)));
     } finally {
       setIsSubmittingRequest(false);
     }
@@ -112,13 +146,16 @@ export default function CheckInModule({
       if (isForPin) {
         handlePinSubmit(undefined);
       } else {
+        setLastPhotoData(undefined);
         const result = await onToggleCheckIn(undefined, selectedPunchType, punchNote);
         if (result && !result.success) {
           if (result.geoError) {
             setGeoError(result.geoError);
           } else if (result.error) {
             if (result.error.startsWith('missed_punchout:')) {
+              setMissedPunchType('out');
               setMissedPunchDate(result.error.split(':')[1]);
+              setRequestSubmitted(false);
             } else {
               alert(result.error);
             }
@@ -147,6 +184,7 @@ export default function CheckInModule({
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const photoData = canvas.toDataURL('image/jpeg', 0.55);
+        setLastPhotoData(photoData);
         stopCamera();
 
         setIsProcessing(true);
@@ -158,7 +196,9 @@ export default function CheckInModule({
             setGeoError(result.geoError);
           } else if (result.error) {
             if (result.error.startsWith('missed_punchout:')) {
+              setMissedPunchType('out');
               setMissedPunchDate(result.error.split(':')[1]);
+              setRequestSubmitted(false);
             } else {
               alert(result.error);
             }
@@ -197,12 +237,23 @@ export default function CheckInModule({
     }
   };
 
+  const shiftWindow = getShiftPunchInWindow(todayShift);
+  const isShiftLate = !isCheckedIn && shiftWindow.isLate;
+
   // Main button click — for punch-in show category selector; for punch-out go directly to camera
   const handleMainButtonClick = () => {
     if (isCheckedIn) {
       // Punch-out: show confirmation prompt first
       setShowEndShiftConfirm(true);
     } else {
+      if (shiftWindow.isLate) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        setMissedPunchType('in');
+        setMissedPunchDate(todayStr);
+        setMissedPunchReason('');
+        setRequestSubmitted(false);
+        return;
+      }
       // Punch-in: show category selector first
       setIsCategoryOpen(true);
     }
@@ -355,7 +406,11 @@ export default function CheckInModule({
           <p className="text-xs text-slate-400 mt-2 leading-relaxed">
             {isCheckedIn
               ? (language === 'te' ? "పని పూర్తయిన తర్వాత పంచ్ అవుట్ క్లిక్ చేయండి." : "Click below to complete your current shift and log total hours.")
-              : (language === 'te' ? "మీ డ్యూటీ టైమ్ కౌంట్ ప్రారంభించడానికి పంచ్ ఇన్ క్లిక్ చేయండి." : "This records your entry time precisely on the cloud server.")
+              : isShiftLate
+                ? (language === 'te' 
+                    ? `⚠️ షిఫ్ట్ పంచ్-ఇన్ సమయం (${shiftWindow.cutoffTime}) దాటిపోయింది. దయచేసి మిస్డ్ పంచ్ అప్లై చేసి పని ప్రారంభించండి.` 
+                    : `⚠️ Punch-in cutoff (${shiftWindow.cutoffTime}) expired. Apply Missed Punch to start shift.`)
+                : (language === 'te' ? "మీ డ్యూటీ టైమ్ కౌంట్ ప్రారంభించడానికి పంచ్ ఇన్ క్లిక్ చేయండి." : "This records your entry time precisely on the cloud server.")
             }
           </p>
         </div>
@@ -368,7 +423,9 @@ export default function CheckInModule({
           className={`group flex flex-col items-center justify-center w-48 h-48 md:w-52 md:h-52 rounded-full border-[12px] shadow-xl transition-all duration-300 cursor-pointer active:scale-95 disabled:opacity-60 ${
             isCheckedIn
               ? 'border-rose-50 bg-rose-500 hover:bg-rose-600 shadow-rose-200 text-white'
-              : 'border-teal-50 bg-teal-600 hover:bg-teal-700 shadow-teal-100 text-white'
+              : isShiftLate
+                ? 'border-amber-50 bg-amber-500 hover:bg-amber-600 shadow-amber-200 text-white'
+                : 'border-teal-50 bg-teal-600 hover:bg-teal-700 shadow-teal-100 text-white'
           }`}
         >
           {isProcessing ? (
@@ -381,6 +438,14 @@ export default function CheckInModule({
               </span>
               <span className="text-[10px] opacity-80 mt-1">వెళ్ళిపోండి</span>
             </>
+          ) : isShiftLate ? (
+            <>
+              <Lock className="w-10 h-10 mb-2 text-white animate-pulse" />
+              <span className="font-black text-xs uppercase tracking-wider px-3 text-center leading-tight">
+                Window Closed
+              </span>
+              <span className="text-[10px] opacity-90 mt-1">Apply Missed Punch</span>
+            </>
           ) : (
             <>
               <LogIn className="w-10 h-10 mb-2 group-hover:translate-y-0.5 transition-transform" />
@@ -391,6 +456,18 @@ export default function CheckInModule({
             </>
           )}
         </button>
+
+        {/* Desktop System Terminal Punch Option (No Camera) */}
+        {!isCheckedIn && (
+          <button
+            type="button"
+            onClick={() => setIsSystemModalOpen(true)}
+            className="flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold py-2.5 px-6 rounded-xl border border-slate-200 text-xs transition-all cursor-pointer shadow-xs"
+          >
+            <Monitor className="w-4 h-4 text-teal-600" />
+            <span>{language === 'te' ? '🖥️ సిస్టమ్ పంచ్-ఇన్ (నో కెమెరా)' : '🖥️ System Punch-in (No Camera)'}</span>
+          </button>
+        )}
 
         <p className="text-xs text-slate-400 font-mono">
           Logged using your local timezone: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -781,33 +858,99 @@ export default function CheckInModule({
         </div>
       )}
 
-      {/* Geo-fence Error Modal */}
+      {/* Geo-fence Error Modal with Camp Duty Option */}
       {geoError && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-4 animate-scaleUp">
-            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
-              <MapPin className="w-8 h-8" />
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-4 animate-scaleUp">
+            <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+              <MapPin className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-slate-800 mb-2">Outside Allowed Area</h3>
-              <p className="text-sm text-slate-500">
+              <h3 className="text-xl font-bold text-slate-800 mb-1">
+                {language === 'te' ? 'ఆఫీస్ పరిధికి వెలుపల ఉన్నారు' : 'Outside Allowed Area'}
+              </h3>
+              <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 text-left">
                 {geoError.nearestOfficeName === "No configured locations"
-                  ? "Punch-in failed because no Office Locations have been configured in the system yet. Please configure an Office Location first."
-                  : `You are currently ${geoError.distance} meters away from ${geoError.nearestOfficeName}. You must be within the allowed radius to punch in.`
-                }
+                  ? "No Office Locations configured in the system yet."
+                  : `You are currently ${geoError.distance} meters away from ${geoError.nearestOfficeName}.`}
               </p>
             </div>
+
+            <div className="text-left bg-teal-50/60 p-4 rounded-2xl border border-teal-100 space-y-3">
+              <div className="flex items-center gap-2 text-teal-800 font-bold text-xs">
+                <ShieldCheck className="w-4 h-4 text-teal-600" />
+                <span>{language === 'te' ? 'మెడికల్ క్యాంప్ లేదా ఫీల్డ్ డ్యూటీ లో ఉన్నారా?' : 'On duty at a Medical Camp or Field Visit?'}</span>
+              </div>
+              <p className="text-[11px] text-teal-700 leading-relaxed">
+                {language === 'te' 
+                  ? 'క్యాంప్ వివరాలు నమోదు చేసి పంచ్ ఇన్ చేయవచ్చు. ఇది అడ్మిన్‌కు వెంటనే నోటిఫై చేయబడుతుంది.' 
+                  : 'You can punch in by specifying the camp site details. Admin will be instantly notified with your GPS coordinates.'}
+              </p>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  {language === 'te' ? 'డ్యూటీ రకం' : 'Duty Type'}
+                </label>
+                <select
+                  value={campReason}
+                  onChange={(e) => setCampReason(e.target.value)}
+                  className="w-full border border-teal-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                >
+                  <option value="Medical Camp">Medical Camp (మెడికల్ క్యాంప్)</option>
+                  <option value="Mobile Sample Collection">Mobile Sample Collection (శాంపిల్ సేకరణ)</option>
+                  <option value="Patient Home Visit">Patient Home Visit (రోగి ఇంటి సందర్శన)</option>
+                  <option value="Hospital Referral Visit">Hospital Referral Visit (హాస్పిటల్ విజిట్)</option>
+                  <option value="Other Field Assignment">Other Field Duty (ఇతర ఫీల్డ్ వర్క్)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  {language === 'te' ? 'క్యాంప్ స్థలం వివరాలు (తప్పనిసరి) *' : 'Camp / Site Location Details (Mandatory) *'}
+                </label>
+                <input
+                  type="text"
+                  value={campDetails}
+                  onChange={(e) => setCampDetails(e.target.value)}
+                  placeholder={language === 'te' ? 'ఉదా: గాజువాక క్యాంప్, స్టీల్ ప్లాంట్ డ్రైవ్...' : 'e.g. Gajuwaka Camp, Steel Plant Colony...'}
+                  className="w-full border border-teal-200 bg-white rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={!campDetails.trim() || isProcessing}
+                onClick={async () => {
+                  if (!campDetails.trim()) return;
+                  const note = `[CAMP DUTY: ${campReason} - ${campDetails.trim()}]`;
+                  setIsProcessing(true);
+                  const res = await onToggleCheckIn(lastPhotoData, 'camp', note);
+                  setIsProcessing(false);
+                  if (res && res.success) {
+                    setGeoError(null);
+                    setCampDetails('');
+                  } else if (res && res.error) {
+                    alert(res.error);
+                  }
+                }}
+                className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <MapPin className="w-4 h-4" />
+                <span>{language === 'te' ? 'క్యాంప్ పంచ్-ఇన్ చేయండి' : 'Punch In for Camp Duty'}</span>
+              </button>
+            </div>
+
             <button
               onClick={() => setGeoError(null)}
-              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition-colors uppercase tracking-wider text-xs"
+              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors uppercase tracking-wider text-xs cursor-pointer"
             >
-              Okay
+              {language === 'te' ? 'రద్దు చేయండి' : 'Close / Cancel'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Missed Punch Out Error Modal */}
+      {/* Missed Punch Error Modal (In & Out) */}
       {missedPunchDate && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-4 animate-scaleUp">
@@ -818,23 +961,34 @@ export default function CheckInModule({
                   <AlertCircle className="w-8 h-8" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800">
-                  {language === 'te' ? 'పంచ్ అవుట్ మిస్ అయింది' : 'Missed Punch-Out Detected'}
+                  {missedPunchType === 'in'
+                    ? (language === 'te' ? 'పంచ్-ఇన్ సమయం మించిపోయింది' : 'Missed Punch-In Request')
+                    : (language === 'te' ? 'పంచ్ అవుట్ మిస్ అయింది' : 'Missed Punch-Out Detected')
+                  }
                 </h3>
                 <p className="text-sm text-slate-500 text-left bg-amber-50 rounded-xl p-3 border border-amber-100">
-                  {language === 'te'
-                    ? `మీరు ${missedPunchDate} న పంచ్ అవుట్ చేయలేదు. అడ్మిన్ అనుమతి వచ్చిన తర్వాత మాత్రమే పంచ్ ఇన్ చేయవచ్చు.`
-                    : `You did not punch out on ${missedPunchDate}. To punch in today, please submit a request to Admin to close that session.`
+                  {missedPunchType === 'in'
+                    ? (language === 'te'
+                        ? `మీ షిఫ్ట్ ప్రారంభ సమయం కంటే 30 నిమిషాలు దాటినందున డైరెక్ట్ పంచ్-ఇన్ లాక్ చేయబడింది. దయచేసి కారణంతో మిస్డ్ పంచ్ అప్లై చేసి పని ప్రారంభించండి.`
+                        : `The 30-minute punch-in window from your shift start has expired. Please apply with a clear mandatory reason to begin your 8-hour shift.`)
+                    : (language === 'te'
+                        ? `మీరు ${missedPunchDate} న పంచ్ అవుట్ చేయలేదు. అడ్మిన్ అనుమతి కోసం దయచేసి అభ్యర్థన సమర్పించండి.`
+                        : `You did not punch out on ${missedPunchDate}. Please submit a request to Admin to resolve that session.`
+                      )
                   }
                 </p>
 
                 <div className="text-left">
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {language === 'te' ? 'కారణం (ఐచ్ఛికం)' : 'Reason (Optional)'}
+                    {language === 'te' ? 'కారణం (తప్పనిసరి) *' : 'Reason (Mandatory) *'}
                   </label>
                   <textarea
                     value={missedPunchReason}
                     onChange={(e) => setMissedPunchReason(e.target.value)}
-                    placeholder={language === 'te' ? 'ఉదా: అత్యవసర పరిస్థితి కారణంగా వెళ్ళిపోయాను' : 'e.g. Had an emergency and forgot to punch out'}
+                    placeholder={missedPunchType === 'in'
+                      ? (language === 'te' ? 'ఆలస్యానికి గల కారణం రాయండి...' : 'State reason (e.g. traffic delay, emergency duty, forgot to punch)...')
+                      : (language === 'te' ? 'ఉదా: అత్యవసర పరిస్థితి కారణంగా పంచ్ అవుట్ చేయలేదు...' : 'e.g. System crash, rushed out for emergency...')
+                    }
                     rows={3}
                     className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400/30"
                   />
@@ -849,12 +1003,14 @@ export default function CheckInModule({
                   </button>
                   <button
                     onClick={handleSubmitMissedPunchRequest}
-                    disabled={isSubmittingRequest}
-                    className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md disabled:opacity-60"
+                    disabled={isSubmittingRequest || !missedPunchReason.trim()}
+                    className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md"
                   >
                     {isSubmittingRequest
                       ? (language === 'te' ? 'పంపుతున్నారు...' : 'Submitting...')
-                      : (language === 'te' ? 'అడ్మిన్‌కు అభ్యర్థించు' : 'Request Admin Access')
+                      : missedPunchType === 'in'
+                        ? (language === 'te' ? 'అప్లై & పని ప్రారంభించు' : 'Apply & Start Shift')
+                        : (language === 'te' ? 'అభ్యర్థన పంపు' : 'Submit Request')
                     }
                   </button>
                 </div>
@@ -870,9 +1026,14 @@ export default function CheckInModule({
                   {language === 'te' ? 'అభ్యర్థన పంపబడింది' : 'Request Submitted!'}
                 </h3>
                 <p className="text-sm text-slate-500">
-                  {language === 'te'
-                    ? 'మీ అభ్యర్థన అడ్మిన్‌కు పంపబడింది. అప్రూవ్ అయిన తర్వాత మీరు పంచ్ ఇన్ చేయవచ్చు.'
-                    : 'Your request has been sent to Admin. Once approved, you can punch in normally.'
+                  {missedPunchType === 'in'
+                    ? (language === 'te'
+                        ? 'మీ మిస్డ్ పంచ్-ఇన్ అభ్యర్థన నమోదు చేయబడింది మరియు షిఫ్ట్ ప్రారంభించబడింది. దయచేసి 8 గంటలు పూర్తిచేసి తప్పనిసరిగా పంచ్ అవుట్ చేయండి.'
+                        : 'Your missed punch-in request has been logged and your attendance session is live! Please complete your full 8 hours and compulsorily punch out.')
+                    : (language === 'te'
+                        ? 'మీ అభ్యర్థన అడ్మిన్‌కు పంపబడింది. అప్రూవ్ అయిన తర్వాత మీరు పంచ్ ఇన్ చేయవచ్చు.'
+                        : 'Your request has been sent to Admin. Once approved, you can punch in normally.'
+                      )
                   }
                 </p>
                 <button
@@ -887,6 +1048,120 @@ export default function CheckInModule({
                 </button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* System Terminal Punch-in Modal (Desktop / No Camera) */}
+      {isSystemModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-4 animate-scaleUp">
+            <div className="w-14 h-14 bg-slate-100 text-slate-700 rounded-2xl flex items-center justify-center mx-auto">
+              <Monitor className="w-7 h-7 text-teal-600" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">
+              {language === 'te' ? 'సిస్టమ్ టెర్మినల్ పంచ్-ఇన్' : 'Desktop System Punch-in'}
+            </h3>
+            <p className="text-xs text-slate-400">
+              {language === 'te' 
+                ? 'వెబ్‌క్యామ్ లేని డెస్క్‌టాప్ లేదా ల్యాబ్ కంప్యూటర్ల కోసం' 
+                : 'For lab workstations, testing benches, or desktops without webcams'}
+            </p>
+
+            <div className="text-left bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  {language === 'te' ? 'కారణాన్ని ఎంచుకోండి' : 'Select Reason (Mandatory)'}
+                </label>
+                <select
+                  value={systemReason}
+                  onChange={(e) => setSystemReason(e.target.value)}
+                  className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                >
+                  <option value="Desktop PC without Webcam">Desktop PC without Webcam</option>
+                  <option value="Lab Workstation Terminal">Lab Workstation Terminal</option>
+                  <option value="Camera Driver / Hardware Malfunction">Camera Driver / Hardware Issue</option>
+                  <option value="Browser Camera Permission Blocked">Browser Permission Blocked</option>
+                  <option value="Other Technical Reason">Other Technical Reason</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  {language === 'te' ? 'అదనపు వివరాలు (ఐచ్ఛికం)' : 'Terminal Notes (Optional)'}
+                </label>
+                <input
+                  type="text"
+                  value={systemCustomDetails}
+                  onChange={(e) => setSystemCustomDetails(e.target.value)}
+                  placeholder={language === 'te' ? 'ఉదా: ల్యాబ్ PC 3, బయోకెమిస్ట్రీ డిపార్ట్‌మెంట్' : 'e.g. Lab PC-3, Pathology Department'}
+                  className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                />
+              </div>
+
+              <div className="p-3 bg-teal-50/70 rounded-xl border border-teal-100 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-teal-800 leading-tight">
+                  {language === 'te' 
+                    ? 'ఈ పంచ్ సిస్టమ్ టెర్మినల్ బ్యాడ్జ్‌తో రికార్డ్ అవుతుంది మరియు మీ 8 గంటల పని సమయం ప్రారంభమవుతుంది.' 
+                    : 'A verified terminal badge will be generated for your attendance record, and your 8-hour shift begins.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSystemModalOpen(false);
+                  setSystemCustomDetails('');
+                }}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-xs uppercase cursor-pointer"
+              >
+                {language === 'te' ? 'రద్దు' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={async () => {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 400;
+                  canvas.height = 200;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(0, 0, 400, 200);
+                    ctx.fillStyle = '#10b981';
+                    ctx.font = 'bold 15px monospace';
+                    ctx.fillText('🖥️ SYSTEM TERMINAL PUNCH', 20, 35);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = '12px monospace';
+                    ctx.fillText(`EMP CODE: ${employeeId}`, 20, 65);
+                    ctx.fillText(`TIME: ${new Date().toLocaleString('en-IN')}`, 20, 92);
+                    ctx.fillText(`REASON: ${systemReason}`, 20, 118);
+                    if (systemCustomDetails) {
+                      ctx.fillText(`NOTE: ${systemCustomDetails.substring(0, 32)}`, 20, 144);
+                    }
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.font = 'bold 11px monospace';
+                    ctx.fillText('STATUS: VERIFIED DESKTOP WORKSTATION', 20, 175);
+                  }
+                  const badgeData = canvas.toDataURL('image/png');
+                  const note = `[🖥️ System Terminal: ${systemReason}${systemCustomDetails ? ` - ${systemCustomDetails}` : ''}]`;
+                  setIsProcessing(true);
+                  const res = await onToggleCheckIn(badgeData, 'system_terminal', note);
+                  setIsProcessing(false);
+                  setIsSystemModalOpen(false);
+                  if (res && res.error) {
+                    alert(res.error);
+                  }
+                }}
+                className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Monitor className="w-4 h-4" />
+                <span>{language === 'te' ? 'పంచ్ ఇన్' : 'Punch In'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -7,14 +7,18 @@ export async function submitLeaveRequest(empId: string, leave: Omit<LeaveRequest
   const to = new Date(leave.toDate);
   const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 3600 * 24)) + 1;
   
-  if (leave.type === 'monthly') {
+  if (['casual', 'sick', 'monthly', 'lop'].includes(leave.type)) {
     if (diffDays > 3) {
-      throw new Error("Monthly leave cannot exceed 3 days per month.");
+      throw new Error("Continuous leave cannot exceed 3 days. Longer leaves must be approved separately or marked as Absent.");
     }
-  } else if (leave.type === 'maternity' && diffDays > 90) {
-    throw new Error("Maternity leave cannot exceed 90 days.");
-  } else if (leave.type === 'paternity' && diffDays > 7) {
-    throw new Error("Paternity leave cannot exceed 7 days.");
+  } else if (leave.type === 'maternity') {
+    if (diffDays > 90) {
+      throw new Error("Maternity leave cannot exceed 90 days.");
+    }
+  } else if (leave.type === 'paternity') {
+    if (diffDays > 7) {
+      throw new Error("Paternity leave can only be applied for up to 7 consecutive days at a time. After 7 days, you can re-apply for remaining days.");
+    }
   }
 
   const { error } = await supabase
@@ -53,7 +57,7 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
     const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 3600 * 24)) + 1;
 
     if (request.leave_type === 'monthly') {
-      const monthStr = from.toISOString().substring(0, 7); // YYYY-MM
+      const monthStr = request.from_date.substring(0, 7); // YYYY-MM
       // Ensure the row exists or initialize it
       const { data: quota } = await supabase
         .from(DB_TABLES.MONTHLY_LEAVE_QUOTA)
@@ -73,7 +77,7 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
           .insert([{
             employee_id: request.employee_id,
             month: monthStr,
-            allotted: 3,
+            allotted: 1,
             used: diffDays
           }]);
       }
@@ -85,33 +89,42 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
         .eq('leave_type', request.leave_type)
         .maybeSingle();
 
-    if (balance) {
-      await supabase
-        .from(DB_TABLES.LEAVE_BALANCES)
-        .update({ used: Number(balance.used || 0) + diffDays })
-        .eq('id', balance.id);
-    } else {
-      let allotted = 0;
-      if (request.leave_type === 'sick') allotted = 6;
-      else if (request.leave_type === 'casual') allotted = 8;
-      else if (request.leave_type === 'maternity') allotted = 90;
-      else if (request.leave_type === 'paternity') allotted = 7;
+      if (balance) {
+        await supabase
+          .from(DB_TABLES.LEAVE_BALANCES)
+          .update({ used: Number(balance.used || 0) + diffDays })
+          .eq('id', balance.id);
+      } else {
+        let allotted = 0;
+        if (request.leave_type === 'sick') allotted = 1;
+        else if (request.leave_type === 'casual') allotted = 1;
+        else if (request.leave_type === 'maternity') allotted = 90;
+        else if (request.leave_type === 'paternity') allotted = 15;
+        else if (request.leave_type === 'lop') allotted = 0;
 
-      await supabase
-        .from(DB_TABLES.LEAVE_BALANCES)
-        .insert([{
-          employee_id: request.employee_id,
-          leave_type: request.leave_type,
-          total_allotted: allotted,
-          used: diffDays
-        }]);
+        await supabase
+          .from(DB_TABLES.LEAVE_BALANCES)
+          .insert([{
+            employee_id: request.employee_id,
+            leave_type: request.leave_type,
+            total_allotted: allotted,
+            used: diffDays
+          }]);
       }
     }
 
-    let current = new Date(from);
-    const end = new Date(to);
-    while (current <= end) {
-      const dateStr = current.toISOString().split('T')[0];
+    // Auto-sync approved leave into Attendance table with lowercase status 'leave'
+    const [startYear, startMonth, startDay] = request.from_date.split('-').map(Number);
+    const [endYear, endMonth, endDay] = request.to_date.split('-').map(Number);
+    const cur = new Date(startYear, startMonth - 1, startDay);
+    const end = new Date(endYear, endMonth - 1, endDay);
+
+    while (cur <= end) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+
       const { data: att } = await supabase
         .from(DB_TABLES.ATTENDANCE)
         .select('id')
@@ -122,14 +135,22 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
       if (att) {
         await supabase
           .from(DB_TABLES.ATTENDANCE)
-          .update({ status: 'Leave' })
+          .update({ 
+            status: 'leave',
+            punch_note: `Approved Leave: ${request.leave_type}`
+          })
           .eq('id', att.id);
       } else {
         await supabase
           .from(DB_TABLES.ATTENDANCE)
-          .insert([{ employee_id: request.employee_id, date: dateStr, status: 'Leave' }]);
+          .insert([{ 
+            employee_id: request.employee_id, 
+            date: dateStr, 
+            status: 'leave',
+            punch_note: `Approved Leave: ${request.leave_type}`
+          }]);
       }
-      current.setDate(current.getDate() + 1);
+      cur.setDate(cur.getDate() + 1);
     }
   }
 }
@@ -199,8 +220,8 @@ export async function deductPenaltyLeave(empId: string, leaveType: LeaveType, pe
   } else {
     // If no record exists, create one with standard default allotted and the penalty as used
     let allotted = 0;
-    if (leaveType === 'sick') allotted = 6;
-    else if (leaveType === 'casual') allotted = 8;
+    if (leaveType === 'sick') allotted = 1;
+    else if (leaveType === 'casual') allotted = 1;
     
     const { error } = await supabase
       .from(DB_TABLES.LEAVE_BALANCES)

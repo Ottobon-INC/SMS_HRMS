@@ -305,7 +305,7 @@ export default function App() {
               onUpdateBalances={updateBalances}
               onUpdateAttendance={updateAttendance}
               onForceCloseSession={forceCloseSession}
-              onRunBulkPayroll={runBulkPayroll}
+              onRunBulkPayroll={(month: string) => runBulkPayroll(employees, month)}
               onGenerateSinglePayslip={generateSinglePayslip}
               onUpdatePayslip={updatePayslip}
               onCreateTask={createTask}

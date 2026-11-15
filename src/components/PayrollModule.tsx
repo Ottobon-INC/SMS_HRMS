@@ -20,6 +20,7 @@ interface PayrollModuleProps {
   onUpdateBankDetails?: (details: BankDetails) => void;
   attendanceRecords?: AttendanceRecord[];
   leaveRequests?: LeaveRequest[];
+  missedPunchRequests?: import('../types').MissedPunchRequest[];
 }
 
 export default function PayrollModule({
@@ -35,12 +36,28 @@ export default function PayrollModule({
   onUpdatePayslip,
   onUpdateBankDetails,
   attendanceRecords = [],
-  leaveRequests = []
+  leaveRequests = [],
+  missedPunchRequests = []
 }: PayrollModuleProps) {
   const t = translations[language];
 
-  // Selected payslip state
-  const [selectedSlipId, setSelectedSlipId] = useState(payslips[0]?.id || '');
+  // Sort payslips reverse chronologically (latest month first, e.g. 2026-10, 2026-09...)
+  const sortedPayslips = React.useMemo(() => {
+    return [...payslips].sort((a, b) => (b.month || '').localeCompare(a.month || ''));
+  }, [payslips]);
+
+  // Selected payslip state - defaults to the latest month's payslip
+  const [selectedSlipId, setSelectedSlipId] = useState(sortedPayslips[0]?.id || '');
+
+  // Keep selectedSlipId synchronized when sortedPayslips change (e.g. employee switch or regeneration)
+  React.useEffect(() => {
+    if (sortedPayslips.length > 0) {
+      const exists = sortedPayslips.some(p => p.id === selectedSlipId);
+      if (!exists) {
+        setSelectedSlipId(sortedPayslips[0].id);
+      }
+    }
+  }, [sortedPayslips, selectedSlipId]);
 
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -59,7 +76,7 @@ export default function PayrollModule({
   const [draftBankIfsc, setDraftBankIfsc] = useState<string>('');
   const [draftBankAccountType, setDraftBankAccountType] = useState<string>('savings');
 
-  const activeSlip = payslips.find(p => p.id === selectedSlipId) || payslips[0];
+  const activeSlip = sortedPayslips.find(p => p.id === selectedSlipId) || sortedPayslips[0];
 
   if (!activeSlip) {
     return (
@@ -71,20 +88,25 @@ export default function PayrollModule({
 
   // --- Computed Fallback for Missing Stats ---
   // If the database is missing these columns (due to Supabase schema lag), compute them on the fly
-  let displayWorkingDays = activeSlip.workingDays;
-  let displayDaysPresent = activeSlip.daysPresent;
-  let displayLeavesTaken = activeSlip.leavesTaken;
-  
-  let displayPaidLeaves = 0;
-  let displayLopDays = 0;
+  let displayDaysPresent = activeSlip.daysPresent ?? 0;
+  let displayLeavesTaken = activeSlip.leavesTaken ?? 0;
+  let displayPaidLeaves = activeSlip.paidLeaves ?? 0;
+  let displayLopDays = activeSlip.lopDays ?? 0;
+  let displayAbsentDays = activeSlip.absentDays ?? 0;
 
-  // Always compute dynamically from employee's actual attendance records + leave requests
-  const stats = computeAttendanceStats(activeSlip.month, attendanceRecords, leaveRequests);
-  displayWorkingDays = stats.workingDays;
-  displayDaysPresent = stats.daysPresent;
-  displayLeavesTaken = stats.leavesTaken;
-  displayPaidLeaves = stats.paidLeaves;
-  displayLopDays = stats.lopDays;
+  // Always compute dynamically from employee's actual attendance records + leave requests + joining date + missed punches
+  const stats = computeAttendanceStats(activeSlip.month, attendanceRecords, leaveRequests, employeeJoiningDate, missedPunchRequests);
+  // Working days is always total calendar days in that month (30 or 31), never '-'
+  let displayWorkingDays = stats.workingDays || activeSlip.workingDays || 30;
+
+  if (stats.hasData) {
+    displayWorkingDays = stats.workingDays;
+    displayDaysPresent = stats.daysPresent;
+    displayLeavesTaken = stats.leavesTaken;
+    displayPaidLeaves = stats.paidLeaves;
+    displayLopDays = stats.lopDays;
+    displayAbsentDays = stats.absentDays;
+  }
   const hasAttendanceData = stats.hasData;
 
   // Formatting helpers
@@ -99,7 +121,30 @@ export default function PayrollModule({
   // Math Calculations (Live/Draft vs Standard)
   const basicPayValue = isEditing ? draftBasicPay : activeSlip.basicPay;
   const allowancesList = isEditing ? draftAllowances : activeSlip.allowances;
-  const deductionsList = isEditing ? draftDeductions : activeSlip.deductions.filter(d => d.nameKey !== 'incomeTax');
+  const baseDeductionsList = isEditing ? draftDeductions : activeSlip.deductions.filter(d => d.nameKey !== 'incomeTax');
+
+  // Daily pay rate
+  const dailyPay = displayWorkingDays > 0 ? (basicPayValue / displayWorkingDays) : 0;
+  const liveLopDeduction = displayLopDays > 0 ? Math.round(displayLopDays * 1 * dailyPay) : 0;
+  const liveAbsentDeduction = displayAbsentDays > 0 ? Math.round(displayAbsentDays * 2 * dailyPay) : 0;
+  const liveMissedPunchDeduction = (stats.missedPunchPenaltyHalfDays || 0) > 0 
+    ? Math.round(stats.missedPunchPenaltyHalfDays * 0.5 * dailyPay) 
+    : 0;
+
+  // Build active deductions list: ensure LOP (1x), Absent (2x), and Missed Punch penalties are applied
+  let deductionsList: Deduction[] = [...baseDeductionsList];
+  if (!isEditing && stats.hasData) {
+    deductionsList = deductionsList.filter(d => d.nameKey !== 'lossOfPay' && d.nameKey !== 'absentPenalty' && d.nameKey !== 'missedPunchPenalty');
+    if (liveLopDeduction > 0) {
+      deductionsList.push({ nameKey: 'lossOfPay', amount: liveLopDeduction });
+    }
+    if (liveAbsentDeduction > 0) {
+      deductionsList.push({ nameKey: 'absentPenalty', amount: liveAbsentDeduction });
+    }
+    if (liveMissedPunchDeduction > 0) {
+      deductionsList.push({ nameKey: 'missedPunchPenalty', amount: liveMissedPunchDeduction });
+    }
+  }
   
   const advanceTaken = isEditing ? draftAdvanceTaken : activeSlip.advanceMoneyTaken;
   const advanceAmount = isEditing ? (draftAdvanceTaken ? draftAdvanceAmount : 0) : (activeSlip.advanceMoneyTaken ? activeSlip.advanceMoneyAmount || 0 : 0);
@@ -107,7 +152,7 @@ export default function PayrollModule({
   const totalEarnings = basicPayValue + allowancesList.reduce((acc, a) => acc + a.amount, 0);
   const hasAdvanceInDeductions = deductionsList.some(d => d.nameKey.startsWith('advanceInstallment'));
   const totalDeductions = deductionsList.reduce((acc, d) => acc + d.amount, 0) + (hasAdvanceInDeductions ? 0 : advanceAmount);
-  const netPay = totalEarnings - totalDeductions;
+  const netPay = Math.max(0, totalEarnings - totalDeductions);
 
   // Advance Eligibility
   let isEligibleForAdvance = false;
@@ -129,7 +174,7 @@ export default function PayrollModule({
   const startEditing = () => {
     setDraftBasicPay(activeSlip.basicPay);
     setDraftAllowances([...activeSlip.allowances]);
-    setDraftDeductions(activeSlip.deductions.filter(d => d.nameKey !== 'incomeTax'));
+    setDraftDeductions([...deductionsList]);
     setDraftAdvanceTaken(activeSlip.advanceMoneyTaken || false);
     setDraftAdvanceAmount(activeSlip.advanceMoneyAmount || 0);
     setDraftWorkingDays(displayWorkingDays || 0);
@@ -231,12 +276,12 @@ export default function PayrollModule({
             </label>
             <select
               id="payslip-month-select"
-              value={selectedSlipId}
+              value={activeSlip?.id || ''}
               disabled={isEditing}
               onChange={(e) => setSelectedSlipId(e.target.value)}
               className="border border-slate-200 bg-slate-50 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-600/20 disabled:opacity-50"
             >
-              {payslips.map(slip => {
+              {sortedPayslips.map(slip => {
                 return (
                   <option key={slip.id} value={slip.id}>
                     {formatMonth(slip.month, language)}
@@ -331,15 +376,17 @@ export default function PayrollModule({
             </div>
 
             {/* 4. Attendance Summary */}
-            <div className="grid grid-cols-8 border border-black text-center text-[10px] sm:text-xs">
+            <div className="grid grid-cols-10 border border-black text-center text-[10px] sm:text-xs">
               <div className="p-2 border-r border-black font-bold bg-gray-100">{t.workingDays || 'Working Days'}</div>
               <div className="p-2 border-r border-black">{displayWorkingDays ?? '-'}</div>
               <div className="p-2 border-r border-black font-bold bg-gray-100">{t.daysPresent || 'Days Present'}</div>
               <div className="p-2 border-r border-black">{displayDaysPresent}</div>
               <div className="p-2 border-r border-black font-bold bg-gray-100">{language === 'te' ? 'పెయిడ్ సెలవులు' : 'Paid Leaves'}</div>
               <div className="p-2 border-r border-black">{displayPaidLeaves}</div>
-              <div className="p-2 border-r border-black font-bold bg-gray-100">{language === 'te' ? 'సెలవులు/LOP' : 'LOP Days'}</div>
-              <div className="p-2">{displayLopDays}</div>
+              <div className="p-2 border-r border-black font-bold bg-gray-100">{language === 'te' ? 'లాస్ ఆఫ్ పే (LOP)' : 'LOP'}</div>
+              <div className="p-2 border-r border-black">{displayLopDays}</div>
+              <div className="p-2 border-r border-black font-bold bg-gray-100 text-rose-600">{language === 'te' ? 'రాని రోజులు (Absent)' : 'Absent'}</div>
+              <div className="p-2 text-rose-600 font-bold">{displayAbsentDays}</div>
             </div>
             {!hasAttendanceData && (
               <div className="border border-t-0 border-black px-3 py-1 mb-6 bg-amber-50 text-amber-700 text-[9px] italic text-center">
@@ -396,6 +443,12 @@ export default function PayrollModule({
                           ? (language === 'te' ? 'జీతం అడ్వాన్స్ వాయిదా' : 'Salary Advance Installment')
                           : d.nameKey === 'advanceInstallment_medical'
                           ? (language === 'te' ? 'మెడికల్ ఎమర్జెన్సీ వాయిదా' : 'Medical Advance Installment')
+                          : d.nameKey === 'lossOfPay'
+                          ? (language === 'te' ? 'లాస్ ఆఫ్ పే (LOP)' : 'Loss of Pay (LOP)')
+                          : d.nameKey === 'absentPenalty'
+                          ? (language === 'te' ? 'హాజరుకాని కటింగ్ (Absent)' : 'Absent')
+                          : d.nameKey === 'missedPunchPenalty'
+                          ? (language === 'te' ? 'మిస్డ్ పంచ్ జరిమానా' : 'Missed Punch Penalty')
                           : (t[d.nameKey] || d.nameKey)
                         }
                       </span>
@@ -430,7 +483,7 @@ export default function PayrollModule({
 
             {/* 7. In Words */}
             <div className="text-sm mb-12">
-              <span className="font-normal">In words: {numberToWords(netPay)} Rupees only</span>
+              <span className="font-normal">In words: {numberToWords(netPay)}</span>
             </div>
 
             {/* 8. Footer */}

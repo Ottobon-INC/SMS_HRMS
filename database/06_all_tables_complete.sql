@@ -348,7 +348,17 @@ CREATE TABLE IF NOT EXISTS public."sms_hrms_tasks" (
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 24. Performance Indexes
+-- 24. Experience Letters Table
+CREATE TABLE IF NOT EXISTS "sms_hrms_experience_letters" (
+    "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    "employee_id" VARCHAR(255) NOT NULL,
+    "letter_data" JSONB NOT NULL,
+    "created_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "sms_hrms_experience_letters_emp_unique" UNIQUE ("employee_id")
+);
+
+-- 25. Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_hrms_tasks_assigned_to ON public."sms_hrms_tasks"(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_hrms_tasks_status ON public."sms_hrms_tasks"(status);
 CREATE INDEX IF NOT EXISTS idx_hrms_tasks_priority ON public."sms_hrms_tasks"(priority);
@@ -356,8 +366,9 @@ CREATE INDEX IF NOT EXISTS idx_hrms_tasks_due_date ON public."sms_hrms_tasks"(du
 CREATE INDEX IF NOT EXISTS idx_hrms_tasks_created_at ON public."sms_hrms_tasks"(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON "sms_hrms_chat_messages"("channel_id");
 CREATE INDEX IF NOT EXISTS idx_field_visits_emp_date ON "sms_hrms_field_visits"("employee_id", "scheduled_date");
+CREATE INDEX IF NOT EXISTS idx_sms_hrms_experience_letters_emp ON "sms_hrms_experience_letters"("employee_id");
 
--- 25. Row Level Security Configuration (Open Public Access for Client HRMS)
+-- 26. Row Level Security Configuration (Open Public Access for Client HRMS)
 ALTER TABLE "sms_hrms_employees" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "sms_hrms_attendance" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "sms_hrms_leave_requests" DISABLE ROW LEVEL SECURITY;
@@ -380,6 +391,7 @@ ALTER TABLE "sms_hrms_field_visits" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "sms_hrms_field_visit_events" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "sms_hrms_field_visit_proofs" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public."sms_hrms_tasks" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "sms_hrms_experience_letters" DISABLE ROW LEVEL SECURITY;
 
 -- 26. Realtime Publication
 DO $$

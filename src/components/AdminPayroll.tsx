@@ -9,7 +9,7 @@ interface AdminPayrollProps {
   language: 'en' | 'te';
   employees: Employee[];
   onRunBulkPayroll: (month: string) => void;
-  onGenerateSinglePayslip: (employeeId: string, month: string, basicPay: number, hasExisting: boolean, approvedAdvances: { id: string, amount: number }[], attendanceRecords: any[], leaveRequests: any[]) => void;
+  onGenerateSinglePayslip: (employeeId: string, month: string, basicPay: number, hasExisting: boolean, approvedAdvances: { id: string, amount: number }[], attendanceRecords: any[], leaveRequests: any[], joiningDate?: string, missedPunchRequests?: any[]) => void;
   onUpdatePayslip: (employeeId: string, updatedSlip: Payslip) => void;
   onUpdateEmployee?: (employeeId: string, updates: Partial<Employee>) => void;
 }
@@ -33,15 +33,22 @@ export default function AdminPayroll({
   const [showNotification, setShowNotification] = useState<string | null>(null);
 
   const eligibleEmployees = employees.filter(e => e.role !== 'admin');
+  const activeStaff = eligibleEmployees.filter(e => e.status !== 'inactive');
+  const inactiveStaff = eligibleEmployees.filter(e => e.status === 'inactive');
 
   // Trigger bulk payroll
-  const handleBulkPayroll = () => {
-    onRunBulkPayroll(payrollMonth);
-    setShowNotification(
-      language === 'te' 
-        ? `${payrollMonth} నెలకు సిబ్బంది అందరికీ జీతాలు విజయవంతంగా రన్ చేయబడ్డాయి!` 
-        : `Successfully processed monthly payroll run for all employees for ${payrollMonth}!`
-    );
+  const handleBulkPayroll = async () => {
+    try {
+      await onRunBulkPayroll(payrollMonth);
+      setShowNotification(
+        language === 'te' 
+          ? `${payrollMonth} నెలకు సిబ్బంది అందరికీ జీతాలు విజయవంతంగా రన్ చేయబడ్డాయి!` 
+          : `Successfully processed monthly payroll run for all employees for ${payrollMonth}!`
+      );
+    } catch (err: any) {
+      console.error("Bulk Payroll Error:", err);
+      setShowNotification(`Error: ${err?.message || "Failed to run bulk payroll."}`);
+    }
     setTimeout(() => setShowNotification(null), 6000);
   };
 
@@ -168,11 +175,22 @@ export default function AdminPayroll({
             className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/10 cursor-pointer"
           >
             <option value="">{localizedText.selectEmpPlace}</option>
-            {eligibleEmployees.map(emp => (
-              <option key={emp.id} value={emp.id}>
-                {emp.name} ({emp.id}) — Basic: ₹{emp.basicSalary}
-              </option>
-            ))}
+            <optgroup label={language === 'te' ? 'యాక్టివ్ సిబ్బంది' : 'Active Employees'}>
+              {activeStaff.map(emp => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.name} ({emp.id}) — Basic: ₹{emp.basicSalary}
+                </option>
+              ))}
+            </optgroup>
+            {inactiveStaff.length > 0 && (
+              <optgroup label={language === 'te' ? 'నిలిపివేసిన సిబ్బంది (ఫైనల్ సెటిల్‌మెంట్ & రికార్డులు)' : 'Deactivated Staff (Final Settlement & History)'}>
+                {inactiveStaff.map(emp => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.id}) [Deactivated] — Basic: ₹{emp.basicSalary}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
 
@@ -196,7 +214,7 @@ export default function AdminPayroll({
                 className="border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/10 cursor-pointer min-w-[120px]"
               >
                 {monthOptions.map(m => {
-                  const alreadyExists = activeEmployee.payslips.some(p => p.month === m);
+                  const alreadyExists = (activeEmployee.payslips || []).some(p => p.month === m);
                   return (
                     <option key={m} value={m}>
                       {formatMonth(m, language)} {alreadyExists ? (language === 'te' ? '(ఉంది - మళ్లీ సృష్టించు)' : '(Exists - Will Overwrite)') : ''}
@@ -209,9 +227,9 @@ export default function AdminPayroll({
                 // Removed disabled check to allow manual overrides
                 onClick={async () => {
                   try {
-                    const hasExisting = activeEmployee.payslips.some(p => p.month === singlePayrollMonth);
+                    const hasExisting = (activeEmployee.payslips || []).some(p => p.month === singlePayrollMonth);
                     const approvedAdvances = activeEmployee.advanceRequests?.filter(a => a.status === 'approved') || [];
-                    await onGenerateSinglePayslip(activeEmployee.id, singlePayrollMonth, activeEmployee.basicSalary, hasExisting, approvedAdvances, activeEmployee.attendanceRecords || [], activeEmployee.leaveRequests || []);
+                    await onGenerateSinglePayslip(activeEmployee.id, singlePayrollMonth, activeEmployee.basicSalary, hasExisting, approvedAdvances, activeEmployee.attendanceRecords || [], activeEmployee.leaveRequests || [], activeEmployee.joiningDate, activeEmployee.missedPunchRequests || []);
                     setShowNotification(language === 'te' ? 'సాలరీ స్లిప్ సృష్టించబడింది!' : 'Successfully generated individual payslip!');
                   } catch (err: any) {
                     console.error("Payslip Generation Error:", err);
@@ -223,18 +241,18 @@ export default function AdminPayroll({
               >
                 <Plus className="w-4 h-4 shrink-0" />
                 <span className="whitespace-nowrap">
-                  {activeEmployee.payslips.some(p => p.month === singlePayrollMonth) 
+                  {(activeEmployee.payslips || []).some(p => p.month === singlePayrollMonth) 
                     ? (language === 'te' ? 'మళ్లీ సృష్టించండి' : 'Regenerate Payslip') 
                     : localizedText.btnGenerateSingle}
                 </span>
               </button>
             </div>
             
-            {activeEmployee.payslips.length > 0 && (
+            {(activeEmployee.payslips || []).length > 0 && (
               <div className="p-1 bg-slate-50/50 rounded-2xl border border-slate-100">
                 <PayrollModule
                   language={language}
-                  payslips={activeEmployee.payslips}
+                  payslips={activeEmployee.payslips || []}
                   employeeName={activeEmployee.name}
                   employeeId={activeEmployee.id}
                   employeeEmail={activeEmployee.email}
@@ -246,6 +264,7 @@ export default function AdminPayroll({
                   onUpdateBankDetails={(bankDetails) => onUpdateEmployee?.(activeEmployee.id, { bankDetails })}
                   attendanceRecords={activeEmployee.attendanceRecords || []}
                   leaveRequests={activeEmployee.leaveRequests || []}
+                  missedPunchRequests={activeEmployee.missedPunchRequests || []}
                 />
               </div>
             )}

@@ -36,7 +36,9 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
     hasExisting: boolean,
     approvedAdvances: { id: string; amount: number; repaymentMonths?: number; monthlyInstallment?: number; installmentsRemaining?: number; advanceType?: 'salary' | 'medical' }[],
     attendanceRecords: AttendanceRecord[],
-    leaveRequests: LeaveRequest[]
+    leaveRequests: LeaveRequest[],
+    joiningDate?: string,
+    missedPunchRequests?: import('../types').MissedPunchRequest[]
   ) => {
     if (isLocalMode) {
       alert("Payslip updates require an online database connection.");
@@ -83,7 +85,32 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
       });
     }
 
-    const stats = computeAttendanceStats(month, attendanceRecords, leaveRequests);
+    const stats = computeAttendanceStats(month, attendanceRecords, leaveRequests, joiningDate, missedPunchRequests);
+    const dailyPay = stats.workingDays > 0 ? (basicPay / stats.workingDays) : 0;
+
+    // Loss of Pay (LOP) deduction: 1 day salary cut per approved LOP day
+    if (stats.lopDays > 0) {
+      deductionsArr.push({
+        nameKey: 'lossOfPay',
+        amount: Math.round(stats.lopDays * 1 * dailyPay)
+      });
+    }
+
+    // Absent Penalty deduction: 2 days salary cut per unapproved absent day
+    if (stats.absentDays > 0) {
+      deductionsArr.push({
+        nameKey: 'absentPenalty',
+        amount: Math.round(stats.absentDays * 2 * dailyPay)
+      });
+    }
+
+    // Missed Punch Penalty deduction: 0.5 day cut per penalty half day
+    if ((stats.missedPunchPenaltyHalfDays || 0) > 0) {
+      deductionsArr.push({
+        nameKey: 'missedPunchPenalty',
+        amount: Math.round(stats.missedPunchPenaltyHalfDays * 0.5 * dailyPay)
+      });
+    }
 
     const payslip: Payslip = {
       id: `PS-${month}-${empId.slice(-3)}`,
@@ -99,7 +126,11 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
       advanceMoneyAmount: advanceInstallmentTotal,
       workingDays: stats.workingDays,
       daysPresent: stats.daysPresent,
-      leavesTaken: stats.leavesTaken
+      leavesTaken: stats.leavesTaken,
+      paidLeaves: stats.paidLeaves,
+      lopDays: stats.lopDays,
+      absentDays: stats.absentDays,
+      halfDays: stats.halfDays
     };
 
     await payrollService.savePayslipToSupabase(empId, payslip);

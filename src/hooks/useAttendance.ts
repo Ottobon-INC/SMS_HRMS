@@ -19,12 +19,27 @@ function getPosition(enableHighAccuracy: boolean, timeout: number, maximumAge: n
 }
 
 export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void>) {
-  const toggleCheckIn = async (empId: string, isCurrentlyCheckedIn: boolean, photoData?: string, punchType: PunchType = 'in_office', punchNote?: string) => {
+  const toggleCheckIn = async (empId: string, isCurrentlyCheckedIn: boolean, photoData?: string, punchType: PunchType = 'in_office', punchNote?: string, statusOverride?: AttendanceStatus) => {
 
     if (isLocalMode) {
       alert("Attendance can only be recorded in online mode.");
       return;
     }
+
+    // Guard: Deactivated employees cannot punch in or punch out
+    try {
+      const cached = localStorage.getItem('hrms_local_employees');
+      if (cached) {
+        const emps = JSON.parse(cached);
+        const emp = emps.find((e: any) => e.id === empId);
+        if (emp && emp.status === 'inactive') {
+          return {
+            success: false,
+            error: "Your account has been deactivated by administration. Punch in and punch out are disabled."
+          };
+        }
+      }
+    } catch {}
     
     try {
       let locationStr: string | undefined = undefined;
@@ -53,10 +68,12 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
       } catch (gpsErr: any) {
         console.warn("Could not get GPS position:", gpsErr);
 
-        if (punchType === 'out_of_office' || isCurrentlyCheckedIn) {
+        if (punchType === 'out_of_office' || punchType === 'camp' || punchType === 'field_visit' || punchType === 'system_terminal' || isCurrentlyCheckedIn) {
           locationStr = isCurrentlyCheckedIn
             ? "Punch-out - Location Unknown (GPS Unavailable)"
-            : "Out of Office - Location Unknown (GPS Unavailable)";
+            : punchType === 'system_terminal'
+            ? "Office Workstation / Lab Terminal (Desktop)"
+            : "Camp / Field Duty - Location Unknown (GPS Unavailable)";
           latLngStr = "0,0";
         } else {
           let errMsg = "Could not get your GPS location. Please ensure location services are enabled on your device.";
@@ -94,7 +111,10 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
       }
 
       // STEP 3: Geofence Verification (Decoupled from GPS error handling!)
-      if (!isCurrentlyCheckedIn && punchType !== 'out_of_office') {
+      const isCampOrField = punchType === 'camp' || punchType === 'field_visit' || punchType === 'out_of_office';
+      const isSystemTerminal = punchType === 'system_terminal';
+
+      if (!isCurrentlyCheckedIn && !isCampOrField && !isSystemTerminal) {
         if (latitude === null || longitude === null) {
           return { success: false, error: "GPS coordinates are required for in-office check-in." };
         }
@@ -114,12 +134,36 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
             error: `Unable to verify office location: ${geoErr.message || 'Server connection error'}. Please try again.`
           };
         }
-      } else if (punchType === 'out_of_office') {
-        locationStr = `Out of Office - ${locationStr || 'Location Unknown'}`;
+      } else if (isCampOrField) {
+        locationStr = locationStr ? `Camp/Field (${locationStr})` : 'Camp / Field Assignment';
+        
+        // Dispatch real-time alert for Admin notification
+        try {
+          window.dispatchEvent(new CustomEvent('hrms:outside-camp-alert', {
+            detail: {
+              employeeId: empId,
+              note: punchNote,
+              location: locationStr,
+              timestamp: new Date().toISOString()
+            }
+          }));
+          const cachedAlerts = JSON.parse(localStorage.getItem('hrms_admin_alerts') || '[]');
+          cachedAlerts.unshift({
+            id: `alert-${Date.now()}`,
+            employeeId: empId,
+            type: 'outside_camp',
+            title: 'Outside Office Camp Check-In',
+            message: `Punched in outside office area: ${punchNote || 'Camp Duty'}`,
+            timestamp: new Date().toISOString()
+          });
+          localStorage.setItem('hrms_admin_alerts', JSON.stringify(cachedAlerts.slice(0, 50)));
+        } catch {}
+      } else if (isSystemTerminal) {
+        locationStr = locationStr || 'Office Workstation / Lab Terminal';
       }
 
       if (isCurrentlyCheckedIn) {
-        await attendanceService.clockOutEmployee(empId, photoData, locationStr, latLngStr);
+        await attendanceService.clockOutEmployee(empId, photoData, locationStr, latLngStr, punchNote, statusOverride);
         await loadData();
         return { success: true };
       } else {

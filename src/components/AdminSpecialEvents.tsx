@@ -220,7 +220,7 @@ export default function AdminSpecialEvents({ language, employees }: AdminSpecial
               <p className="text-xs text-slate-400 mb-4">Select the employees who are allowed to check in from this location during the specified dates.</p>
               
               <div className="flex-1 overflow-y-auto space-y-2 max-h-80 pr-2">
-                {employees.filter(e => e.role !== 'admin').map(emp => (
+                {employees.filter(e => e.role !== 'admin' && e.status !== 'inactive').map(emp => (
                   <label key={emp.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-300 transition-colors">
                     <input 
                       type="checkbox"

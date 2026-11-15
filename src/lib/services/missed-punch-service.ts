@@ -230,3 +230,51 @@ export async function countPendingMissedPunches(): Promise<number> {
   if (error) return 0;
   return count ?? 0;
 }
+
+/**
+ * Calculates penalty half-day cuts based on monthly approved missed punch count.
+ * Rule:
+ * - 1st & 2nd: Grace (0 cut)
+ * - 3rd: 1 half-day cut (0.5x daily salary)
+ * - 4th & 5th: Grace (0 cut)
+ * - 6th: 1 half-day cut (0.5x daily salary) (Total 2 half-days)
+ * - 7th onwards: 1 half-day cut for EVERY subsequent missed punch
+ */
+export function calculateMissedPunchPenaltyHalfDays(missedPunchCount: number): number {
+  if (missedPunchCount < 3) return 0;
+  if (missedPunchCount <= 5) return 1;
+  if (missedPunchCount === 6) return 2;
+  return 2 + (missedPunchCount - 6);
+}
+
+/** Fetch monthly approved missed punches for payroll deduction calculation */
+export async function getMonthlyApprovedMissedPunches(
+  empId: string,
+  month: string // YYYY-MM
+): Promise<MissedPunchRequest[]> {
+  const { data, error } = await supabase
+    .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
+    .select('*')
+    .eq('employee_id', empId)
+    .eq('status', 'approved')
+    .like('missed_date', `${month}%`);
+
+  if (error) {
+    console.warn('Error fetching monthly missed punches:', error);
+    return [];
+  }
+  return (data || []).map((r: any) => ({
+    id: r.id,
+    employeeId: r.employee_id,
+    employeeName: r.employee_id,
+    missedDate: r.missed_date,
+    punchType: (r.punch_type || 'out') as 'in' | 'out',
+    reason: r.reason,
+    status: r.status as MissedPunchStatus,
+    adminNote: r.admin_note,
+    resolvedAt: r.resolved_at,
+    resolvedBy: r.resolved_by,
+    createdAt: r.created_at
+  }));
+}
+

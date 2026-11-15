@@ -19,6 +19,10 @@ export interface Payslip {
   workingDays?: number;
   daysPresent?: number;
   leavesTaken?: number;
+  paidLeaves?: number;
+  lopDays?: number;
+  absentDays?: number;
+  halfDays?: number;
 }
 
 export interface InvoiceItem {

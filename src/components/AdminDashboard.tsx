@@ -35,16 +35,17 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
   }, []);
 
   // Calculate snapshot metrics
-  const totalEmployees = employees.length;
+  const totalEmployees = employees.filter(e => e.status !== 'inactive').length;
   
   // Checking active today
-  const checkedInToday = employees.filter(emp => emp.isCheckedIn).length;
+  const checkedInToday = employees.filter(emp => emp.isCheckedIn && emp.status !== 'inactive').length;
   
   const inactiveEmployees = employees.filter(emp => emp.status === 'inactive').length;
   
-  // Pending leaves across everyone
+  // Pending leaves across active staff
   const pendingRequests: { req: LeaveRequest; empName: string; empId: string }[] = [];
   employees.forEach(emp => {
+    if (emp.status === 'inactive') return;
     emp.leaveRequests.forEach(req => {
       if (req.status === 'pending') {
         pendingRequests.push({ req, empName: emp.name, empId: emp.id });

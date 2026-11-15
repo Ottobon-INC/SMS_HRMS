@@ -19,6 +19,7 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
   const monthOptions = generateMonthOptions(2018, 1);
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0] || '2026-07');
   const [editTarget, setEditTarget] = useState<{empId: string, date: string, status: AttendanceStatus | 'blank'} | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -65,22 +66,38 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
     };
   };
 
-  // Calculate statistics for today across the team
-  const totalEmployees = employees.filter(e => e.role !== 'admin').length;
+  // Calculate statistics for today across the active team (excluding inactive employees)
+  const totalEmployees = employees.filter(e => e.role !== 'admin' && e.status !== 'inactive').length;
+  const inactiveCount = employees.filter(e => e.role !== 'admin' && e.status === 'inactive').length;
   
   const presentToday = employees.filter(e => {
-    if (e.role === 'admin') return false;
+    if (e.role === 'admin' || e.status === 'inactive') return false;
     const todayRec = e.attendanceRecords.find(r => r.date === todayStr);
     return e.isCheckedIn || (todayRec && todayRec.status === 'present');
   }).length;
 
   const leaveToday = employees.filter(e => {
-    if (e.role === 'admin') return false;
+    if (e.role === 'admin' || e.status === 'inactive') return false;
     const todayRec = e.attendanceRecords.find(r => r.date === todayStr);
     return todayRec && todayRec.status === 'leave';
   }).length;
 
   const absentToday = Math.max(0, totalEmployees - presentToday - leaveToday);
+
+  // Filter employees for the selected month:
+  // Active employees are always shown.
+  // Inactive employees are hidden from current & upcoming months unless 'showInactive' is checked.
+  // In past months, inactive employees are shown only if they actually worked / have attendance records in that month.
+  const currentMonthStr = new Date().toISOString().slice(0, 7);
+  const displayedEmployees = employees.filter(emp => {
+    if (emp.role === 'admin') return false;
+    if (emp.status !== 'inactive') return true;
+    if (showInactive) return true;
+    // Current or future month: hide inactive employees
+    if (selectedMonth >= currentMonthStr) return false;
+    // Past month: only show if they actually have attendance records recorded in this month
+    return emp.attendanceRecords.some(r => r.date.startsWith(selectedMonth));
+  });
 
   // Generate days in the selected month
   const [yearStr, monthStr] = selectedMonth.split('-');
@@ -215,9 +232,22 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
 
       <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
         {/* 3. The Grand Matrix Roster */}
-        <h3 className="text-base font-bold text-slate-800">
-          {localizedText.matrixHeader} ({selectedMonth})
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h3 className="text-base font-bold text-slate-800">
+            {localizedText.matrixHeader} ({selectedMonth})
+          </h3>
+          {inactiveCount > 0 && (
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors w-fit">
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+                className="w-4 h-4 text-teal-600 rounded cursor-pointer"
+              />
+              <span>{language === 'te' ? `ఇన్యాక్టివ్ ఉద్యోగులను చూపించు (${inactiveCount})` : `Show Deactivated Staff (${inactiveCount})`}</span>
+            </label>
+          )}
+        </div>
 
         {/* Scrollable table container */}
         <div className="overflow-x-auto border border-slate-100 rounded-2xl">
@@ -233,15 +263,25 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {employees
-                .filter(emp => emp.role !== 'admin')
-                .map(emp => (
+              {displayedEmployees.length === 0 ? (
+                <tr>
+                  <td colSpan={daysArray.length + 1} className="p-8 text-center text-xs text-slate-400">
+                    No active staff attendance records for this month.
+                  </td>
+                </tr>
+              ) : (
+                displayedEmployees.map(emp => (
                   <tr key={emp.id} className="hover:bg-slate-50/50">
                     <td className="p-4 truncate">
-                      <p className="text-xs font-bold text-slate-800 leading-none flex items-center gap-2">
-                        {emp.name}
+                      <p className="text-xs font-bold text-slate-800 leading-none flex items-center gap-1.5">
+                        <span className="truncate">{emp.name}</span>
+                        {emp.status === 'inactive' && (
+                          <span className="text-[8px] bg-slate-100 text-slate-500 border border-slate-200 font-bold px-1.5 py-0.5 rounded shrink-0">
+                            Inactive
+                          </span>
+                        )}
                         {calculateLiveHours(emp) && (
-                          <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border ${calculateLiveHours(emp)?.isActive ? 'bg-teal-50 text-teal-600 border-teal-100 animate-pulse' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                          <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border shrink-0 ${calculateLiveHours(emp)?.isActive ? 'bg-teal-50 text-teal-600 border-teal-100 animate-pulse' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
                             <Clock className="w-2.5 h-2.5" />
                             {calculateLiveHours(emp)?.text}
                           </span>
@@ -283,7 +323,8 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
                       );
                     })}
                   </tr>
-                ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>

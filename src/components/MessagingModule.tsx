@@ -149,7 +149,7 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
-  const contacts = employees.filter(emp => emp.id !== currentUser.id);
+  const contacts = employees.filter(emp => emp.id !== currentUser.id && emp.status !== 'inactive');
 
   // Calculate visible messages
   const visibleMessages = messages.filter(msg => {
@@ -342,77 +342,84 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
 
             {/* Input Area */}
             <div className="bg-[#f0f2f5] px-4 py-3 flex flex-col">
-              
-              {/* Attachment Preview */}
-              {selectedFile && (
-                <div className="mb-3 p-3 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="w-12 h-12 rounded bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0">
-                      {selectedFile.type.startsWith('image/') ? (
-                        <img src={URL.createObjectURL(selectedFile)} alt="preview" className="w-full h-full object-cover rounded" />
-                      ) : (
-                        <FileText className="w-6 h-6 text-slate-500" />
-                      )}
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <span className="truncate text-sm font-medium text-slate-700">{selectedFile.name}</span>
-                      <span className="text-xs text-slate-400">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</span>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setSelectedFile(null);
-                      if (fileInputRef.current) fileInputRef.current.value = '';
-                    }}
-                    className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+              {currentUser.status === 'inactive' ? (
+                <div className="p-3 bg-slate-200/80 rounded-2xl text-center text-xs font-bold text-slate-500">
+                  Your account has been deactivated by administration. Messaging is disabled.
                 </div>
-              )}
-
-              <div className="flex items-end gap-2">
-                <div className="flex-1 bg-white rounded-3xl flex items-end px-2 py-1 shadow-sm">
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    onChange={handleFileChange}
-                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                  />
-                  
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-3 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all shrink-0 mb-0.5"
-                    title="Attach file"
-                  >
-                    <Paperclip className="w-5 h-5 -rotate-45" />
-                  </button>
-                  
-                  <textarea
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Type a message"
-                    className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 resize-none max-h-32 min-h-[44px] py-3 px-2 text-[15px] text-slate-800 leading-normal"
-                    rows={1}
-                    style={{ height: inputText ? 'auto' : '44px' }}
-                  />
-                </div>
-                
-                <button
-                  onClick={handleSend}
-                  disabled={(!inputText.trim() && !selectedFile) || isUploading}
-                  className="bg-[#00a884] hover:bg-[#008f6f] disabled:opacity-50 text-white p-3.5 rounded-full shadow-sm transition-all shrink-0 mb-0.5"
-                >
-                  {isUploading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Send className="w-5 h-5 translate-x-0.5" />
+              ) : (
+                <>
+                  {/* Attachment Preview */}
+                  {selectedFile && (
+                    <div className="mb-3 p-3 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-12 h-12 rounded bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0">
+                          {selectedFile.type.startsWith('image/') ? (
+                            <img src={URL.createObjectURL(selectedFile)} alt="preview" className="w-full h-full object-cover rounded" />
+                          ) : (
+                            <FileText className="w-6 h-6 text-slate-500" />
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="truncate text-sm font-medium text-slate-700">{selectedFile.name}</span>
+                          <span className="text-xs text-slate-400">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setSelectedFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
                   )}
-                </button>
-              </div>
+
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 bg-white rounded-3xl flex items-end px-2 py-1 shadow-sm">
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        onChange={handleFileChange}
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                      />
+                      
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-3 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all shrink-0 mb-0.5"
+                        title="Attach file"
+                      >
+                        <Paperclip className="w-5 h-5 -rotate-45" />
+                      </button>
+                      
+                      <textarea
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Type a message"
+                        className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 resize-none max-h-32 min-h-[44px] py-3 px-2 text-[15px] text-slate-800 leading-normal"
+                        rows={1}
+                        style={{ height: inputText ? 'auto' : '44px' }}
+                      />
+                    </div>
+                    
+                    <button
+                      onClick={handleSend}
+                      disabled={(!inputText.trim() && !selectedFile) || isUploading}
+                      className="bg-[#00a884] hover:bg-[#008f6f] disabled:opacity-50 text-white p-3.5 rounded-full shadow-sm transition-all shrink-0 mb-0.5"
+                    >
+                      {isUploading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Send className="w-5 h-5 translate-x-0.5" />
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </>
         ) : (
@@ -512,18 +519,26 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
                 <div className="space-y-2">
                   {participants.map(p => {
                     const emp = employees.find(e => e.id === p.user_id);
+                    const isDeactivated = emp?.status === 'inactive';
                     return (
-                      <div key={p.id} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl group transition-colors">
+                      <div key={p.id} className={`flex items-center justify-between p-2 rounded-xl group transition-colors ${isDeactivated ? 'bg-slate-50 opacity-70' : 'hover:bg-slate-50'}`}>
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isDeactivated ? 'bg-slate-300 text-slate-500' : 'bg-slate-200 text-slate-600'}`}>
                             {emp ? getInitials(emp.name) : '?'}
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-slate-800">{emp ? emp.name : p.user_id}</p>
+                            <p className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
+                              <span>{emp ? emp.name : p.user_id}</span>
+                              {isDeactivated && (
+                                <span className="text-[9px] bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded-md font-bold">
+                                  Deactivated
+                                </span>
+                              )}
+                            </p>
                             {channelDetails?.admin_id === p.user_id && <span className="text-[10px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-bold">Admin</span>}
                           </div>
                         </div>
-                        {(channelDetails?.admin_id === currentUser.id || !channelDetails?.admin_id) && p.user_id !== currentUser.id && (
+                        {(channelDetails?.admin_id === currentUser.id || !channelDetails?.admin_id || currentUser.role === 'admin') && p.user_id !== currentUser.id && (
                           <button onClick={() => removeParticipant(p.user_id)} className="text-rose-500 opacity-0 group-hover:opacity-100 p-1.5 hover:bg-rose-50 rounded transition-all">
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -534,11 +549,11 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
                 </div>
               </div>
 
-              {(channelDetails?.admin_id === currentUser.id || !channelDetails?.admin_id) && (
+              {(channelDetails?.admin_id === currentUser.id || !channelDetails?.admin_id || currentUser.role === 'admin') && (
                 <div className="mt-6 border-t border-slate-100 pt-6">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">Add People</label>
                   <div className="space-y-2">
-                    {employees.filter(e => e.id !== currentUser.id && !participants.some(p => p.user_id === e.id)).map(e => (
+                    {employees.filter(e => e.id !== currentUser.id && e.status !== 'inactive' && !participants.some(p => p.user_id === e.id)).map(e => (
                        <div key={e.id} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
                          <div className="flex items-center gap-3">
                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">
@@ -551,8 +566,8 @@ export function MessagingModule({ currentUser, employees }: MessagingModuleProps
                          </button>
                        </div>
                     ))}
-                    {employees.filter(e => e.id !== currentUser.id && !participants.some(p => p.user_id === e.id)).length === 0 && (
-                      <p className="text-sm text-slate-400 italic text-center py-4">All employees are in this group.</p>
+                    {employees.filter(e => e.id !== currentUser.id && e.status !== 'inactive' && !participants.some(p => p.user_id === e.id)).length === 0 && (
+                      <p className="text-sm text-slate-400 italic text-center py-4">All active employees are in this group.</p>
                     )}
                   </div>
                 </div>

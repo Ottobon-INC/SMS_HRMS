@@ -37,9 +37,9 @@ export async function savePayslipToSupabase(empId: string, payslip: Payslip): Pr
     totalDeductions += payslip.advanceMoneyAmount;
   }
 
-  const netPay = payslip.basicPay + 
+  const netPay = Math.max(0, payslip.basicPay + 
     payslip.allowances.reduce((sum, a) => sum + a.amount, 0) - 
-    totalDeductions;
+    totalDeductions);
 
   const { data: existing } = await supabase
     .from(DB_TABLES.PAYROLL)
@@ -77,6 +77,10 @@ export async function savePayslipToSupabase(empId: string, payslip: Payslip): Pr
 }
 
 export async function runBulkPayrollForMonth(employees: Employee[], month: string): Promise<void> {
+  if (!Array.isArray(employees) || !month) {
+    console.warn("runBulkPayrollForMonth called with invalid arguments", { employees, month });
+    return;
+  }
   // Fetch dynamic config from DB (or use defaults on failure)
   const config = await fetchPayrollConfig();
 
@@ -97,10 +101,17 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
       { nameKey: 'professionalTax', amount: config.professional_tax }
     ];
 
-    const existingPayslip = emp.payslips.find(p => p.month === month);
+    const stats = computeAttendanceStats(month, emp.attendanceRecords || [], emp.leaveRequests || [], emp.joiningDate, emp.missedPunchRequests || []);
+    const existingPayslip = (emp.payslips || []).find(p => p.month === month);
     if (existingPayslip) {
-      // If the existing payslip is missing the new attendance stats, automatically regenerate it
-      if (existingPayslip.workingDays === undefined || existingPayslip.workingDays === null) {
+      const hasLop = (existingPayslip.deductions || []).some(d => d.nameKey === 'lossOfPay');
+      const hasAbsent = (existingPayslip.deductions || []).some(d => d.nameKey === 'absentPenalty');
+      const hasMissed = (existingPayslip.deductions || []).some(d => d.nameKey === 'missedPunchPenalty');
+      const needsLop = stats.lopDays > 0 && !hasLop;
+      const needsAbsent = stats.absentDays > 0 && !hasAbsent;
+      const needsMissed = (stats.missedPunchPenaltyHalfDays || 0) > 0 && !hasMissed;
+      // If the existing payslip is missing workingDays or missing required deductions, regenerate it
+      if (existingPayslip.workingDays === undefined || existingPayslip.workingDays === null || needsLop || needsAbsent || needsMissed) {
         console.log(`Regenerating incomplete payslip for ${emp.name}`);
       } else {
         continue; // Don't overwrite manually edited payslips that are complete
@@ -125,7 +136,31 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
       });
     }
 
-    const stats = computeAttendanceStats(month, emp.attendanceRecords || [], emp.leaveRequests || []);
+    const dailyPay = stats.workingDays > 0 ? (basic / stats.workingDays) : 0;
+
+    // Loss of Pay (LOP) deduction: 1 day salary cut per approved LOP day
+    if (stats.lopDays > 0) {
+      deductions.push({
+        nameKey: 'lossOfPay',
+        amount: Math.round(stats.lopDays * 1 * dailyPay)
+      });
+    }
+
+    // Absent Penalty deduction: 2 days salary cut per unapproved absent day
+    if (stats.absentDays > 0) {
+      deductions.push({
+        nameKey: 'absentPenalty',
+        amount: Math.round(stats.absentDays * 2 * dailyPay)
+      });
+    }
+
+    // Missed Punch Penalty deduction: 0.5 day cut per penalty half day
+    if ((stats.missedPunchPenaltyHalfDays || 0) > 0) {
+      deductions.push({
+        nameKey: 'missedPunchPenalty',
+        amount: Math.round(stats.missedPunchPenaltyHalfDays * 0.5 * dailyPay)
+      });
+    }
 
     const payslip: Payslip = {
       id: `PS-${emp.id}-${month}`,
@@ -137,7 +172,11 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
       advanceMoneyAmount: advanceInstallmentTotal,
       workingDays: stats.workingDays,
       daysPresent: stats.daysPresent,
-      leavesTaken: stats.leavesTaken
+      leavesTaken: stats.leavesTaken,
+      paidLeaves: stats.paidLeaves,
+      lopDays: stats.lopDays,
+      absentDays: stats.absentDays,
+      halfDays: stats.halfDays
     };
 
     await savePayslipToSupabase(emp.id, payslip);

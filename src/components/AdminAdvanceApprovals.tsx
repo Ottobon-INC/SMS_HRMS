@@ -115,7 +115,10 @@ export default function AdminAdvanceApprovals({
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {pendingRequests.map(({ req, empName, empId }) => (
+                  {pendingRequests.map(({ req, empName, empId }) => {
+                    const emp = employees.find(e => e.id === empId);
+                    const isDeactivated = emp?.status === 'inactive';
+                    return (
                     <div key={req.id} className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-teal-200 hover:shadow-md transition-all group flex flex-col">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
@@ -123,7 +126,14 @@ export default function AdminAdvanceApprovals({
                             {empName.substring(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <h4 className="text-sm font-bold text-slate-800 line-clamp-1">{empName}</h4>
+                            <h4 className="text-sm font-bold text-slate-800 line-clamp-1 flex items-center gap-1.5">
+                              <span>{empName}</span>
+                              {isDeactivated && (
+                                <span className="text-[9px] bg-rose-100 text-rose-700 border border-rose-200 font-bold px-1.5 py-0.5 rounded">
+                                  Deactivated
+                                </span>
+                              )}
+                            </h4>
                             <p className="text-[10px] text-slate-400 font-mono">{empId}</p>
                           </div>
                         </div>
@@ -169,16 +179,18 @@ export default function AdminAdvanceApprovals({
                             <XCircle className="w-5 h-5" />
                           </button>
                           <button
-                            onClick={() => onApprove(req.id)}
-                            className="p-2 text-emerald-400 hover:text-white hover:bg-emerald-500 rounded-lg transition-colors cursor-pointer"
-                            title={language === 'te' ? 'ఆమోదించండి' : 'Approve'}
+                            onClick={() => !isDeactivated && onApprove(req.id)}
+                            disabled={isDeactivated}
+                            className="p-2 text-emerald-400 hover:text-white hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg transition-colors cursor-pointer"
+                            title={isDeactivated ? 'Cannot approve advance for deactivated employee' : (language === 'te' ? 'ఆమోదించండి' : 'Approve')}
                           >
                             <CheckCircle2 className="w-5 h-5" />
                           </button>
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               )}
             </>

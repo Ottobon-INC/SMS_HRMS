@@ -669,6 +669,59 @@ app.delete(['/api/tasks/:id', '/tasks/:id'], async (req, res) => {
   }
 });
 
+// --- EXPERIENCE LETTER API ---
+app.get(['/api/hrms/experience-letter/:employeeId', '/hrms/experience-letter/:employeeId'], async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    const { employeeId } = req.params;
+    const { data, error } = await supabase
+      .from('sms_hrms_experience_letters')
+      .select('*')
+      .eq('employee_id', employeeId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Experience letter query notice:', error.message);
+      return res.json({ letterData: null });
+    }
+    return res.json({ letterData: data ? data.letter_data : null, updatedAt: data?.updated_at });
+  } catch (err) {
+    console.error('Experience letter get error:', err);
+    return res.json({ letterData: null });
+  }
+});
+
+app.post(['/api/hrms/experience-letter/:employeeId', '/hrms/experience-letter/:employeeId'], async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ error: 'Database not configured' });
+    const { employeeId } = req.params;
+    const { letterData } = req.body;
+    if (!letterData) {
+      return res.status(400).json({ error: 'letterData is required' });
+    }
+
+    const { data, error } = await supabase
+      .from('sms_hrms_experience_letters')
+      .upsert({
+        employee_id: employeeId,
+        letter_data: letterData,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'employee_id' })
+      .select('*')
+      .single();
+
+    if (error) {
+      console.warn('Experience letter upsert notice:', error.message);
+      return res.status(500).json({ error: 'Failed to save experience letter', details: error.message });
+    }
+
+    return res.json({ success: true, letterData: data.letter_data, updatedAt: data.updated_at });
+  } catch (err) {
+    console.error('Experience letter save error:', err);
+    return res.status(500).json({ error: 'Failed to save experience letter', details: err?.message });
+  }
+});
+
 // --- WEBSOCKET CHAT LOGIC ---
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);

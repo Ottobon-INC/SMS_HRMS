@@ -37,7 +37,7 @@ interface AppRouterProps {
   noDataText: string;
   setActiveTab: (tab: string) => void;
   // Actions
-  onToggleCheckIn: (userId: string, isCheckedIn: boolean, photoData?: string, punchType?: PunchType, punchNote?: string) => Promise<any>;
+  onToggleCheckIn: (userId: string, isCheckedIn: boolean, photoData?: string, punchType?: PunchType, punchNote?: string, statusOverride?: any) => Promise<any>;
   onAddPin: (employeeId: string, label: string, pinType?: PinType, photoUrl?: string) => Promise<any>;
   onApplyLeave: (empId: string, req: any) => Promise<void>;
   onApproveLeave: (reqId: string, note?: string) => Promise<void>;
@@ -52,7 +52,7 @@ interface AppRouterProps {
   onUpdateAttendance: (employeeId: string, date: string, status: any, checkInTime?: string, checkOutTime?: string, sessionNumber?: number) => Promise<void>;
   onForceCloseSession: (employeeId: string, date: string, sessionNumber?: number) => Promise<void>;
   onRunBulkPayroll: (month: string) => Promise<void>;
-  onGenerateSinglePayslip: (empId: string, month: string) => Promise<void>;
+  onGenerateSinglePayslip: (...args: any[]) => Promise<void>;
   onUpdatePayslip: (empId: string, payslip: Payslip) => Promise<void>;
   onCreateTask: (task: any) => Promise<void>;
   onUpdateTask: (id: string, updates: any) => Promise<void>;
@@ -104,8 +104,8 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           leaveBalance={currentUser.leaveBalance}
           payslips={currentUser.payslips}
           setActiveTab={setActiveTab}
-          onToggleCheckIn={(photoData?: string, punchType?: PunchType, punchNote?: string) =>
-            onToggleCheckIn(currentUser.id, currentUser.isCheckedIn, photoData, punchType, punchNote)
+          onToggleCheckIn={(photoData?: string, punchType?: PunchType, punchNote?: string, statusOverride?: any) =>
+            onToggleCheckIn(currentUser.id, currentUser.isCheckedIn, photoData, punchType, punchNote, statusOverride)
           }
           pins={currentUser.locationPins || []}
           onAddPin={onAddPin}
@@ -189,6 +189,9 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           employeeJoiningDate={currentUser.joiningDate}
           employeeExperience={currentUser.experience}
           employeeBankDetails={currentUser.bankDetails}
+          attendanceRecords={currentUser.attendanceRecords || []}
+          leaveRequests={currentUser.leaveRequests || []}
+          missedPunchRequests={currentUser.missedPunchRequests || []}
         />
       );
 

@@ -140,10 +140,11 @@ export default function AdminTaskManager({
   }, [tasks, timeFilter, todayStr]);
 
   const handleOpenCreateModal = () => {
+    const firstActive = employees.find(e => e.status !== 'inactive');
     setFormData({
       description: '',
       priority: 'medium',
-      assignedTo: employees.length > 0 ? employees[0].id : '',
+      assignedTo: firstActive ? firstActive.id : '',
       taskDate: todayStr,
       status: 'in_progress',
       notes: ''
@@ -429,17 +430,19 @@ export default function AdminTaskManager({
             />
           )}
 
-          {/* Assignee Filter */}
-          <select
-            value={assigneeFilter}
-            onChange={(e) => setAssigneeFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none text-slate-700"
-          >
-            <option value="all">{t.filterByAssignee || 'All Staff'}</option>
-            {employees.map(emp => (
-              <option key={emp.id} value={emp.id}>{emp.name}</option>
-            ))}
-          </select>
+            {/* Assignee Filter */}
+            <select
+              value={assigneeFilter}
+              onChange={(e) => setAssigneeFilter(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none text-slate-700"
+            >
+              <option value="all">{t.filterByAssignee || 'All Staff'}</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.name}{emp.status === 'inactive' ? ' (Inactive)' : ''}
+                </option>
+              ))}
+            </select>
 
           {/* Priority Filter */}
           <select
@@ -792,7 +795,7 @@ export default function AdminTaskManager({
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none text-slate-700"
                   >
                     <option value="">Unassigned</option>
-                    {employees.map(emp => (
+                    {employees.filter(emp => emp.status !== 'inactive').map(emp => (
                       <option key={emp.id} value={emp.id}>
                         {emp.name} ({emp.designation || emp.role})
                       </option>

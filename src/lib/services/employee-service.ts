@@ -11,6 +11,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
   let advancesList: any[] = [];
   let pinsList: any[] = [];
   let quotaList: any[] = [];
+  let missedPunchesList: any[] = [];
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('hrms_auth_token') : null;
   let fetchedFromDirectory = false;
@@ -47,11 +48,23 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
   }
 
   if (!fetchedFromDirectory) {
+    const sanitizeCached = (raw: any[]): Employee[] => {
+      return (raw || []).map((e: any) => ({
+        ...e,
+        payslips: e.payslips || [],
+        leaveRequests: e.leaveRequests || [],
+        attendanceRecords: e.attendanceRecords || [],
+        checkInLogs: e.checkInLogs || [],
+        locationPins: e.locationPins || [],
+        advanceRequests: e.advanceRequests || []
+      }));
+    };
+
     if (!token) {
       const cached = typeof window !== 'undefined' ? localStorage.getItem('hrms_local_employees') : null;
       if (cached) {
         try {
-          return JSON.parse(cached);
+          return sanitizeCached(JSON.parse(cached));
         } catch {}
       }
       return [];
@@ -67,7 +80,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
       const cached = typeof window !== 'undefined' ? localStorage.getItem('hrms_local_employees') : null;
       if (cached) {
         try {
-          return JSON.parse(cached);
+          return sanitizeCached(JSON.parse(cached));
         } catch {}
       }
       return [];
@@ -82,6 +95,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
     const { data: advances } = await supabase.from(DB_TABLES.ADVANCE_REQUESTS).select('*');
     const { data: pins } = await supabase.from(DB_TABLES.LOCATION_PINS).select('*');
     const { data: quotas } = await supabase.from(DB_TABLES.MONTHLY_LEAVE_QUOTA).select('*');
+    const { data: missedPunches } = await supabase.from(DB_TABLES.MISSED_PUNCH_REQUESTS).select('*');
 
     attendanceList = att || [];
     leavesList = leaves || [];
@@ -90,26 +104,65 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
     advancesList = advances || [];
     pinsList = pins || [];
     quotaList = quotas || [];
+    missedPunchesList = missedPunches || [];
   }
 
   const currentMonth = new Date().toISOString().substring(0, 7);
 
   return emps.map(emp => {
-    // Map leave balances
+    // Determine 1-year tenure eligibility
+    const joinDate = emp.joining_date ? new Date(emp.joining_date) : null;
+    const now = new Date();
+    let hasOneYearTenure = false;
+    if (joinDate && !isNaN(joinDate.getTime())) {
+      const oneYearAfterJoin = new Date(joinDate);
+      oneYearAfterJoin.setFullYear(oneYearAfterJoin.getFullYear() + 1);
+      hasOneYearTenure = now >= oneYearAfterJoin;
+    }
+
+    // Tally approved leaves for current month and cumulative parental leaves
+    const currentMonthPrefix = now.toISOString().substring(0, 7);
+    let currentMonthSickTaken = 0;
+    let currentMonthCasualTaken = 0;
+    let currentMonthLopTaken = 0;
+    let totalMaternityTaken = 0;
+    let totalPaternityTaken = 0;
+
+    leavesList
+      .filter(l => l.employee_id === emp.id && (l.status || '').toLowerCase() === 'approved')
+      .forEach(l => {
+        const from = new Date(l.from_date);
+        const to = new Date(l.to_date);
+        const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 3600 * 24)) + 1;
+        const type = (l.leave_type || '').toLowerCase();
+
+        if (l.from_date && l.from_date.startsWith(currentMonthPrefix)) {
+          if (type === 'sick') currentMonthSickTaken += diffDays;
+          else if (type === 'casual' || type === 'monthly') currentMonthCasualTaken += diffDays;
+          else if (type === 'lop') currentMonthLopTaken += diffDays;
+        }
+        if (type === 'maternity') totalMaternityTaken += diffDays;
+        if (type === 'paternity') totalPaternityTaken += diffDays;
+      });
+
+    // Map leave balances (1 CL and 1 SL per month only after 1 year of tenure)
     const empBalances = balancesList.filter(b => b.employee_id === emp.id);
     const leaveBalance: LeaveBalance = {
-      sick: { allowed: 6, taken: 0 },
-      casual: { allowed: 8, taken: 0 }
+      sick: { allowed: hasOneYearTenure ? 1 : 0, taken: currentMonthSickTaken },
+      casual: { allowed: hasOneYearTenure ? 1 : 0, taken: currentMonthCasualTaken },
+      lop: { taken: currentMonthLopTaken }
     };
     if (emp.gender === 'female') {
-      leaveBalance.maternity = { allowed: 90, taken: 0 };
+      leaveBalance.maternity = { allowed: 90, taken: totalMaternityTaken };
     } else if (emp.gender === 'male') {
-      leaveBalance.paternity = { allowed: 7, taken: 0 };
+      leaveBalance.paternity = { allowed: 15, taken: totalPaternityTaken };
     }
     empBalances.forEach(b => {
       const type = b.leave_type as LeaveType;
-      if (leaveBalance[type]) {
-        leaveBalance[type] = { allowed: b.total_allotted, taken: b.used };
+      if (type === 'maternity' && leaveBalance.maternity) {
+        leaveBalance.maternity.allowed = b.total_allotted || 90;
+      } else if (type === 'paternity' && leaveBalance.paternity) {
+        leaveBalance.paternity.allowed = b.total_allotted || 15;
       }
     });
 
@@ -187,8 +240,8 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
     const todayRecord = empAtt.find(a => a.date === todayStr);
     const isCheckedIn = !!(todayRecord && todayRecord.check_in_time && !todayRecord.check_out_time);
 
-    // Map payslips
-      const empPayslips: Payslip[] = payrollList
+    // Map payslips sorted reverse-chronologically (latest month first)
+    const empPayslips: Payslip[] = payrollList
       .filter(p => p.employee_id === emp.id)
       .map(p => ({
         id: p.id,
@@ -201,7 +254,8 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
         workingDays: p.working_days ? Number(p.working_days) : undefined,
         daysPresent: p.days_present ? Number(p.days_present) : undefined,
         leavesTaken: p.leaves_taken ? Number(p.leaves_taken) : undefined
-      }));
+      }))
+      .sort((a, b) => (b.month || '').localeCompare(a.month || ''));
 
     // Map monthly quota
     const empQuota = quotaList.find(q => q.employee_id === emp.id && q.month === currentMonth);
@@ -263,7 +317,22 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
             monthlyInstallment: a.monthly_installment ? Number(a.monthly_installment) : undefined,
             installmentsRemaining: a.installments_remaining ?? undefined
           };
-        })
+        }),
+      missedPunchRequests: missedPunchesList
+        .filter(m => m.employee_id === emp.id)
+        .map(m => ({
+          id: m.id,
+          employeeId: m.employee_id,
+          employeeName: emp.name,
+          missedDate: m.missed_date,
+          punchType: (m.punch_type || 'out') as 'in' | 'out',
+          reason: m.reason,
+          status: m.status as any,
+          adminNote: m.admin_note,
+          resolvedAt: m.resolved_at,
+          resolvedBy: m.resolved_by,
+          createdAt: m.created_at
+        }))
     };
 
   });
@@ -313,13 +382,13 @@ export async function createEmployee(emp: Omit<Employee, 'isCheckedIn' | 'leaveB
   }
 
   const initialBalances: any[] = [
-    { employee_id: emp.id, leave_type: 'sick', total_allotted: 6, used: 0 },
-    { employee_id: emp.id, leave_type: 'casual', total_allotted: 8, used: 0 }
+    { employee_id: emp.id, leave_type: 'sick', total_allotted: 1, used: 0 },
+    { employee_id: emp.id, leave_type: 'casual', total_allotted: 1, used: 0 }
   ];
   if (emp.gender === 'female') {
     initialBalances.push({ employee_id: emp.id, leave_type: 'maternity', total_allotted: 90, used: 0 });
   } else if (emp.gender === 'male') {
-    initialBalances.push({ employee_id: emp.id, leave_type: 'paternity', total_allotted: 7, used: 0 });
+    initialBalances.push({ employee_id: emp.id, leave_type: 'paternity', total_allotted: 15, used: 0 });
   }
   await supabase.from(DB_TABLES.LEAVE_BALANCES).insert(initialBalances);
 }
