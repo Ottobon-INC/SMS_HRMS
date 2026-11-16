@@ -36,9 +36,9 @@ export interface ExperienceLetterData {
   closingParagraph: string;
 
   // Signatory & Stamp
-  signatoryEntity: string; // e.g. "For Srikanth Manpower Solutions"
-  signatoryName: string; // e.g. "Authorized Signatory"
-  signatoryDepartment: string; // e.g. "Human Resources Department"
+  signatoryEntity: string; // e.g. "For SMS Diagnostics"
+  signatoryName: string; // e.g. "Suresh Kumar. R"
+  signatoryDepartment: string; // e.g. "Managing Director"
 
   updatedAt?: string;
 }

@@ -95,7 +95,7 @@ export function generateDefaultLetter(employee: Employee): ExperienceLetterData 
   const tenure = calculateTenure(joinDate, relievingDate);
   const formattedJoinDate = formatDisplayDate(joinDate);
   const formattedRelieveDate = relievingDate ? formatDisplayDate(relievingDate) : 'Present';
-  const companyName = 'Srikanth Manpower Solutions';
+  const companyName = 'SMS Diagnostics';
   const pronounHeShe = employee.gender === 'female' ? 'She' : 'He';
   const pronounHimHer = employee.gender === 'female' ? 'her' : 'him';
   const pronounHisHer = employee.gender === 'female' ? 'her' : 'his';
@@ -118,9 +118,9 @@ export function generateDefaultLetter(employee: Employee): ExperienceLetterData 
     referenceNo,
     issueDate: todayStr,
     companyName,
-    companyAddress: 'Visakhapatnam, Andhra Pradesh',
-    companyContact: '+91 99999 99999',
-    companyEmail: 'hr@srikanthmanpower.com',
+    companyAddress: '18-1-30/9, Opp. KGH OP Gate, Aditya Complex, Visakhapatnam, Andhra Pradesh 530002',
+    companyContact: '+91-905 933 1954 / 0891-2751954',
+    companyEmail: 'admin@smslabs.in',
     title,
     employeeName: employee.name,
     designation: employee.designation,
@@ -135,8 +135,8 @@ export function generateDefaultLetter(employee: Employee): ExperienceLetterData 
     conductParagraph,
     closingParagraph,
     signatoryEntity: `For ${companyName}`,
-    signatoryName: 'Authorized Signatory',
-    signatoryDepartment: 'Human Resources Department',
+    signatoryName: 'Suresh Kumar. R',
+    signatoryDepartment: 'Managing Director',
     updatedAt: new Date().toISOString()
   };
 }
@@ -152,11 +152,20 @@ export async function getExperienceLetter(employee: Employee): Promise<Experienc
       const local = localStorage.getItem(`sms_hrms_exp_letter_${employee.id}`);
       if (local) {
         const parsed = JSON.parse(local);
-        return {
-          ...generateDefaultLetter(employee),
-          ...parsed,
-          employeeId: employee.id
-        };
+        // Clear old dummy company placeholder if previously cached
+        if (
+          parsed.companyName === 'Srikanth Manpower Solutions' || 
+          parsed.companyEmail === 'hr@srikanthmanpower.com' ||
+          parsed.companyContact === '+91 99999 99999'
+        ) {
+          localStorage.removeItem(`sms_hrms_exp_letter_${employee.id}`);
+        } else {
+          return {
+            ...generateDefaultLetter(employee),
+            ...parsed,
+            employeeId: employee.id
+          };
+        }
       }
     } catch {}
   }

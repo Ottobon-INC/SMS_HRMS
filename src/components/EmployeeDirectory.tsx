@@ -160,7 +160,7 @@ export default function EmployeeDirectory({
       closingParagraph: closing
     });
   };
-  
+
   // Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -231,7 +231,7 @@ export default function EmployeeDirectory({
       alert(language === 'te' ? 'దయచేసి అన్ని వివరాలు పూరించండి' : 'Please fill all fields');
       return;
     }
-    
+
     try {
       await onAddEmployee({
         id: `EMP-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
@@ -289,7 +289,7 @@ export default function EmployeeDirectory({
     e.stopPropagation();
     const isDeactivating = currentStatus !== 'inactive';
     const confirmed = confirm(
-      language === 'te' 
+      language === 'te'
         ? (isDeactivating ? `${name} అకౌంట్ నిలిపివేయాలనుకుంటున్నారా? పంచ్-ఇన్, లాగిన్, మెసేజ్‌లు నిలిపివేయబడతాయి.` : `${name} అకౌంట్ తిరిగి యాక్టివేట్ చేయాలనుకుంటున్నారా?`)
         : (isDeactivating ? `Deactivate ${name}'s account? They will not be able to log in, punch in, or chat.` : `Reactivate ${name}'s account?`)
     );
@@ -321,8 +321,8 @@ export default function EmployeeDirectory({
     if (!emp) return;
 
     const inputName = prompt(
-      language === 'te' 
-        ? `శాశ్వతంగా తొలగించడానికి దయచేసి ఉద్యోగి పేరు "${emp.name}" ని టైప్ చేయండి:` 
+      language === 'te'
+        ? `శాశ్వతంగా తొలగించడానికి దయచేసి ఉద్యోగి పేరు "${emp.name}" ని టైప్ చేయండి:`
         : `To permanently delete, please type the employee's name "${emp.name}":`
     );
 
@@ -399,7 +399,7 @@ export default function EmployeeDirectory({
         </span>
       );
     }
-    
+
     if (emp.isCheckedIn) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
@@ -452,36 +452,32 @@ export default function EmployeeDirectory({
           <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100 w-full md:w-auto">
             <button
               onClick={() => setInspectSubTab('attendance')}
-              className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${
-                inspectSubTab === 'attendance' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
+              className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${inspectSubTab === 'attendance' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                }`}
             >
               <Calendar className="w-3.5 h-3.5" />
               <span>{dirText.tabAttend}</span>
             </button>
             <button
               onClick={() => setInspectSubTab('leave')}
-              className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${
-                inspectSubTab === 'leave' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
+              className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${inspectSubTab === 'leave' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                }`}
             >
               <Moon className="w-3.5 h-3.5" />
               <span>{dirText.tabLeave}</span>
             </button>
             <button
               onClick={() => setInspectSubTab('payroll')}
-              className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${
-                inspectSubTab === 'payroll' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
+              className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${inspectSubTab === 'payroll' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                }`}
             >
               <Landmark className="w-3.5 h-3.5" />
               <span>{dirText.tabPayroll}</span>
             </button>
             <button
               onClick={() => setInspectSubTab('docs')}
-              className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${
-                inspectSubTab === 'docs' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
+              className={`flex-1 md:flex-none flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${inspectSubTab === 'docs' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                }`}
             >
               <FileText className="w-3.5 h-3.5" />
               <span>{language === 'te' ? 'పత్రాలు' : 'Documents'}</span>
@@ -579,11 +575,10 @@ export default function EmployeeDirectory({
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                   <button
                     onClick={() => setIsEditingLetter(!isEditingLetter)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      isEditingLetter
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${isEditingLetter
                         ? 'bg-slate-800 text-white shadow-sm hover:bg-slate-900'
                         : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm'
-                    }`}
+                      }`}
                   >
                     {isEditingLetter ? (
                       <>
@@ -816,11 +811,10 @@ export default function EmployeeDirectory({
                                   tenureDuration: tenure.text
                                 });
                               }}
-                              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                                expLetterData.isCurrentlyEmployed
+                              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${expLetterData.isCurrentlyEmployed
                                   ? 'bg-white text-teal-700 shadow-sm'
                                   : 'text-slate-500 hover:text-slate-800'
-                              }`}
+                                }`}
                             >
                               {language === 'te' ? 'ప్రస్తుతం పనిచేస్తున్నారు' : 'Currently Employed'}
                             </button>
@@ -836,11 +830,10 @@ export default function EmployeeDirectory({
                                   tenureDuration: tenure.text
                                 });
                               }}
-                              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                                !expLetterData.isCurrentlyEmployed
+                              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${!expLetterData.isCurrentlyEmployed
                                   ? 'bg-white text-amber-700 shadow-sm'
                                   : 'text-slate-500 hover:text-slate-800'
-                              }`}
+                                }`}
                             >
                               {language === 'te' ? 'విడుదలయ్యారు (Relieved)' : 'Relieved / Left'}
                             </button>
@@ -1008,6 +1001,19 @@ export default function EmployeeDirectory({
 
                         <div>
                           <label className="block text-xs font-bold text-slate-600 mb-1">
+                            {language === 'te' ? 'సంప్రదింపు ఫోన్ నంబర్' : 'Contact Phone Number'}
+                          </label>
+                          <input
+                            type="text"
+                            value={expLetterData.companyContact}
+                            onChange={(e) => setExpLetterData({ ...expLetterData, companyContact: e.target.value })}
+                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-teal-600"
+                            placeholder="+91-905 933 1954 / 0891-2751954"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1">
                             {language === 'te' ? 'సంతకం ఎంటిటీ' : 'Signing Entity Block'}
                           </label>
                           <input
@@ -1015,33 +1021,33 @@ export default function EmployeeDirectory({
                             value={expLetterData.signatoryEntity}
                             onChange={(e) => setExpLetterData({ ...expLetterData, signatoryEntity: e.target.value })}
                             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-teal-600"
-                            placeholder="For Srikanth Manpower Solutions"
+                            placeholder="For SMS Diagnostics"
                           />
                         </div>
 
                         <div>
                           <label className="block text-xs font-bold text-slate-600 mb-1">
-                            {language === 'te' ? 'సంతకందారు పేరు' : 'Authorized Signatory Title'}
+                            {language === 'te' ? 'సంతకందారు పేరు' : 'Authorized Signatory Name'}
                           </label>
                           <input
                             type="text"
                             value={expLetterData.signatoryName}
                             onChange={(e) => setExpLetterData({ ...expLetterData, signatoryName: e.target.value })}
                             className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 focus:outline-teal-600"
-                            placeholder="Authorized Signatory"
+                            placeholder="Suresh Kumar. R"
                           />
                         </div>
 
                         <div>
                           <label className="block text-xs font-bold text-slate-600 mb-1">
-                            {language === 'te' ? 'విభాగం' : 'Signatory Department'}
+                            {language === 'te' ? 'హోదా / విభాగం' : 'Designation / Title'}
                           </label>
                           <input
                             type="text"
                             value={expLetterData.signatoryDepartment}
                             onChange={(e) => setExpLetterData({ ...expLetterData, signatoryDepartment: e.target.value })}
                             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-teal-600"
-                            placeholder="Human Resources Department"
+                            placeholder="Managing Director"
                           />
                         </div>
                       </div>
@@ -1100,7 +1106,7 @@ export default function EmployeeDirectory({
   // --- STANDARD DIRECTORY GRID LIST ---
   return (
     <div id="directory-roster-view" className="space-y-6 animate-fadeIn">
-      
+
       {/* Directory Title Panel */}
       <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
@@ -1189,7 +1195,7 @@ export default function EmployeeDirectory({
                     {(() => {
                       const todayStr = new Date().toISOString().split('T')[0];
                       const todayLog = emp.checkInLogs.find(log => log.date === todayStr);
-                      
+
                       if (!todayLog) return <span className="text-slate-300">-</span>;
 
                       return (
@@ -1197,8 +1203,8 @@ export default function EmployeeDirectory({
                           {todayLog.photoUrl || todayLog.checkInLocation ? (
                             <div className="flex items-start gap-2">
                               {todayLog.photoUrl && (
-                                <img 
-                                  src={todayLog.photoUrl} 
+                                <img
+                                  src={todayLog.photoUrl}
                                   title="Check-in Photo"
                                   onClick={(e) => { e.stopPropagation(); setViewingPhotoUrl(todayLog.photoUrl!); }}
                                   className="w-8 h-8 object-cover rounded border border-slate-200 cursor-pointer hover:ring-2 hover:ring-teal-500 transition-all shrink-0 mt-0.5"
@@ -1218,8 +1224,8 @@ export default function EmployeeDirectory({
                           {todayLog.checkOutPhotoUrl || todayLog.checkOutLocation ? (
                             <div className="flex items-start gap-2">
                               {todayLog.checkOutPhotoUrl && (
-                                <img 
-                                  src={todayLog.checkOutPhotoUrl} 
+                                <img
+                                  src={todayLog.checkOutPhotoUrl}
                                   title="Check-out Photo"
                                   onClick={(e) => { e.stopPropagation(); setViewingPhotoUrl(todayLog.checkOutPhotoUrl!); }}
                                   className="w-8 h-8 object-cover rounded border border-slate-200 cursor-pointer hover:ring-2 hover:ring-rose-400 transition-all shrink-0 mt-0.5"
@@ -1252,15 +1258,14 @@ export default function EmployeeDirectory({
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                      
+
                       {emp.role !== 'admin' && (
                         <button
                           onClick={(e) => handleToggleStatus(emp.id, emp.name, emp.status || 'active', e)}
-                          className={`p-2 rounded-lg transition-colors cursor-pointer ${
-                            emp.status === 'inactive' 
-                              ? 'text-teal-600 hover:bg-teal-50' 
+                          className={`p-2 rounded-lg transition-colors cursor-pointer ${emp.status === 'inactive'
+                              ? 'text-teal-600 hover:bg-teal-50'
                               : 'text-rose-400 hover:text-rose-600 hover:bg-rose-50'
-                          }`}
+                            }`}
                           title={emp.status === 'inactive' ? (language === 'te' ? 'యాక్టివేట్' : 'Reactivate') : (language === 'te' ? 'నిలిపివేయి' : 'Deactivate')}
                         >
                           <Power className="w-3.5 h-3.5" />
@@ -1299,7 +1304,7 @@ export default function EmployeeDirectory({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            
+
             <form onSubmit={handleAddSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Scrollable Form Body */}
               <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-4">
@@ -1447,7 +1452,7 @@ export default function EmployeeDirectory({
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.bankAccountType || 'Account Type'}</label>
-                      <select value={formBankAccountType} onChange={e => setFormBankAccountType(e.target.value as 'savings'|'current')} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700">
+                      <select value={formBankAccountType} onChange={e => setFormBankAccountType(e.target.value as 'savings' | 'current')} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700">
                         <option value="savings">Savings</option>
                         <option value="current">Current</option>
                       </select>
@@ -1467,7 +1472,7 @@ export default function EmployeeDirectory({
                       <option value="admin">Admin</option>
                     </select>
                   </div>
-                  
+
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status</label>
                     <select
@@ -1527,7 +1532,7 @@ export default function EmployeeDirectory({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            
+
             <form onSubmit={handleEditSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Scrollable Form Body */}
               <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-4">
@@ -1675,7 +1680,7 @@ export default function EmployeeDirectory({
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.bankAccountType || 'Account Type'}</label>
-                      <select value={formBankAccountType} onChange={e => setFormBankAccountType(e.target.value as 'savings'|'current')} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700">
+                      <select value={formBankAccountType} onChange={e => setFormBankAccountType(e.target.value as 'savings' | 'current')} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/10 text-slate-700">
                         <option value="savings">Savings</option>
                         <option value="current">Current</option>
                       </select>
@@ -1695,7 +1700,7 @@ export default function EmployeeDirectory({
                       <option value="admin">Admin</option>
                     </select>
                   </div>
-                  
+
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status</label>
                     <select
@@ -1746,7 +1751,7 @@ export default function EmployeeDirectory({
       {viewingPhotoUrl && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setViewingPhotoUrl(null)}>
           <div className="relative max-w-3xl w-full max-h-[90vh] flex flex-col items-center" onClick={e => e.stopPropagation()}>
-            <button 
+            <button
               onClick={() => setViewingPhotoUrl(null)}
               className="absolute -top-12 right-0 md:-right-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
             >

@@ -16,10 +16,10 @@ const ExperienceLetter = forwardRef<HTMLDivElement, ExperienceLetterProps>(({ em
     employeeId: 'EMP-000',
     referenceNo: 'SMS/HR/EXP/2026/000',
     issueDate: new Date().toISOString().split('T')[0],
-    companyName: 'Srikanth Manpower Solutions',
-    companyAddress: 'Visakhapatnam, Andhra Pradesh',
-    companyContact: '+91 99999 99999',
-    companyEmail: 'hr@srikanthmanpower.com',
+    companyName: 'SMS Diagnostics',
+    companyAddress: '18-1-30/9, Opp. KGH OP Gate, Aditya Complex, Visakhapatnam, Andhra Pradesh 530002',
+    companyContact: '+91-905 933 1954 / 0891-2751954',
+    companyEmail: 'admin@smslabs.in',
     title: 'Mr.',
     employeeName: 'Employee Name',
     designation: 'Staff',
@@ -28,13 +28,13 @@ const ExperienceLetter = forwardRef<HTMLDivElement, ExperienceLetterProps>(({ em
     isCurrentlyEmployed: true,
     tenureDuration: '1 year',
     documentTitle: 'TO WHOMSOEVER IT MAY CONCERN',
-    openingParagraph: 'This is to certify that Mr. Employee Name has been employed with Srikanth Manpower Solutions.',
+    openingParagraph: 'This is to certify that Mr. Employee Name has been employed with SMS Diagnostics.',
     tenureParagraph: 'During their tenure, they have successfully served in the capacity of Staff.',
     conductParagraph: 'We have found him to be a dedicated, hardworking, and reliable employee.',
     closingParagraph: 'We wish him success in all future endeavors.',
-    signatoryEntity: 'For Srikanth Manpower Solutions',
-    signatoryName: 'Authorized Signatory',
-    signatoryDepartment: 'Human Resources Department'
+    signatoryEntity: 'For SMS Diagnostics',
+    signatoryName: 'Suresh Kumar. R',
+    signatoryDepartment: 'Managing Director'
   });
 
   const formattedIssueDate = formatDisplayDate(data.issueDate);
