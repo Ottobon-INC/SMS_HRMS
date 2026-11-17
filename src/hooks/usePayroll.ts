@@ -135,9 +135,11 @@ export function usePayroll(isLocalMode: boolean, loadData: () => Promise<void>) 
 
     await payrollService.savePayslipToSupabase(empId, payslip);
 
-    // Decrement installments counter for each active advance
-    for (const advId of advanceIds) {
-      await decrementInstallment(advId);
+    // Decrement installments counter for each active advance only for new payslip
+    if (!hasExisting) {
+      for (const advId of advanceIds) {
+        await decrementInstallment(advId);
+      }
     }
 
     await loadData();

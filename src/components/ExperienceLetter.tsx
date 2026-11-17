@@ -2,7 +2,6 @@ import React, { forwardRef } from 'react';
 import { Employee, Language } from '../types';
 import { ExperienceLetterData } from '../types/document.types';
 import { generateDefaultLetter, formatDisplayDate } from '../lib/services/experience-letter-service';
-import SmsLogo from './SmsLogo';
 
 export interface ExperienceLetterProps {
   employee?: Employee;
@@ -43,17 +42,33 @@ const ExperienceLetter = forwardRef<HTMLDivElement, ExperienceLetterProps>(({ em
     <div
       ref={ref}
       id="printable-experience-letter"
-      className="bg-white p-8 sm:p-14 max-w-4xl mx-auto min-h-[1056px] shadow-sm print:shadow-none print:p-0 relative font-serif text-slate-800 border border-slate-200/80 rounded-2xl print:border-none print:rounded-none"
+      className="bg-white max-w-4xl mx-auto shadow-md print:shadow-none relative font-serif text-slate-800 border border-slate-200/80 rounded-2xl print:border-none print:rounded-none overflow-hidden"
+      style={{
+        backgroundImage: "url('/experience_letterhead.png')",
+        backgroundSize: "100% 100%",
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "center top",
+        aspectRatio: "210 / 297",
+        paddingTop: "22%",
+        paddingLeft: "10%",
+        paddingRight: "10%",
+        paddingBottom: "12%",
+        boxSizing: "border-box"
+      }}
     >
       {/* Print-specific style rules */}
       <style>{`
         @media print {
           @page {
             size: A4 portrait;
-            margin: 15mm;
+            margin: 0;
           }
-          body {
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
             background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           body * {
             visibility: hidden;
@@ -62,47 +77,45 @@ const ExperienceLetter = forwardRef<HTMLDivElement, ExperienceLetterProps>(({ em
             visibility: visible;
           }
           #printable-experience-letter {
-            position: absolute !important;
+            position: fixed !important;
             left: 0 !important;
             top: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-height: auto !important;
-            padding: 0 !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            min-height: 297mm !important;
+            max-height: 297mm !important;
+            padding-top: 55mm !important;
+            padding-left: 24mm !important;
+            padding-right: 24mm !important;
+            padding-bottom: 30mm !important;
             margin: 0 !important;
+            box-sizing: border-box !important;
+            background-image: url('/experience_letterhead.png') !important;
+            background-size: 100% 100% !important;
+            background-repeat: no-repeat !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
             box-shadow: none !important;
             border: none !important;
+            border-radius: 0 !important;
           }
         }
       `}</style>
 
-      {/* Static Header (Letterhead Template) */}
-      <div className="border-b-4 border-teal-700 pb-6 mb-10 flex justify-between items-start gap-4">
-        <div className="flex items-center gap-4">
-          <SmsLogo textSize="text-3xl font-black" subtitle={true} />
-        </div>
-        <div className="text-right text-xs sm:text-sm text-slate-600 leading-snug">
-          <p className="font-bold text-teal-800 text-sm sm:text-base">Registered Office</p>
-          <p>{data.companyAddress}</p>
-          <p>Contact: {data.companyContact}</p>
-          <p>Email: {data.companyEmail}</p>
-        </div>
-      </div>
-
-      {/* Letter Meta */}
-      <div className="space-y-8 leading-relaxed">
+      {/* Letter Content Overlay on Official Letterhead */}
+      <div className="space-y-6 sm:space-y-8 leading-relaxed relative z-10">
         <div className="flex justify-between font-bold text-xs sm:text-sm text-slate-800">
           <p>Ref: <span className="font-mono">{data.referenceNo}</span></p>
           <p>Date: <span>{formattedIssueDate}</span></p>
         </div>
 
         {/* Title */}
-        <h1 className="text-xl sm:text-2xl font-bold text-center underline uppercase tracking-widest my-8 text-slate-900">
+        <h1 className="text-xl sm:text-2xl font-bold text-center underline uppercase tracking-widest my-6 sm:my-8 text-slate-900">
           {data.documentTitle || 'TO WHOMSOEVER IT MAY CONCERN'}
         </h1>
 
         {/* Letter Body Paragraphs */}
-        <div className="space-y-6 text-justify text-sm sm:text-base text-slate-800">
+        <div className="space-y-5 sm:space-y-6 text-justify text-xs sm:text-sm md:text-base text-slate-800">
           <p className="leading-relaxed">
             {data.openingParagraph}
           </p>
@@ -121,9 +134,9 @@ const ExperienceLetter = forwardRef<HTMLDivElement, ExperienceLetterProps>(({ em
         </div>
 
         {/* Signature Block */}
-        <div className="pt-16 sm:pt-20 space-y-2">
-          <p className="text-sm font-semibold">{data.signatoryEntity}</p>
-          <div className="h-16 flex items-center">
+        <div className="pt-10 sm:pt-14 space-y-1.5">
+          <p className="text-xs sm:text-sm font-semibold">{data.signatoryEntity}</p>
+          <div className="h-14 sm:h-16 flex items-center">
             {/* Signature Stamp placeholder */}
             <div className="text-[10px] uppercase font-mono tracking-wider text-teal-700/60 border border-dashed border-teal-600/40 px-3 py-1.5 rounded-lg inline-block print:hidden">
               [Authorized Signature & Seal]
@@ -132,11 +145,6 @@ const ExperienceLetter = forwardRef<HTMLDivElement, ExperienceLetterProps>(({ em
           <p className="font-bold text-sm sm:text-base text-slate-900">{data.signatoryName}</p>
           <p className="text-xs sm:text-sm text-slate-600">{data.signatoryDepartment}</p>
         </div>
-      </div>
-
-      {/* Footer / Watermark */}
-      <div className="absolute bottom-8 left-0 right-0 text-center text-[10px] text-slate-400 border-t border-slate-200 pt-4 px-12">
-        This is a computer-generated document issued by {data.companyName}. No signature is required.
       </div>
     </div>
   );

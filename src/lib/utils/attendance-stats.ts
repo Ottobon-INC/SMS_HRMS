@@ -79,32 +79,40 @@ export function computeAttendanceStats(
       } else if (st === 'half-day') {
         daysPresent += 0.5;
         halfDays += 1;
+        // Half-day is NEVER counted under Absent. The unworked 0.5 day is under LOP,
+        // or paid leave only if covered by an approved paid leave request with tenure >= 1 year.
         const leave = approvedLeaveDates.get(record.date);
         if (leave) {
           if (leave.type === 'lop') {
             rawLopDays += 0.5;
           } else if (leave.type === 'maternity' || leave.type === 'paternity') {
             specialPaidLeaves += 0.5;
-          } else {
+          } else if ((leave.type === 'casual' || leave.type === 'sick' || leave.type === 'monthly') && hasOneYearTenure) {
             rawPaidLeaveDays += 0.5;
+          } else {
+            rawLopDays += 0.5;
           }
         } else {
-          // Unapproved half-day absence: 0.5 day absent penalty
-          absentDays += 0.5;
+          // Unworked 0.5 day without approved paid leave: counts under LOP (0.5 day pay cut)
+          rawLopDays += 0.5;
         }
       } else if (st === 'leave') {
+        // Leave record in attendance: counts as Paid Leave ONLY if an approved paid leave request exists
+        // (Casual/Sick with >= 1 year tenure). If no approved paid leave request, it is LOP (Loss of Pay).
         const leave = approvedLeaveDates.get(record.date);
         if (leave) {
           if (leave.type === 'lop') {
             rawLopDays += 1;
           } else if (leave.type === 'maternity' || leave.type === 'paternity') {
             specialPaidLeaves += 1;
-          } else {
+          } else if ((leave.type === 'casual' || leave.type === 'sick' || leave.type === 'monthly') && hasOneYearTenure) {
             rawPaidLeaveDays += 1;
+          } else {
+            rawLopDays += 1;
           }
         } else {
-          // Leave record in attendance: counts towards monthly leave pool
-          rawPaidLeaveDays += 1;
+          // No approved paid leave request: counts as LOP (Loss of Pay, 1 day cut)
+          rawLopDays += 1;
         }
       } else if (st === 'absent') {
         absentDays += 1;
@@ -119,8 +127,10 @@ export function computeAttendanceStats(
         rawLopDays += 1;
       } else if (req.type === 'maternity' || req.type === 'paternity') {
         specialPaidLeaves += 1;
-      } else {
+      } else if ((req.type === 'casual' || req.type === 'sick' || req.type === 'monthly') && hasOneYearTenure) {
         rawPaidLeaveDays += 1;
+      } else {
+        rawLopDays += 1;
       }
       processedDays.add(dStr);
     }

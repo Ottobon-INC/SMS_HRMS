@@ -409,11 +409,28 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
             {!isCheckedIn && !hasCheckedOutToday && currentUser.status !== 'inactive' && (
               <button
                 type="button"
-                onClick={() => setIsSystemModalOpen(true)}
-                className="mt-3 text-[11px] font-semibold text-slate-500 hover:text-teal-700 flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200/80 transition-all cursor-pointer shadow-xs"
+                onClick={() => {
+                  if (shiftWindow.isLate) {
+                    setMissedPunchType('in');
+                    setMissedPunchDate(todayStr);
+                    setMissedPunchReason('');
+                    setRequestSubmitted(false);
+                    return;
+                  }
+                  setIsSystemModalOpen(true);
+                }}
+                className={`mt-3 text-[11px] font-semibold flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all cursor-pointer shadow-xs ${
+                  shiftWindow.isLate 
+                    ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' 
+                    : 'text-slate-500 hover:text-teal-700 bg-slate-50 hover:bg-slate-100 border-slate-200/80'
+                }`}
               >
-                <Monitor className="w-3.5 h-3.5 text-teal-600" />
-                <span>{language === 'te' ? '🖥️ సిస్టమ్ పంచ్-ఇన్ (నో కెమెరా)' : '🖥️ System Punch-in (No Camera)'}</span>
+                {shiftWindow.isLate ? <Lock className="w-3.5 h-3.5 text-amber-600" /> : <Monitor className="w-3.5 h-3.5 text-teal-600" />}
+                <span>
+                  {shiftWindow.isLate
+                    ? (language === 'te' ? '🔒 సమయం దాటింది - మిస్డ్ పంచ్ అప్లై చేయండి' : '🔒 Cutoff Expired - Apply Missed Punch')
+                    : (language === 'te' ? '🖥️ సిస్టమ్ పంచ్-ఇన్ (నో కెమెరా)' : '🖥️ System Punch-in (No Camera)')}
+                </span>
               </button>
             )}
           </div>
@@ -862,6 +879,16 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
                 type="button"
                 disabled={isProcessing}
                 onClick={async () => {
+                  if (shiftWindow.isLate) {
+                    alert(language === 'te' 
+                      ? `షిఫ్ట్ పంచ్-ఇన్ సమయం (${shiftWindow.cutoffTime}) దాటిపోయింది. దయచేసి మిస్డ్ పంచ్ అప్లై చేయండి.`
+                      : `The 30-minute punch-in window from your shift start has expired (${shiftWindow.cutoffTime}). Please apply for a Missed Punch.`);
+                    setIsSystemModalOpen(false);
+                    setMissedPunchType('in');
+                    setMissedPunchDate(todayStr);
+                    setMissedPunchReason('');
+                    return;
+                  }
                   // Generate canvas badge
                   const canvas = document.createElement('canvas');
                   canvas.width = 400;

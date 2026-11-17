@@ -341,16 +341,20 @@ export default function PayrollModule({
         {!isEditing ? (
           <div className="font-sans text-sm text-black relative z-10">
             {/* 1. Header */}
-            <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
-              <div className="flex w-full items-center">
-                <div className="shrink-0 pr-6">
-                  <SmsLogo className="h-16 w-auto" />
-                </div>
-                <div className="flex-1 text-right">
-                  <h1 className="text-2xl font-bold uppercase tracking-wider mb-1 text-teal-800">SMS DIAGNOSTICS</h1>
-                  <p className="text-xs mb-1 text-slate-800 font-medium">#18-1-30/9, Opp. KGH OP Gate, Aditya Complex, Visakhapatnam - 530002, A.P.</p>
-                  <p className="text-xs text-slate-800 font-medium">info@smslabs.in &nbsp;&nbsp;|&nbsp;&nbsp; www.smslabs.in &nbsp;&nbsp;|&nbsp;&nbsp; Phone: 9059331954</p>
-                </div>
+            <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-5">
+              <div className="shrink-0 pr-6">
+                <SmsLogo imageClassName="h-20 sm:h-24 md:h-28 w-auto object-contain" />
+              </div>
+              <div className="flex-1 text-right text-xs leading-relaxed text-slate-800 font-medium">
+                <p className="text-xs sm:text-sm font-semibold text-slate-900">
+                  #18-1-30/9, Opp. KGH OP Gate, Aditya Complex, Visakhapatnam - 530002, A.P.
+                </p>
+                <p className="text-xs text-slate-700 mt-1">
+                  <span>info@smslabs.in</span> &nbsp;&nbsp;|&nbsp;&nbsp; <span>www.smslabs.in</span>
+                </p>
+                <p className="text-xs text-slate-700">
+                  Phone: <span>9059331954</span> / <span>0891-2751954</span>
+                </p>
               </div>
             </div>
 

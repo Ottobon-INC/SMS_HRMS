@@ -102,20 +102,32 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
     ];
 
     const stats = computeAttendanceStats(month, emp.attendanceRecords || [], emp.leaveRequests || [], emp.joiningDate, emp.missedPunchRequests || []);
+    const dailyPay = stats.workingDays > 0 ? (basic / stats.workingDays) : 0;
+
     const existingPayslip = (emp.payslips || []).find(p => p.month === month);
     if (existingPayslip) {
-      const hasLop = (existingPayslip.deductions || []).some(d => d.nameKey === 'lossOfPay');
-      const hasAbsent = (existingPayslip.deductions || []).some(d => d.nameKey === 'absentPenalty');
-      const hasMissed = (existingPayslip.deductions || []).some(d => d.nameKey === 'missedPunchPenalty');
-      const needsLop = stats.lopDays > 0 && !hasLop;
-      const needsAbsent = stats.absentDays > 0 && !hasAbsent;
-      const needsMissed = (stats.missedPunchPenaltyHalfDays || 0) > 0 && !hasMissed;
-      // If the existing payslip is missing workingDays or missing required deductions, regenerate it
-      if (existingPayslip.workingDays === undefined || existingPayslip.workingDays === null || needsLop || needsAbsent || needsMissed) {
-        console.log(`Regenerating incomplete payslip for ${emp.name}`);
-      } else {
-        continue; // Don't overwrite manually edited payslips that are complete
+      const existingLop = (existingPayslip.deductions || []).find(d => d.nameKey === 'lossOfPay')?.amount ?? 0;
+      const expectedLop = stats.lopDays > 0 ? Math.round(stats.lopDays * 1 * dailyPay) : 0;
+      const existingAbsent = (existingPayslip.deductions || []).find(d => d.nameKey === 'absentPenalty')?.amount ?? 0;
+      const expectedAbsent = stats.absentDays > 0 ? Math.round(stats.absentDays * 2 * dailyPay) : 0;
+      const existingMissed = (existingPayslip.deductions || []).find(d => d.nameKey === 'missedPunchPenalty')?.amount ?? 0;
+      const expectedMissed = (stats.missedPunchPenaltyHalfDays || 0) > 0 ? Math.round(stats.missedPunchPenaltyHalfDays * 0.5 * dailyPay) : 0;
+
+      const isOutOfSync = 
+        existingPayslip.workingDays !== stats.workingDays ||
+        existingPayslip.daysPresent !== stats.daysPresent ||
+        existingPayslip.paidLeaves !== stats.paidLeaves ||
+        existingPayslip.lopDays !== stats.lopDays ||
+        existingPayslip.absentDays !== stats.absentDays ||
+        existingPayslip.halfDays !== stats.halfDays ||
+        existingLop !== expectedLop ||
+        existingAbsent !== expectedAbsent ||
+        existingMissed !== expectedMissed;
+
+      if (!isOutOfSync) {
+        continue; // Payslip is already fully up-to-date
       }
+      console.log(`Updating out-of-sync payslip for ${emp.name} (${month})`);
     }
     // Installment-based advance deduction
     // Only deduct active advances with installments remaining
@@ -135,8 +147,6 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
         amount: installment
       });
     }
-
-    const dailyPay = stats.workingDays > 0 ? (basic / stats.workingDays) : 0;
 
     // Loss of Pay (LOP) deduction: 1 day salary cut per approved LOP day
     if (stats.lopDays > 0) {
@@ -181,9 +191,11 @@ export async function runBulkPayrollForMonth(employees: Employee[], month: strin
 
     await savePayslipToSupabase(emp.id, payslip);
 
-    // Decrement installments counter for each active advance
-    for (const advId of advanceIds) {
-      await decrementInstallment(advId);
+    // Decrement installments counter for each active advance only if this was a new payslip
+    if (!existingPayslip) {
+      for (const advId of advanceIds) {
+        await decrementInstallment(advId);
+      }
     }
   }
 }

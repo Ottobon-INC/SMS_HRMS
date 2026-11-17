@@ -461,11 +461,29 @@ export default function CheckInModule({
         {!isCheckedIn && (
           <button
             type="button"
-            onClick={() => setIsSystemModalOpen(true)}
-            className="flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold py-2.5 px-6 rounded-xl border border-slate-200 text-xs transition-all cursor-pointer shadow-xs"
+            onClick={() => {
+              if (shiftWindow.isLate) {
+                const todayStr = new Date().toISOString().split('T')[0];
+                setMissedPunchType('in');
+                setMissedPunchDate(todayStr);
+                setMissedPunchReason('');
+                setRequestSubmitted(false);
+                return;
+              }
+              setIsSystemModalOpen(true);
+            }}
+            className={`flex items-center justify-center gap-2 font-semibold py-2.5 px-6 rounded-xl border text-xs transition-all cursor-pointer shadow-xs ${
+              shiftWindow.isLate 
+                ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' 
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+            }`}
           >
-            <Monitor className="w-4 h-4 text-teal-600" />
-            <span>{language === 'te' ? '🖥️ సిస్టమ్ పంచ్-ఇన్ (నో కెమెరా)' : '🖥️ System Punch-in (No Camera)'}</span>
+            {shiftWindow.isLate ? <Lock className="w-4 h-4 text-amber-600" /> : <Monitor className="w-4 h-4 text-teal-600" />}
+            <span>
+              {shiftWindow.isLate
+                ? (language === 'te' ? '🔒 సమయం దాటింది - మిస్డ్ పంచ్ అప్లై చేయండి' : '🔒 Cutoff Expired - Apply Missed Punch')
+                : (language === 'te' ? '🖥️ సిస్టమ్ పంచ్-ఇన్ (నో కెమెరా)' : '🖥️ System Punch-in (No Camera)')}
+            </span>
           </button>
         )}
 
@@ -1124,6 +1142,17 @@ export default function CheckInModule({
                 type="button"
                 disabled={isProcessing}
                 onClick={async () => {
+                  if (shiftWindow.isLate) {
+                    alert(language === 'te' 
+                      ? `షిఫ్ట్ పంచ్-ఇన్ సమయం (${shiftWindow.cutoffTime}) దాటిపోయింది. దయచేసి మిస్డ్ పంచ్ అప్లై చేయండి.`
+                      : `The 30-minute punch-in window from your shift start has expired (${shiftWindow.cutoffTime}). Please apply for a Missed Punch.`);
+                    setIsSystemModalOpen(false);
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    setMissedPunchType('in');
+                    setMissedPunchDate(todayStr);
+                    setMissedPunchReason('');
+                    return;
+                  }
                   const canvas = document.createElement('canvas');
                   canvas.width = 400;
                   canvas.height = 200;

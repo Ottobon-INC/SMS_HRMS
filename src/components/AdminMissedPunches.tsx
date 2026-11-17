@@ -119,6 +119,27 @@ export default function AdminMissedPunches({ language, employees, adminId }: Adm
         </button>
       </div>
 
+      {/* Policy Card */}
+      <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-5 text-xs text-amber-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="font-bold flex items-center gap-2 text-amber-800">
+            <FileWarning className="w-4 h-4 text-amber-600" />
+            <span>{language === 'te' ? 'మిస్డ్ పంచ్ కటింగ్ నిబంధనలు (Missed Punch Policy):' : 'Missed Punch Deduction Policy:'}</span>
+          </div>
+          <p className="text-amber-700 leading-relaxed">
+            {language === 'te'
+              ? 'ప్రతి 3 మిస్డ్ పంచ్‌లకు 1 హాఫ్-డే కటింగ్ (ఇది 2 సార్లు మాత్రమే వర్తిస్తుంది: 3వ మరియు 6వ పంచ్ వద్ద). 7వ మిస్డ్ పంచ్ నుండి ప్రతి ఒక్క మిస్డ్ పంచ్‌కు నేరుగా హాఫ్-డే కటింగ్ కొనసాగుతుంది.'
+              : 'Every 3 missed punches incur a 0.5 day cut (this 3-mispunch buffer applies 2 times only: at the 3rd and 6th mispunch). From the 7th mispunch onwards, every single mispunch directly continues with a 0.5 day cut.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-[11px] font-mono shrink-0">
+          <span className="bg-white/80 border border-amber-200 px-2.5 py-1 rounded-lg">1–2: ₹0</span>
+          <span className="bg-white/80 border border-amber-200 px-2.5 py-1 rounded-lg">3–5: 0.5 Cut</span>
+          <span className="bg-white/80 border border-amber-200 px-2.5 py-1 rounded-lg">6: 1.0 Cut</span>
+          <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-lg font-bold">7+: +0.5 / punch</span>
+        </div>
+      </div>
+
       <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
         {isLoadingRequests ? (
           <div className="py-8 text-center text-slate-500 text-xs font-bold uppercase tracking-widest animate-pulse">
@@ -132,9 +153,12 @@ export default function AdminMissedPunches({ language, employees, adminId }: Adm
         ) : (
           <div className="space-y-4">
             {missedRequests.map(req => {
-              const empName = getEmployeeName(req.employeeId);
+              const emp = employees.find(e => e.id === req.employeeId);
+              const empName = emp?.name || req.employeeId;
               const isPending = req.status === 'pending';
               const isApproved = req.status === 'approved';
+              const dayRecord = emp?.attendanceRecords?.find(r => r.date === req.missedDate);
+              const isInvalidOut = req.punchType === 'out' && (!dayRecord?.checkInTime || dayRecord?.status === 'leave' || dayRecord?.status === 'absent');
 
               return (
                 <div key={req.id} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 border rounded-2xl gap-4 transition-all ${
@@ -157,6 +181,13 @@ export default function AdminMissedPunches({ language, employees, adminId }: Adm
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-1">Missed Date: <span className="font-bold text-slate-700">{req.missedDate}</span></p>
+                    {isInvalidOut && (
+                      <p className="text-[10px] mt-1.5 text-rose-600 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200 font-semibold inline-block">
+                        ⚠️ {language === 'te' 
+                          ? `ఉద్యోగి ఈ తేదీన సెలవు/రాలేదు (${dayRecord?.status?.toUpperCase() || 'హాజరు రికార్డు లేదు'}). పంచ్-అవుట్ వర్తించదు.` 
+                          : `Employee was on ${dayRecord?.status?.toUpperCase() || 'NO PUNCH-IN'} on this date. Punch-out is not applicable.`}
+                      </p>
+                    )}
                     {req.reason && (
                       <p className="text-[10px] mt-2 text-slate-600 bg-white/50 p-2 rounded-lg border border-slate-100/50">
                         <span className="font-bold">Reason:</span> {req.reason}
@@ -168,13 +199,14 @@ export default function AdminMissedPunches({ language, employees, adminId }: Adm
                     <div className="flex gap-2 w-full sm:w-auto">
                       <button
                         onClick={() => openRejectModal(req)}
-                        className="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors"
+                        className="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors cursor-pointer"
                       >
                         <XCircle className="w-4 h-4" /> {language === 'te' ? 'తిరస్కరించు' : 'Reject'}
                       </button>
                       <button
                         onClick={() => openApproveModal(req)}
-                        className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors shadow-sm"
+                        disabled={isInvalidOut}
+                        className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors shadow-sm cursor-pointer"
                       >
                         <CheckCircle className="w-4 h-4" /> {language === 'te' ? 'ఆమోదించు' : 'Approve'}
                       </button>

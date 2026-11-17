@@ -63,6 +63,48 @@ export default function EmployeeMissedPunches({ language, currentUser }: Employe
       return;
     }
 
+    // Attendance state validation
+    const dayRecord = (currentUser.attendanceRecords || []).find(r => r.date === applyDate);
+    if (applyType === 'out') {
+      if (!dayRecord || !dayRecord.checkInTime) {
+        setFormError(language === 'te' 
+          ? 'మీరు ఈ తేదీన పంచ్-ఇన్ చేయలేదు. పంచ్-ఇన్ చేయని రోజుకు మిస్డ్ పంచ్-అవుట్ వర్తించదు.' 
+          : 'You did not punch-in on this date. You cannot apply for a Missed Punch-Out without an existing Punch-In.');
+        return;
+      }
+      if (dayRecord.status === 'leave') {
+        setFormError(language === 'te' 
+          ? 'ఈ తేదీన మీరు సెలవు (Leave) లో ఉన్నారు. సెలవు రోజున పంచ్-అవుట్ వర్తించదు.' 
+          : 'You were marked On Leave on this date. Missed Punch-Out cannot be applied for leave days.');
+        return;
+      }
+      if (dayRecord.status === 'absent') {
+        setFormError(language === 'te' 
+          ? 'ఈ తేదీన మీరు రాలేదు (Absent). మీరు పనిచేసినట్లయితే దయచేసి మిస్డ్ పంచ్-ఇన్ అప్లై చేయండి.' 
+          : 'You were marked Absent on this date. If you worked, please apply for Missed Punch-IN instead.');
+        return;
+      }
+      if (dayRecord.status === 'weekoff' || dayRecord.status === 'holiday') {
+        setFormError(language === 'te' 
+          ? 'ఈ తేదీన వారాంతపు సెలవు (Week Off / Holiday). పంచ్-అవుట్ వర్తించదు.' 
+          : 'This was a scheduled Week Off / Holiday. Missed Punch-Out is not applicable.');
+        return;
+      }
+    } else if (applyType === 'in') {
+      if (dayRecord && dayRecord.checkInTime) {
+        setFormError(language === 'te' 
+          ? `మీరు ఈ తేదీన ఇప్పటికే ${dayRecord.checkInTime} గంటలకు పంచ్-ఇన్ చేశారు.` 
+          : `You already have a recorded punch-in on this date at ${dayRecord.checkInTime}.`);
+        return;
+      }
+      if (dayRecord && dayRecord.status === 'leave') {
+        setFormError(language === 'te' 
+          ? 'ఈ తేదీన మీరు అధికారికంగా సెలవు (Leave) లో ఉన్నారు. సెలవు రద్దు చేయాలనుకుంటే అడ్మిన్‌ను సంప్రదించండి.' 
+          : 'You are officially marked On Leave on this date. If you cancelled your leave and worked, please contact Admin.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       await submitMissedPunchRequest(currentUser.id, applyDate, applyType, applyReason);
@@ -108,6 +150,27 @@ export default function EmployeeMissedPunches({ language, currentUser }: Employe
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           <span className="hidden sm:inline">{language === 'te' ? 'రిఫ్రెష్' : 'Refresh'}</span>
         </button>
+      </div>
+
+      {/* Policy Card */}
+      <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-5 text-xs text-amber-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="font-bold flex items-center gap-2 text-amber-800">
+            <FileWarning className="w-4 h-4 text-amber-600" />
+            <span>{language === 'te' ? 'మిస్డ్ పంచ్ కటింగ్ నిబంధనలు (Missed Punch Policy):' : 'Missed Punch Deduction Policy:'}</span>
+          </div>
+          <p className="text-amber-700 leading-relaxed">
+            {language === 'te'
+              ? 'ప్రతి 3 మిస్డ్ పంచ్‌లకు 1 హాఫ్-డే కటింగ్ (ఇది 2 సార్లు మాత్రమే వర్తిస్తుంది: 3వ మరియు 6వ పంచ్ వద్ద). 7వ మిస్డ్ పంచ్ నుండి ప్రతి ఒక్క మిస్డ్ పంచ్‌కు నేరుగా హాఫ్-డే కటింగ్ కొనసాగుతుంది.'
+              : 'Every 3 missed punches incur a 0.5 day cut (this 3-mispunch buffer applies 2 times only: at the 3rd and 6th mispunch). From the 7th mispunch onwards, every single mispunch directly continues with a 0.5 day cut.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-[11px] font-mono shrink-0">
+          <span className="bg-white/80 border border-amber-200 px-2.5 py-1 rounded-lg">1–2: ₹0</span>
+          <span className="bg-white/80 border border-amber-200 px-2.5 py-1 rounded-lg">3–5: 0.5 Cut</span>
+          <span className="bg-white/80 border border-amber-200 px-2.5 py-1 rounded-lg">6: 1.0 Cut</span>
+          <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-lg font-bold">7+: +0.5 / punch</span>
+        </div>
       </div>
 
       {/* Apply Form */}

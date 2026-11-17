@@ -2,6 +2,7 @@ import React from 'react';
 
 interface SmsLogoProps {
   className?: string;
+  imageClassName?: string;
   iconOnly?: boolean;
   textSize?: string;
   diagnosticsColor?: string;
@@ -11,6 +12,7 @@ interface SmsLogoProps {
 
 export default function SmsLogo({ 
   className = "", 
+  imageClassName,
   onClick
 }: SmsLogoProps) {
   return (
@@ -18,7 +20,7 @@ export default function SmsLogo({
        <img 
          src="/logo.png" 
          alt="SMS Diagnostics Letterhead" 
-         className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain drop-shadow-sm" 
+         className={imageClassName || "h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain drop-shadow-sm"} 
        />
     </div>
   );
