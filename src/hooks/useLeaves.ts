@@ -29,6 +29,15 @@ export function useLeaves(isLocalMode: boolean, loadData: () => Promise<void>) {
     await loadData();
   };
 
+  const deleteLeave = async (id: string, empId?: string) => {
+    if (isLocalMode) {
+      alert("Leave requests can only be deleted in online mode.");
+      return;
+    }
+    await leaveService.deleteLeaveRequest(id, empId);
+    await loadData();
+  };
+
   const updateBalances = async (empId: string, type: LeaveType, allotted: number, used: number) => {
     if (isLocalMode) {
       alert("Leave balances can only be updated in online mode.");
@@ -42,6 +51,7 @@ export function useLeaves(isLocalMode: boolean, loadData: () => Promise<void>) {
     applyLeave,
     approveLeave,
     rejectLeave,
+    deleteLeave,
     updateBalances
   };
 }

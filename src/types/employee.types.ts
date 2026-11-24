@@ -1,5 +1,5 @@
 import type { LeaveBalance, LeaveRequest, MonthlyLeaveQuota } from './leave.types';
-import type { AttendanceRecord, CheckInLog } from './attendance.types';
+import type { AttendanceRecord, CheckInLog, MissedPunchRequest } from './attendance.types';
 import type { Payslip } from './payroll.types';
 import type { AdvanceRequest } from './advance.types';
 import type { LocationPin } from './location.types';

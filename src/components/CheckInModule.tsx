@@ -152,13 +152,7 @@ export default function CheckInModule({
           if (result.geoError) {
             setGeoError(result.geoError);
           } else if (result.error) {
-            if (result.error.startsWith('missed_punchout:')) {
-              setMissedPunchType('out');
-              setMissedPunchDate(result.error.split(':')[1]);
-              setRequestSubmitted(false);
-            } else {
-              alert(result.error);
-            }
+            alert(result.error);
           }
         }
       }
@@ -195,13 +189,7 @@ export default function CheckInModule({
           if (result.geoError) {
             setGeoError(result.geoError);
           } else if (result.error) {
-            if (result.error.startsWith('missed_punchout:')) {
-              setMissedPunchType('out');
-              setMissedPunchDate(result.error.split(':')[1]);
-              setRequestSubmitted(false);
-            } else {
-              alert(result.error);
-            }
+            alert(result.error);
           }
         }
       }
@@ -743,28 +731,51 @@ export default function CheckInModule({
               <Clock className="w-8 h-8" />
             </div>
             <h3 className="font-bold text-slate-800 text-lg mb-2">
-              {language === 'te' ? 'పని ముగించాలనుకుంటున్నారా?' : 'End Shift Confirmation'}
+              {totalSecondsToday < 8 * 3600 
+                ? (language === 'te' ? '⚠️ 8 గంటల పని పూర్తి కాలేదు!' : '⚠️ Incomplete Shift (Under 8 Hours)')
+                : (language === 'te' ? 'పని ముగించాలనుకుంటున్నారా?' : 'End Shift Confirmation')}
             </h3>
-            <p className="text-xs text-slate-500 mb-6">
-              {language === 'te' 
-                ? `మీరు ఈరోజు పని చేసిన సమయం: ${formatTime(totalSecondsToday)}. దయచేసి నిర్ధారించండి.` 
-                : `You have logged ${formatTime(totalSecondsToday)} today. Are you sure you want to punch out?`}
-            </p>
+            {totalSecondsToday < 8 * 3600 ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-left space-y-1">
+                <p className="text-xs font-bold text-amber-900">
+                  {language === 'te' 
+                    ? `మీరు ఇప్పటివరకు ${formatTime(totalSecondsToday)} మాత్రమే పనిచేశారు.` 
+                    : `You have logged only ${formatTime(totalSecondsToday)} today.`}
+                </p>
+                <p className="text-[11px] text-amber-700 leading-tight">
+                  {language === 'te'
+                    ? `పూర్తి రోజుగా పరిగణించబడటానికి 8 గంటలు తప్పనిసరి (మిగిలిన సమయం: ${formatTime(8 * 3600 - totalSecondsToday)}). 8 గంటల కంటే ముందు పంచ్-అవుట్ చేస్తే ముందస్తు నిష్క్రమణ / హాఫ్-డేగా పరిగణించబడుతుంది.`
+                    : `Mandatory full shift requirement is 8 hours (Shortfall: ${formatTime(8 * 3600 - totalSecondsToday)}). Punching out before 8 hours is considered an Early Exit and may be recorded as a Half-Day.`}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 mb-6">
+                {language === 'te' 
+                  ? `మీరు ఈరోజు పని చేసిన సమయం: ${formatTime(totalSecondsToday)} (8 గంటలు పూర్తయింది). దయచేసి పంచ్ అవుట్ నిర్ధారించండి.` 
+                  : `You have logged ${formatTime(totalSecondsToday)} today (8-hour shift complete). Please confirm your punch-out.`}
+              </p>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={() => setShowEndShiftConfirm(false)}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition-colors uppercase tracking-wider text-xs"
+                className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-colors uppercase tracking-wider text-xs shadow-sm cursor-pointer"
               >
-                {language === 'te' ? 'కొనసాగించు' : 'Keep Working'}
+                {language === 'te' ? 'కొనసాగించు (పని చేయండి)' : 'Keep Working'}
               </button>
               <button
                 onClick={() => {
                   setShowEndShiftConfirm(false);
                   startCamera();
                 }}
-                className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl transition-colors uppercase tracking-wider text-xs"
+                className={`flex-1 py-3 font-bold rounded-xl transition-colors uppercase tracking-wider text-xs cursor-pointer ${
+                  totalSecondsToday < 8 * 3600
+                    ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                    : 'bg-rose-500 hover:bg-rose-600 text-white'
+                }`}
               >
-                {language === 'te' ? 'నిర్ధారించు' : 'Confirm End Shift'}
+                {totalSecondsToday < 8 * 3600
+                  ? (language === 'te' ? 'ముందుగా నిష్క్రమించు' : 'Exit Early')
+                  : (language === 'te' ? 'పంచ్ అవుట్' : 'Punch Out')}
               </button>
             </div>
           </div>
@@ -968,8 +979,8 @@ export default function CheckInModule({
         </div>
       )}
 
-      {/* Missed Punch Error Modal (In & Out) */}
-      {missedPunchDate && (
+      {/* Missed Punch Error Modal (Late Punch-In Only) */}
+      {missedPunchDate && missedPunchType === 'in' && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-4 animate-scaleUp">
 

@@ -18,7 +18,7 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
   // Filters
   const monthOptions = generateMonthOptions(2018, 1);
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0] || '2026-07');
-  const [editTarget, setEditTarget] = useState<{empId: string, date: string, status: AttendanceStatus | 'blank'} | null>(null);
+  const [editTarget, setEditTarget] = useState<{ empId: string, date: string, status: AttendanceStatus | 'blank' } | null>(null);
   const [showInactive, setShowInactive] = useState(false);
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -33,21 +33,21 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
   const calculateLiveHours = (emp: Employee) => {
     const todayLogs = emp.checkInLogs?.filter(l => l.date === todayStr) || [];
     if (todayLogs.length === 0) return null;
-    
+
     let totalSecs = 0;
     let isCurrentlyActive = false;
-    
+
     todayLogs.forEach(log => {
       if (log.checkInTime) {
         const [h1, m1, s1] = log.checkInTime.split(':').map(Number);
-        const sec1 = h1*3600 + m1*60 + s1;
+        const sec1 = h1 * 3600 + m1 * 60 + s1;
         let sec2 = 0;
         if (log.checkOutTime) {
           const [h2, m2, s2] = log.checkOutTime.split(':').map(Number);
-          sec2 = h2*3600 + m2*60 + s2;
+          sec2 = h2 * 3600 + m2 * 60 + s2;
         } else {
           isCurrentlyActive = true;
-          sec2 = now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds();
+          sec2 = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
         }
         if (sec2 > sec1) {
           totalSecs += (sec2 - sec1);
@@ -59,7 +59,7 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
 
     const h = Math.floor(totalSecs / 3600);
     const m = Math.floor((totalSecs % 3600) / 60);
-    
+
     return {
       text: `${h}h ${m}m`,
       isActive: isCurrentlyActive
@@ -69,16 +69,16 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
   // Calculate statistics for today across the active team (excluding inactive employees)
   const totalEmployees = employees.filter(e => e.role !== 'admin' && e.status !== 'inactive').length;
   const inactiveCount = employees.filter(e => e.role !== 'admin' && e.status === 'inactive').length;
-  
+
   const presentToday = employees.filter(e => {
     if (e.role === 'admin' || e.status === 'inactive') return false;
-    const todayRec = e.attendanceRecords.find(r => r.date === todayStr);
+    const todayRec = (e.attendanceRecords || []).find(r => r.date === todayStr);
     return e.isCheckedIn || (todayRec && todayRec.status === 'present');
   }).length;
 
   const leaveToday = employees.filter(e => {
     if (e.role === 'admin' || e.status === 'inactive') return false;
-    const todayRec = e.attendanceRecords.find(r => r.date === todayStr);
+    const todayRec = (e.attendanceRecords || []).find(r => r.date === todayStr);
     return todayRec && todayRec.status === 'leave';
   }).length;
 
@@ -96,7 +96,7 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
     // Current or future month: hide inactive employees
     if (selectedMonth >= currentMonthStr) return false;
     // Past month: only show if they actually have attendance records recorded in this month
-    return emp.attendanceRecords.some(r => r.date.startsWith(selectedMonth));
+    return (emp.attendanceRecords || []).some(r => r.date.startsWith(selectedMonth));
   });
 
   // Generate days in the selected month
@@ -160,7 +160,7 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
 
   return (
     <div id="admin-attendance-container" className="space-y-6 animate-fadeIn">
-      
+
       {/* 1. Header */}
       <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
@@ -289,35 +289,81 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
                       </p>
                       <span className="text-[9px] text-slate-400 font-medium font-mono mt-1 block">{emp.id}</span>
                     </td>
-                    
+
                     {daysArray.map(dayNum => {
                       const dayStr = formatDayNum(dayNum);
-                      const rec = emp.attendanceRecords.find(r => r.date === dayStr);
-                      const status: AttendanceStatus | 'blank' = rec ? rec.status : 'blank';
-                      
+                      const isPastDay = dayStr < todayStr;
+                      const isToday = dayStr === todayStr;
+                      const isEmployed = !emp.joiningDate || dayStr >= emp.joiningDate;
+
+                      // 1. Existing attendance record
+                      const rec = (emp.attendanceRecords || []).find(r => r.date === dayStr);
+                      // 2. Check checkInLogs
+                      const dayLog = (emp.checkInLogs || []).find(l => l.date === dayStr);
+                      // 3. Check approved leave requests
+                      const leaveReq = (emp.leaveRequests || []).find(r =>
+                        (r.status || '').toLowerCase() === 'approved' && r.fromDate <= dayStr && r.toDate >= dayStr
+                      );
+                      // 4. Check approved mispunch
+                      const mispunchReq = (emp.missedPunchRequests || []).find(m =>
+                        (m.status || '').toLowerCase() === 'approved' && m.missedDate === dayStr
+                      );
+                      // 5. Check Duty Roster Weekoff
+                      const rosterShift = (emp.shifts || []).find(s => s.shiftDate === dayStr);
+                      const isRosterOff = rosterShift && (rosterShift.shiftLabel === 'Off' || rosterShift.shiftLabel?.toLowerCase().includes('off'));
+
+                      let status: AttendanceStatus | 'blank' = 'blank';
+
+                      if (rec && rec.status) {
+                        const inT = rec.checkInTime || dayLog?.checkInTime;
+                        const outT = rec.checkOutTime || dayLog?.checkOutTime;
+                        let h = dayLog?.totalHours ?? null;
+                        if (h === null && inT && outT) {
+                          const [ih, im] = inT.split(':').map(Number);
+                          const [oh, om] = outT.split(':').map(Number);
+                          h = (oh + om / 60) - (ih + im / 60);
+                        }
+                        // If employee completed 8 hours of work (or >= 7.8 hrs), they are PRESENT
+                        if (h !== null && h >= 7.8 && !leaveReq) {
+                          status = 'present';
+                        } else {
+                          status = (rec.status || 'present').toLowerCase() as AttendanceStatus;
+                        }
+                      } else if (leaveReq) {
+                        status = leaveReq.type === 'weekoff' ? 'weekoff' : 'leave';
+                      } else if (isRosterOff) {
+                        status = 'weekoff';
+                      } else if (mispunchReq) {
+                        status = 'present';
+                      } else if (dayLog && dayLog.checkInTime) {
+                        status = dayLog.totalHours && dayLog.totalHours < 4 ? 'half-day' : 'present';
+                      } else if (isToday && emp.isCheckedIn) {
+                        status = 'present';
+                      } else if (isPastDay && isEmployed) {
+                        // COMPANY RULE: Unworked past day with no punch/leave/weekoff -> AUTOMATICALLY ABSENT!
+                        status = 'absent';
+                      }
+
                       // Render grid square
                       return (
-                        <td key={dayNum} className="p-1 text-center" onClick={() => setEditTarget({empId: emp.id, date: dayStr, status})}>
-                          <div 
-                            className={`w-5 h-5 mx-auto rounded-sm flex items-center justify-center text-[8px] font-bold font-sans cursor-pointer hover:ring-2 hover:ring-teal-400 ${
-                              status === 'present' ? 'bg-emerald-500 text-white' :
-                              status === 'absent' ? 'bg-rose-500 text-white' :
-                              status === 'leave' ? 'bg-blue-500 text-white' :
-                              status === 'half-day' ? 'bg-amber-500 text-white' :
-                              status === 'mispunch' ? 'bg-purple-500 text-white' :
-                              status === 'weekoff' ? 'bg-slate-200 text-slate-500' :
-                              status === 'holiday' ? 'bg-slate-100 text-slate-400' :
-                              'bg-slate-50 text-transparent'
-                            }`}
+                        <td key={dayNum} className="p-1 text-center" onClick={() => setEditTarget({ empId: emp.id, date: dayStr, status })}>
+                          <div
+                            className={`w-5 h-5 mx-auto rounded-sm flex items-center justify-center text-[8px] font-bold font-sans cursor-pointer hover:ring-2 hover:ring-teal-400 ${status === 'present' ? 'bg-emerald-500 text-white' :
+                                status === 'absent' ? 'bg-rose-500 text-white' :
+                                  status === 'leave' ? 'bg-blue-500 text-white' :
+                                    status === 'half-day' ? 'bg-amber-500 text-white' :
+                                      status === 'mispunch' ? 'bg-purple-500 text-white' :
+                                        status === 'weekoff' ? 'bg-slate-200 text-slate-700 font-black' :
+                                          'bg-slate-50 text-transparent'
+                              }`}
                             title={`${emp.name}: ${dayStr} - ${status.toUpperCase()}`}
                           >
-                            {status === 'present' ? 'P' : 
-                             status === 'absent' ? 'A' : 
-                             status === 'leave' ? 'L' : 
-                             status === 'half-day' ? 'H' : 
-                             status === 'mispunch' ? 'M' :
-                             status === 'weekoff' ? 'WO' :
-                             status === 'holiday' ? 'W' : '-'}
+                            {status === 'present' ? 'P' :
+                              status === 'absent' ? 'A' :
+                                status === 'leave' ? 'L' :
+                                  status === 'half-day' ? 'H' :
+                                    status === 'mispunch' ? 'M' :
+                                      status === 'weekoff' ? 'WO' : '-'}
                           </div>
                         </td>
                       );
@@ -350,155 +396,361 @@ export default function AdminAttendance({ language, employees, onUpdateAttendanc
               <span>{localizedText.legendLeave}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-slate-100 rounded-xs flex items-center justify-center text-[8px] text-slate-400 font-black">W</div>
-              <span>{localizedText.legendHoliday}</span>
-            </div>
-            <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-purple-500 rounded-xs flex items-center justify-center text-[8px] text-white font-black">M</div>
               <span>Mispunch</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-slate-200 rounded-xs flex items-center justify-center text-[8px] text-slate-500 font-black">WO</div>
-              <span>Weekoff</span>
+              <div className="w-4 h-4 bg-slate-200 rounded-xs flex items-center justify-center text-[8px] text-slate-700 font-black">WO</div>
+              <span>Weekoff (WO)</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Edit Modal */}
-      {editTarget && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50" onClick={() => setEditTarget(null)}>
-          <div className="bg-white rounded-[32px] w-full max-w-sm p-6 shadow-xl animate-scaleUp" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-teal-600" />
-              Update Attendance
-            </h3>
-            
-            <p className="text-sm font-semibold text-slate-600 mb-4 border-b pb-2">
-              {employees.find(e => e.id === editTarget.empId)?.name} • {editTarget.date}
-            </p>
+      {/* Detailed Day Inspection & Edit Modal */}
+      {editTarget && (() => {
+        const emp = employees.find(e => e.id === editTarget.empId);
+        if (!emp) return null;
 
-            {(() => {
-              const emp = employees.find(e => e.id === editTarget.empId);
-              const log = emp?.checkInLogs.find(l => l.date === editTarget.date);
-              
-              if (!log && !emp?.attendanceRecords.find(r => r.date === editTarget.date)?.photoUrl) return null;
-              
-              const isMedicalCamp = log?.checkInLocation?.toLowerCase().includes('camp') || log?.checkInLocation?.toLowerCase().includes('health');
-              const isOpenSession = log && log.checkInTime && !log.checkOutTime;
+        const log = (emp.checkInLogs || []).find(l => l.date === editTarget.date);
+        const rec = (emp.attendanceRecords || []).find(r => r.date === editTarget.date);
+        const leaveReq = (emp.leaveRequests || []).find(r =>
+          (r.status || '').toLowerCase() === 'approved' && r.fromDate <= editTarget.date && r.toDate >= editTarget.date
+        );
 
-              return (
-                <div className="mb-4">
-                  <div className={`grid ${log?.photoUrl && log?.checkOutPhotoUrl ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
-                    
-                    {/* PUNCH IN COLUMN */}
-                    {log?.photoUrl && (
-                      <div className="bg-slate-50 p-2 rounded-xl flex flex-col items-center border border-slate-100">
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-2 text-center flex items-center justify-center gap-1">
-                          <MapPin className="w-3 h-3 text-teal-500" /> Punch-In
-                        </p>
-                        
-                        <img src={log.photoUrl} alt="Punch-In Proof" className="w-full aspect-square object-cover rounded-xl bg-black shadow-sm mb-2" />
-                        
-                        {log.checkInTime && <p className="text-[10px] text-slate-800 font-black font-mono text-center">{log.checkInTime}</p>}
-                        
-                        {log.checkInLocation && (
-                          <p className={`text-[9px] font-bold text-center mt-1 leading-tight ${isMedicalCamp ? 'text-indigo-600' : 'text-slate-500'}`}>
-                            {log.checkInLocation}
-                          </p>
-                        )}
+        // Shift info lookup
+        const assignedShift = (emp.shifts || []).find(s => s.shiftDate === editTarget.date);
+        const shiftDisplay = assignedShift
+          ? `${assignedShift.shiftLabel || 'Shift'}: ${assignedShift.shiftStart} - ${assignedShift.shiftEnd}`
+          : 'Standard Duty Roster';
 
-                        {log.punchNote && (
-                          <div className="mt-2 w-full p-1.5 bg-amber-50 rounded border border-amber-100">
-                            <p className="text-[9px] text-amber-800 text-center font-medium italic">
-                              <span className="font-bold">Note:</span> {log.punchNote}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
+        const punchInTime = log?.checkInTime || rec?.checkInTime || null;
+        const punchOutTime = log?.checkOutTime || rec?.checkOutTime || null;
+        let totalHours = log?.totalHours ?? null;
+        if (totalHours === null && punchInTime && punchOutTime) {
+          const [ih, im] = punchInTime.split(':').map(Number);
+          const [oh, om] = punchOutTime.split(':').map(Number);
+          totalHours = Math.round(((oh + om / 60) - (ih + im / 60)) * 100) / 100;
+        }
 
-                    {/* PUNCH OUT COLUMN */}
-                    {log?.checkOutPhotoUrl && (
-                      <div className="bg-slate-50 p-2 rounded-xl flex flex-col items-center border border-slate-100">
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-2 text-center flex items-center justify-center gap-1">
-                          <MapPin className="w-3 h-3 text-rose-400" /> Punch-Out
-                        </p>
-                        
-                        <img src={log.checkOutPhotoUrl} alt="Punch-Out Proof" className="w-full aspect-square object-cover rounded-xl bg-black shadow-sm mb-2" />
-                        
-                        {log.checkOutTime && <p className="text-[10px] text-slate-800 font-black font-mono text-center">{log.checkOutTime}</p>}
-                        
-                        {log.checkOutLocation && (
-                          <p className={`text-[9px] font-bold text-center mt-1 leading-tight ${log.checkOutLocation?.toLowerCase().includes('camp') ? 'text-indigo-600' : 'text-slate-500'}`}>
-                            {log.checkOutLocation}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* OPEN SESSION FALLBACK */}
-                    {isOpenSession && (
-                      <div className="bg-amber-50 p-3 rounded-xl flex flex-col items-center justify-center border border-amber-100 text-center">
-                        <AlertCircle className="w-5 h-5 text-amber-500 mb-2" />
-                        <p className="text-[10px] text-amber-800 font-bold mb-2">Incomplete Session</p>
-                        <p className="text-[9px] text-amber-700 leading-tight mb-3">No punch-out recorded.</p>
-                        {onForceCloseSession && (
-                          <button
-                            onClick={() => {
-                              onForceCloseSession(editTarget.empId, editTarget.date);
-                              setEditTarget(null);
-                            }}
-                            className="bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-bold px-3 py-1.5 rounded-lg transition-colors w-full"
-                          >
-                            Force Close (6:00 PM)
-                          </button>
-                        )}
-                      </div>
-                    )}
+        // If employee completed 8 hours of work (or >= 7.8 hrs), they are PRESENT
+        const isFullDayWorked = punchInTime && punchOutTime && totalHours !== null && totalHours >= 7.8 && !leaveReq;
+        const currentEffectiveStatus = isFullDayWorked ? 'present' : ((editTarget.status || '').toLowerCase() as AttendanceStatus);
+        const isOpenSession = punchInTime && !punchOutTime;
+        const isAbsent = currentEffectiveStatus === 'absent';
+        const isLeave = currentEffectiveStatus === 'leave' || !!leaveReq;
+        const isWeekoff = currentEffectiveStatus === 'weekoff' || leaveReq?.type === 'weekoff';
 
-                    {/* Fallback for old AttendanceRecord photoUrl */}
-                    {!log?.photoUrl && emp?.attendanceRecords.find(r => r.date === editTarget.date)?.photoUrl && (
-                      <div className="bg-slate-50 p-2 rounded-xl flex flex-col items-center border border-slate-100">
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 text-center">Photo Proof</p>
-                        <img src={emp.attendanceRecords.find(r => r.date === editTarget.date)?.photoUrl} alt="Proof" className="w-full max-h-48 object-cover rounded-xl bg-black shadow-sm" />
-                      </div>
-                    )}
+        return (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn" onClick={() => setEditTarget(null)}>
+            <div className="bg-white rounded-[32px] w-full max-w-lg p-6 sm:p-7 shadow-2xl animate-scaleUp max-h-[90vh] overflow-y-auto space-y-5" onClick={e => e.stopPropagation()}>
+
+              {/* Modal Header: Full Employee Profile */}
+              <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-teal-50 text-teal-700 rounded-2xl flex items-center justify-center font-black text-base shrink-0">
+                    {emp.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                      <span>{emp.name}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">({emp.id})</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
+                      <span className="font-medium">{emp.designation}</span>
+                      {emp.phone && <span className="text-slate-400">• 📞 {emp.phone}</span>}
+                    </p>
                   </div>
                 </div>
-              );
-            })()}
-            
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              {(['present', 'absent', 'half-day', 'leave', 'holiday', 'mispunch', 'weekoff'] as AttendanceStatus[]).map(statusOption => (
-                <button
-                  key={statusOption}
-                  onClick={() => {
-                    onUpdateAttendance(editTarget.empId, editTarget.date, statusOption);
-                    setEditTarget(null);
-                  }}
-                  className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
-                    editTarget.status === statusOption 
-                      ? 'bg-teal-50 border-teal-200 text-teal-700 ring-2 ring-teal-500/20' 
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="text-xs font-bold uppercase tracking-wider">{statusOption}</span>
+                <button onClick={() => setEditTarget(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
+                  <XCircle className="w-5 h-5" />
                 </button>
-              ))}
-            </div>
+              </div>
 
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setEditTarget(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold uppercase transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
+              {/* Day & Shift Context Banner */}
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-100 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Selected Date</span>
+                  <p className="font-bold text-slate-700 mt-0.5">{editTarget.date}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Assigned Shift</span>
+                  <p className="font-bold text-teal-700 mt-0.5">{shiftDisplay}</p>
+                </div>
+              </div>
+
+              {/* Status Rationale & Policy Clarity Banner */}
+              {(() => {
+                const note = (rec?.punchNote || log?.punchNote || '').trim();
+                const lowerNote = note.toLowerCase();
+
+                // 1. Full 8-Hour Shift Completed -> GUARANTEED PRESENT (Zero deduction)
+                if (isFullDayWorked) {
+                  return (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs text-emerald-900 space-y-1.5 shadow-xs">
+                      <div className="flex items-center gap-1.5 font-bold text-sm text-emerald-800">
+                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Present — Full 8-Hour Shift Completed</span>
+                      </div>
+                      <p className="text-emerald-800 text-[11px] leading-relaxed">
+                        Employee completed the full mandatory 8-hour shift ({punchInTime} to {punchOutTime}, Total: <strong>{totalHours} hrs</strong>). Standard shift requirement fulfilled with <strong>Zero Salary Deduction (Present)</strong>.
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (isAbsent) {
+                  return (
+                    <div className="bg-rose-50 border border-rose-200/80 rounded-2xl p-4 text-xs text-rose-800 space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-sm">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>Unapproved Absence (Absent)</span>
+                      </div>
+                      <p className="text-rose-700 text-[11px] leading-relaxed">
+                        Employee did not punch in, did not submit a mispunch, and had no approved leave for this date. Under company policy, this incurs a <strong>2-Day Salary Deduction</strong>.
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (isLeave) {
+                  return (
+                    <div className="bg-blue-50 border border-blue-200/80 rounded-2xl p-4 text-xs text-blue-800 space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <CheckCircle className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span>Approved Leave: {leaveReq?.type?.toUpperCase() || 'LEAVE'}</span>
+                      </div>
+                      {leaveReq?.reason && <p className="text-blue-700 text-[11px] italic">"{leaveReq.reason}"</p>}
+                    </div>
+                  );
+                }
+
+                if (isWeekoff) {
+                  return (
+                    <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 text-xs text-slate-700">
+                      <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <CheckCircle className="w-3.5 h-3.5 text-teal-600" /> Scheduled Week Off (Paid)
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Approved duty roster rest day — Zero salary deduction.</p>
+                    </div>
+                  );
+                }
+
+                if (currentEffectiveStatus === 'half-day') {
+                  const earlyExitMatch = note.match(/\[Early Exit #(\d+):\s*(.*?)\]/i);
+                  const missedMatch = note.match(/Missed #(\d+)/i);
+                  const isAutoMissed = lowerNote.includes('auto-closed by system (missed punch)') || lowerNote.includes('missed #');
+                  const isWorkShortfall = totalHours !== null && totalHours < 8.0;
+
+                  // 1. Early Departure by Occurrence (under 8 hours)
+                  if (earlyExitMatch) {
+                    const occNum = earlyExitMatch[1];
+                    const occReason = earlyExitMatch[2] || 'Not specified';
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 space-y-2 shadow-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-sm text-amber-800">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Half-Day Applied: Early Shift Exit #{occNum}</span>
+                        </div>
+                        <div className="text-amber-800 text-[11px] leading-relaxed space-y-1">
+                          <p>
+                            Employee punched out at <strong>{punchOutTime || 'early'}</strong> before completing 8 hours of work (logged: <strong>{totalHours || 0} hrs</strong>).
+                          </p>
+                          <p>
+                            <strong>Company Policy:</strong> The 1st and 2nd early exits in a month are Grace (₹0). From the <strong>3rd occurrence onwards</strong>, early departure automatically incurs a <strong>0.5-Day (Half-Day) deduction</strong>.
+                          </p>
+                          <div className="bg-amber-100/70 p-2 rounded-xl text-[11px] font-mono mt-1 text-amber-900">
+                            <strong>Reason Provided:</strong> "{occReason}"
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // 2. Missed Punch Penalty (3rd+ Missed Punch in Month)
+                  if (missedMatch || isAutoMissed) {
+                    const missedNum = missedMatch ? missedMatch[1] : '3+';
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 space-y-2 shadow-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-sm text-amber-800">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Half-Day Penalty: Missed Punch #{missedNum} Exceeded Grace</span>
+                        </div>
+                        <div className="text-amber-800 text-[11px] leading-relaxed space-y-1">
+                          <p>
+                            <strong>Company Missed Punch Policy:</strong> The 1st & 2nd missed punches in a month are Grace (₹0 / Present). From the <strong>3rd missed punch onwards</strong>, every missed punch automatically incurs a <strong>0.5-Day (Half-Day) Deduction</strong>.
+                          </p>
+                          <div className="bg-amber-100/70 p-2 rounded-xl text-[11px] font-mono mt-1 text-amber-900">
+                            <strong>Recorded System Note:</strong> {note}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // 3. Incomplete Working Shift (< 8 Hours)
+                  if (isWorkShortfall) {
+                    const shortfallHours = (8 - (totalHours || 0)).toFixed(2);
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 space-y-2 shadow-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-sm text-amber-800">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Half-Day Applied: Incomplete Shift ({totalHours} hrs worked)</span>
+                        </div>
+                        <p className="text-amber-800 text-[11px] leading-relaxed">
+                          Standard mandatory shift requirement is 8 hours. Employee logged <strong>{totalHours} hrs</strong> (shortfall of <strong>{shortfallHours} hrs</strong>). Shifts with less than 8 hours of work are recorded as a Half-Day.
+                          {note && <span className="block mt-1 font-mono text-[10px] text-amber-700 bg-amber-100/60 p-1.5 rounded">Note: {note}</span>}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  // 4. Admin Manual Override or General Half-Day Note
+                  return (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 space-y-1.5 shadow-xs">
+                      <div className="flex items-center gap-1.5 font-bold text-sm text-amber-800">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Half-Day Status (0.5 Day Salary Deduction)</span>
+                      </div>
+                      <p className="text-amber-800 text-[11px] leading-relaxed">
+                        Attendance status is recorded as Half-Day.
+                        {note && <span className="block mt-1 font-mono text-[10px] text-amber-700 bg-amber-100/60 p-1.5 rounded">Recorded Note: {note}</span>}
+                      </p>
+                    </div>
+                  );
+                }
+
+                // If Status is Present but worked less than 8 hours (e.g. A Satyanarayana 7.81 hrs with Grace Missed #2)
+                if (editTarget.status === 'present' && totalHours !== null && totalHours < 8.0 && editTarget.date !== todayStr) {
+                  const isGrace = lowerNote.includes('grace') || lowerNote.includes('auto punch-out');
+                  return (
+                    <div className="bg-teal-50 border border-teal-200 rounded-2xl p-3.5 text-xs text-teal-900 space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-teal-800">
+                        <CheckCircle className="w-4 h-4 text-teal-600 shrink-0" />
+                        <span>Present (Work Duration: {totalHours} hrs — Under 8 Hours)</span>
+                      </div>
+                      <p className="text-teal-700 text-[11px] leading-relaxed">
+                        {isGrace ? (
+                          <>
+                            <strong>Grace Period Applied:</strong> Employee logged {totalHours} hrs (shortfall: {(8 - totalHours).toFixed(2)} hrs). Retained as <strong>Present (₹0 pay cut)</strong> under company grace policy ({note}).
+                          </>
+                        ) : (
+                          <>
+                            Employee worked {totalHours} hrs (standard full shift is 8 hours). Shortfall: {(8 - totalHours).toFixed(2)} hrs.
+                            {note && <span className="block mt-0.5 font-mono text-[10px] text-teal-600">Note: {note}</span>}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
+
+              {/* Punch Activity Cards (Rendered when not absent, leave, or weekoff) */}
+              {!isAbsent && !isLeave && !isWeekoff && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* PUNCH IN */}
+                    <div className="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-emerald-600" /> Punch-In
+                        </span>
+                        <span className="text-xs font-mono font-black text-emerald-700">
+                          {punchInTime || '--:--'}
+                        </span>
+                      </div>
+                      {log?.photoUrl && (
+                        <img src={log.photoUrl} alt="Punch In Proof" className="w-full aspect-video object-cover rounded-xl bg-black/10 shadow-xs" />
+                      )}
+                      {log?.checkInLocation && (
+                        <p className="text-[10px] text-slate-600 leading-tight">📍 {log.checkInLocation}</p>
+                      )}
+                      {log?.punchNote && (
+                        <p className="text-[10px] text-amber-800 bg-amber-50 p-1.5 rounded border border-amber-100 italic">
+                          Note: {log.punchNote}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* PUNCH OUT */}
+                    <div className={`p-3.5 rounded-2xl border space-y-2 ${punchOutTime ? 'bg-amber-50/50 border-amber-100' : (editTarget.date === todayStr ? 'bg-emerald-50/50 border-emerald-100' : 'bg-slate-50 border-slate-100')}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${punchOutTime ? 'text-amber-800' : (editTarget.date === todayStr ? 'text-emerald-800' : 'text-slate-600')}`}>
+                          <MapPin className="w-3 h-3" /> Punch-Out
+                        </span>
+                        <span className={`text-xs font-mono font-black ${punchOutTime ? 'text-amber-700' : (editTarget.date === todayStr ? 'text-emerald-700 flex items-center gap-1.5' : 'text-slate-500')}`}>
+                          {punchOutTime ? punchOutTime : (editTarget.date === todayStr ? (
+                            <>
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                              <span>On Duty (Working)</span>
+                            </>
+                          ) : (
+                            'Not Punched'
+                          ))}
+                        </span>
+                      </div>
+                      {log?.checkOutPhotoUrl && (
+                        <img src={log.checkOutPhotoUrl} alt="Punch Out Proof" className="w-full aspect-video object-cover rounded-xl bg-black/10 shadow-xs" />
+                      )}
+                      {log?.checkOutLocation && (
+                        <p className="text-[10px] text-slate-600 leading-tight">📍 {log.checkOutLocation}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Hours summary */}
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                    <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-teal-600" /> Total Working Duration:
+                    </span>
+                    <span className="font-bold text-slate-800 font-mono">
+                      {totalHours !== null ? `${totalHours} hrs` : (editTarget.date === todayStr && emp.isCheckedIn ? calculateLiveHours(emp)?.text || 'In Progress' : (punchInTime ? 'Session Incomplete' : '0 hrs'))}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Status Override Buttons */}
+              <div className="pt-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                  Update Attendance Status
+                </span>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {(['present', 'absent', 'half-day', 'leave', 'weekoff', 'mispunch'] as AttendanceStatus[]).map(statusOption => (
+                    <button
+                      key={statusOption}
+                      onClick={() => {
+                        onUpdateAttendance(editTarget.empId, editTarget.date, statusOption);
+                        setEditTarget(null);
+                      }}
+                      className={`py-2 px-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border ${currentEffectiveStatus === statusOption
+                          ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                    >
+                      {statusOption === 'half-day' ? 'Half' : statusOption === 'weekoff' ? 'Weekoff' : statusOption}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex justify-end pt-3 border-t border-slate-100">
+                <button
+                  onClick={() => setEditTarget(null)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold uppercase transition-colors text-slate-700 cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
     </div>
   );

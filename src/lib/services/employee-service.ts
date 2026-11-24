@@ -125,7 +125,9 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
     let currentMonthSickTaken = 0;
     let currentMonthCasualTaken = 0;
     let currentMonthLopTaken = 0;
-    let totalMaternityTaken = 0;
+    let currentMonthWeekoffTaken = 0;
+    let totalMaternityPaidTaken = 0;
+    let totalMaternityUnpaidTaken = 0;
     let totalPaternityTaken = 0;
 
     leavesList
@@ -140,20 +142,25 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
           if (type === 'sick') currentMonthSickTaken += diffDays;
           else if (type === 'casual' || type === 'monthly') currentMonthCasualTaken += diffDays;
           else if (type === 'lop') currentMonthLopTaken += diffDays;
+          else if (type === 'weekoff') currentMonthWeekoffTaken += diffDays;
         }
-        if (type === 'maternity') totalMaternityTaken += diffDays;
+        if (type === 'maternity') totalMaternityPaidTaken += diffDays;
+        if (type === 'maternity_unpaid') totalMaternityUnpaidTaken += diffDays;
         if (type === 'paternity') totalPaternityTaken += diffDays;
       });
 
-    // Map leave balances (1 CL and 1 SL per month only after 1 year of tenure)
+    // Map leave balances (1 CL and 1 SL per month only after 1 year of tenure, Week Off: 3 for women, 2 for men)
     const empBalances = balancesList.filter(b => b.employee_id === emp.id);
+    const weekOffAllowed = emp.gender === 'female' ? 3 : 2;
     const leaveBalance: LeaveBalance = {
       sick: { allowed: hasOneYearTenure ? 1 : 0, taken: currentMonthSickTaken },
       casual: { allowed: hasOneYearTenure ? 1 : 0, taken: currentMonthCasualTaken },
-      lop: { taken: currentMonthLopTaken }
+      lop: { taken: currentMonthLopTaken },
+      weekoff: { allowed: weekOffAllowed, taken: currentMonthWeekoffTaken }
     };
     if (emp.gender === 'female') {
-      leaveBalance.maternity = { allowed: 90, taken: totalMaternityTaken };
+      leaveBalance.maternity = { allowed: 90, taken: totalMaternityPaidTaken };
+      leaveBalance.maternity_unpaid = { allowed: 90, taken: totalMaternityUnpaidTaken };
     } else if (emp.gender === 'male') {
       leaveBalance.paternity = { allowed: 15, taken: totalPaternityTaken };
     }
@@ -161,6 +168,8 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
       const type = b.leave_type as LeaveType;
       if (type === 'maternity' && leaveBalance.maternity) {
         leaveBalance.maternity.allowed = b.total_allotted || 90;
+      } else if (type === 'maternity_unpaid' && leaveBalance.maternity_unpaid) {
+        leaveBalance.maternity_unpaid.allowed = b.total_allotted || 90;
       } else if (type === 'paternity' && leaveBalance.paternity) {
         leaveBalance.paternity.allowed = b.total_allotted || 15;
       }
@@ -181,12 +190,30 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
 
     // Map attendance records and check-in logs
     const empAtt = attendanceList.filter(a => a.employee_id === emp.id);
-    const attendanceRecords: AttendanceRecord[] = empAtt.map(a => ({
-      date: a.date,
-      status: (a.status || 'present').toLowerCase() as AttendanceStatus,
-      note: a.check_in_time ? `Checked In: ${a.check_in_time}` : undefined,
-      photoUrl: a.check_in_photo_url || undefined
-    }));
+    const attendanceRecords: AttendanceRecord[] = empAtt.map(a => {
+      let recStatus = (a.status || 'present').toLowerCase() as AttendanceStatus;
+      // If employee worked full 8 hours (or >= 7.8 hrs), they completed full shift -> guaranteed PRESENT!
+      if (a.check_in_time && a.check_out_time) {
+        try {
+          const [h1, m1, s1] = a.check_in_time.split(':').map(Number);
+          const [h2, m2, s2] = a.check_out_time.split(':').map(Number);
+          const diffMs = (h2 * 3600 + m2 * 60 + s2) - (h1 * 3600 + m1 * 60 + s1);
+          const hrs = diffMs > 0 ? diffMs / 3600 : 0;
+          if (hrs >= 7.8) {
+            recStatus = 'present';
+          }
+        } catch {}
+      }
+      return {
+        date: a.date,
+        status: recStatus,
+        note: a.check_in_time ? `Checked In: ${a.check_in_time}` : undefined,
+        photoUrl: a.check_in_photo_url || undefined,
+        punchNote: a.punch_note || undefined,
+        checkInTime: a.check_in_time || undefined,
+        checkOutTime: a.check_out_time || undefined
+      };
+    });
 
     const checkInLogs: CheckInLog[] = empAtt
       .filter(a => a.check_in_time)

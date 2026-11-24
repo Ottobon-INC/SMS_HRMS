@@ -7,6 +7,7 @@ export interface ShiftWindowStatus {
   shiftEnd: string;
   windowStartStr: string;
   windowEndStr: string;
+  cutoffTime?: string;
   isEarly: boolean;
   isLate: boolean;
   message?: string;

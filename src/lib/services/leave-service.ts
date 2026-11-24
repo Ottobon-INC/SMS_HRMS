@@ -7,17 +7,45 @@ export async function submitLeaveRequest(empId: string, leave: Omit<LeaveRequest
   const to = new Date(leave.toDate);
   const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 3600 * 24)) + 1;
   
-  if (['casual', 'sick', 'monthly', 'lop'].includes(leave.type)) {
-    if (diffDays > 3) {
+  if (['casual', 'sick', 'monthly', 'lop', 'weekoff'].includes(leave.type)) {
+    if (leave.type === 'weekoff' && diffDays > 2) {
+      throw new Error("Week off cannot be applied for more than 2 consecutive days.");
+    } else if (diffDays > 3) {
       throw new Error("Continuous leave cannot exceed 3 days. Longer leaves must be approved separately or marked as Absent.");
     }
-  } else if (leave.type === 'maternity') {
+  } else if (leave.type === 'maternity' || leave.type === 'maternity_unpaid') {
     if (diffDays > 90) {
       throw new Error("Maternity leave cannot exceed 90 days.");
     }
   } else if (leave.type === 'paternity') {
     if (diffDays > 7) {
       throw new Error("Paternity leave can only be applied for up to 7 consecutive days at a time. After 7 days, you can re-apply for remaining days.");
+    }
+  }
+
+  // Anti-Spam & Overlap Check: Block duplicate submissions for the same dates
+  const { data: existingRequests, error: checkErr } = await supabase
+    .from(DB_TABLES.LEAVE_REQUESTS)
+    .select('id, from_date, to_date, status, leave_type')
+    .eq('employee_id', empId)
+    .in('status', ['Pending', 'Approved', 'pending', 'approved']);
+
+  if (checkErr) throw checkErr;
+
+  if (existingRequests && existingRequests.length > 0) {
+    const reqFrom = from.getTime();
+    const reqTo = to.getTime();
+
+    for (const ex of existingRequests) {
+      const exFrom = new Date(ex.from_date).getTime();
+      const exTo = new Date(ex.to_date).getTime();
+
+      // Overlap collision detected
+      if (reqFrom <= exTo && reqTo >= exFrom) {
+        throw new Error(
+          `You already have a leave request (${ex.status}) covering ${ex.from_date} to ${ex.to_date}. If you wish to re-apply, please cancel/delete your pending request first.`
+        );
+      }
     }
   }
 
@@ -32,6 +60,22 @@ export async function submitLeaveRequest(empId: string, leave: Omit<LeaveRequest
       status: 'Pending'
     }]);
 
+  if (error) throw error;
+}
+
+/** Cancel / Delete a pending leave request so employee can re-apply */
+export async function deleteLeaveRequest(requestId: string, empId?: string): Promise<void> {
+  let query = supabase
+    .from(DB_TABLES.LEAVE_REQUESTS)
+    .delete()
+    .eq('id', requestId)
+    .in('status', ['Pending', 'pending']);
+
+  if (empId) {
+    query = query.eq('employee_id', empId);
+  }
+
+  const { error } = await query;
   if (error) throw error;
 }
 
@@ -98,7 +142,7 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
         let allotted = 0;
         if (request.leave_type === 'sick') allotted = 1;
         else if (request.leave_type === 'casual') allotted = 1;
-        else if (request.leave_type === 'maternity') allotted = 90;
+        else if (request.leave_type === 'maternity' || request.leave_type === 'maternity_unpaid') allotted = 90;
         else if (request.leave_type === 'paternity') allotted = 15;
         else if (request.leave_type === 'lop') allotted = 0;
 
@@ -113,11 +157,15 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
       }
     }
 
-    // Auto-sync approved leave into Attendance table with lowercase status 'leave'
+    // Auto-sync approved leave into Attendance table
     const [startYear, startMonth, startDay] = request.from_date.split('-').map(Number);
     const [endYear, endMonth, endDay] = request.to_date.split('-').map(Number);
     const cur = new Date(startYear, startMonth - 1, startDay);
     const end = new Date(endYear, endMonth - 1, endDay);
+
+    const isWeekoff = request.leave_type === 'weekoff';
+    const targetStatus = isWeekoff ? 'weekoff' : 'leave';
+    const targetNote = isWeekoff ? 'Approved Week Off' : `Approved Leave: ${request.leave_type}`;
 
     while (cur <= end) {
       const y = cur.getFullYear();
@@ -136,8 +184,8 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
         await supabase
           .from(DB_TABLES.ATTENDANCE)
           .update({ 
-            status: 'leave',
-            punch_note: `Approved Leave: ${request.leave_type}`
+            status: targetStatus,
+            punch_note: targetNote
           })
           .eq('id', att.id);
       } else {
@@ -146,8 +194,8 @@ export async function updateLeaveRequestStatus(requestId: string, status: 'Appro
           .insert([{ 
             employee_id: request.employee_id, 
             date: dateStr, 
-            status: 'leave',
-            punch_note: `Approved Leave: ${request.leave_type}`
+            status: targetStatus,
+            punch_note: targetNote
           }]);
       }
       cur.setDate(cur.getDate() + 1);

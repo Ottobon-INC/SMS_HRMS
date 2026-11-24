@@ -47,12 +47,19 @@ export default function EmployeeMissedPunches({ language, currentUser }: Employe
       return;
     }
 
-    // Check if it's today or future
-    const selectedDate = new Date(applyDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (selectedDate >= today) {
-      setFormError(language === 'te' ? 'గత తేదీని మాత్రమే ఎంచుకోగలరు.' : 'You can only apply for past dates.');
+    // Check date bounds
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const isToday = applyDate === todayStr;
+
+    if (applyDate > todayStr) {
+      setFormError(language === 'te' ? 'భవిష్యత్తు తేదీలను ఎంచుకోలేరు.' : 'You cannot apply for future dates.');
+      return;
+    }
+
+    if (applyType === 'out' && isToday) {
+      setFormError(language === 'te' 
+        ? 'ఈ రోజు కోసం మీరు డ్యాష్‌బోర్డ్ నుండి నేరుగా పంచ్-అవుట్ చేయవచ్చు. గత తేదీలకు మాత్రమే మిస్డ్ పంచ్-అవుట్ వర్తిస్తుంది.' 
+        : 'For today, please punch out directly from the dashboard when leaving. Missed Punch-Out applies to unclosed past dates.');
       return;
     }
 
@@ -65,39 +72,43 @@ export default function EmployeeMissedPunches({ language, currentUser }: Employe
 
     // Attendance state validation
     const dayRecord = (currentUser.attendanceRecords || []).find(r => r.date === applyDate);
+    const dayLog = (currentUser.checkInLogs || []).find(l => l.date === applyDate);
+    const hasCheckIn = !!(dayRecord?.checkInTime || dayLog?.checkInTime);
+    const recordedCheckInTime = dayRecord?.checkInTime || dayLog?.checkInTime;
+
     if (applyType === 'out') {
-      if (!dayRecord || !dayRecord.checkInTime) {
+      if (!hasCheckIn) {
         setFormError(language === 'te' 
           ? 'మీరు ఈ తేదీన పంచ్-ఇన్ చేయలేదు. పంచ్-ఇన్ చేయని రోజుకు మిస్డ్ పంచ్-అవుట్ వర్తించదు.' 
           : 'You did not punch-in on this date. You cannot apply for a Missed Punch-Out without an existing Punch-In.');
         return;
       }
-      if (dayRecord.status === 'leave') {
+      if (dayRecord?.status === 'leave') {
         setFormError(language === 'te' 
           ? 'ఈ తేదీన మీరు సెలవు (Leave) లో ఉన్నారు. సెలవు రోజున పంచ్-అవుట్ వర్తించదు.' 
           : 'You were marked On Leave on this date. Missed Punch-Out cannot be applied for leave days.');
         return;
       }
-      if (dayRecord.status === 'absent') {
+      if (dayRecord?.status === 'absent') {
         setFormError(language === 'te' 
           ? 'ఈ తేదీన మీరు రాలేదు (Absent). మీరు పనిచేసినట్లయితే దయచేసి మిస్డ్ పంచ్-ఇన్ అప్లై చేయండి.' 
           : 'You were marked Absent on this date. If you worked, please apply for Missed Punch-IN instead.');
         return;
       }
-      if (dayRecord.status === 'weekoff' || dayRecord.status === 'holiday') {
+      if (dayRecord?.status === 'weekoff' || dayRecord?.status === 'holiday') {
         setFormError(language === 'te' 
           ? 'ఈ తేదీన వారాంతపు సెలవు (Week Off / Holiday). పంచ్-అవుట్ వర్తించదు.' 
           : 'This was a scheduled Week Off / Holiday. Missed Punch-Out is not applicable.');
         return;
       }
     } else if (applyType === 'in') {
-      if (dayRecord && dayRecord.checkInTime) {
+      if (hasCheckIn) {
         setFormError(language === 'te' 
-          ? `మీరు ఈ తేదీన ఇప్పటికే ${dayRecord.checkInTime} గంటలకు పంచ్-ఇన్ చేశారు.` 
-          : `You already have a recorded punch-in on this date at ${dayRecord.checkInTime}.`);
+          ? `మీరు ఈ తేదీన ఇప్పటికే ${recordedCheckInTime} గంటలకు పంచ్-ఇన్ చేశారు.` 
+          : `You already have a recorded punch-in on this date at ${recordedCheckInTime}.`);
         return;
       }
-      if (dayRecord && dayRecord.status === 'leave') {
+      if (dayRecord?.status === 'leave') {
         setFormError(language === 'te' 
           ? 'ఈ తేదీన మీరు అధికారికంగా సెలవు (Leave) లో ఉన్నారు. సెలవు రద్దు చేయాలనుకుంటే అడ్మిన్‌ను సంప్రదించండి.' 
           : 'You are officially marked On Leave on this date. If you cancelled your leave and worked, please contact Admin.');
@@ -120,11 +131,12 @@ export default function EmployeeMissedPunches({ language, currentUser }: Employe
     }
   };
 
-  // Get yesterday's date formatted for max date picker
+  // Date helpers for date picker
+  const getTodayStr = () => new Date().toLocaleDateString('en-CA');
   const getYesterdayStr = () => {
     const y = new Date();
     y.setDate(y.getDate() - 1);
-    return y.toISOString().split('T')[0];
+    return y.toLocaleDateString('en-CA');
   };
 
   return (
@@ -161,15 +173,13 @@ export default function EmployeeMissedPunches({ language, currentUser }: Employe
           </div>
           <p className="text-amber-700 leading-relaxed">
             {language === 'te'
-              ? 'ప్రతి 3 మిస్డ్ పంచ్‌లకు 1 హాఫ్-డే కటింగ్ (ఇది 2 సార్లు మాత్రమే వర్తిస్తుంది: 3వ మరియు 6వ పంచ్ వద్ద). 7వ మిస్డ్ పంచ్ నుండి ప్రతి ఒక్క మిస్డ్ పంచ్‌కు నేరుగా హాఫ్-డే కటింగ్ కొనసాగుతుంది.'
-              : 'Every 3 missed punches incur a 0.5 day cut (this 3-mispunch buffer applies 2 times only: at the 3rd and 6th mispunch). From the 7th mispunch onwards, every single mispunch directly continues with a 0.5 day cut.'}
+              ? '1 మరియు 2 మిస్డ్ పంచ్‌లు: ఉచితం / గ్రేస్ (₹0). 3వ మిస్డ్ పంచ్ నుండి ప్రతి ఒక్క మిస్డ్ పంచ్‌కు నేరుగా 0.5 రోజు (హాఫ్-డే) కట్ అవుతుంది (బఫర్ పీరియడ్ లేదు).'
+              : '1st & 2nd missed punches: Free / Grace (₹0). From the 3rd missed punch onwards, every single missed punch directly incurs a 0.5 day (Half-Day) deduction.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] font-mono shrink-0">
-          <span className="bg-white/80 border border-amber-200 px-2.5 py-1 rounded-lg">1–2: ₹0</span>
-          <span className="bg-white/80 border border-amber-200 px-2.5 py-1 rounded-lg">3–5: 0.5 Cut</span>
-          <span className="bg-white/80 border border-amber-200 px-2.5 py-1 rounded-lg">6: 1.0 Cut</span>
-          <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-lg font-bold">7+: +0.5 / punch</span>
+          <span className="bg-white/80 border border-amber-200 px-2.5 py-1 rounded-lg">1–2: ₹0 (Grace)</span>
+          <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-lg font-bold">3+: 0.5 Cut / punch</span>
         </div>
       </div>
 
@@ -188,7 +198,7 @@ export default function EmployeeMissedPunches({ language, currentUser }: Employe
               <input 
                 type="date"
                 required
-                max={getYesterdayStr()}
+                max={applyType === 'in' ? getTodayStr() : getYesterdayStr()}
                 value={applyDate}
                 onChange={e => setApplyDate(e.target.value)}
                 className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600/20"

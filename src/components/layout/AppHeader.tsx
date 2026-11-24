@@ -22,8 +22,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   englishLabel,
   teluguLabel
 }) => {
-  const getAvatarInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').slice(0, 2);
+  const getAvatarInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase();
   };
 
   return (

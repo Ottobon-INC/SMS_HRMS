@@ -2,9 +2,7 @@ import { AttendanceRecord, LeaveRequest, MissedPunchRequest } from '../../types'
 
 export function calculateMissedPunchPenaltyHalfDays(missedPunchCount: number): number {
   if (missedPunchCount < 3) return 0;
-  if (missedPunchCount <= 5) return 1;
-  if (missedPunchCount === 6) return 2;
-  return 2 + (missedPunchCount - 6);
+  return missedPunchCount - 2;
 }
 
 export function computeAttendanceStats(
@@ -83,9 +81,11 @@ export function computeAttendanceStats(
         // or paid leave only if covered by an approved paid leave request with tenure >= 1 year.
         const leave = approvedLeaveDates.get(record.date);
         if (leave) {
-          if (leave.type === 'lop') {
+          if (leave.type === 'lop' || leave.type === 'maternity_unpaid') {
+            // LOP or Maternity (Without Pay) -> 0.5 day salary cut
             rawLopDays += 0.5;
           } else if (leave.type === 'maternity' || leave.type === 'paternity') {
+            // Maternity (With Pay - 90d) & Paternity (15d) are statutory paid leaves
             specialPaidLeaves += 0.5;
           } else if ((leave.type === 'casual' || leave.type === 'sick' || leave.type === 'monthly') && hasOneYearTenure) {
             rawPaidLeaveDays += 0.5;
@@ -101,9 +101,11 @@ export function computeAttendanceStats(
         // (Casual/Sick with >= 1 year tenure). If no approved paid leave request, it is LOP (Loss of Pay).
         const leave = approvedLeaveDates.get(record.date);
         if (leave) {
-          if (leave.type === 'lop') {
+          if (leave.type === 'lop' || leave.type === 'maternity_unpaid') {
+            // LOP or Maternity (Without Pay) -> 1 day salary cut
             rawLopDays += 1;
-          } else if (leave.type === 'maternity' || leave.type === 'paternity') {
+          } else if (leave.type === 'maternity' || leave.type === 'paternity' || leave.type === 'weekoff') {
+            // Maternity (With Pay - 90d), Paternity (15d), and Week Off are paid
             specialPaidLeaves += 1;
           } else if ((leave.type === 'casual' || leave.type === 'sick' || leave.type === 'monthly') && hasOneYearTenure) {
             rawPaidLeaveDays += 1;
@@ -116,6 +118,9 @@ export function computeAttendanceStats(
         }
       } else if (st === 'absent') {
         absentDays += 1;
+      } else if (st === 'weekoff') {
+        // Week off is a paid rest day (3/mo for women, 2/mo for men) — No salary deduction!
+        specialPaidLeaves += 1;
       }
     }
   });
@@ -123,9 +128,9 @@ export function computeAttendanceStats(
   // Step 2: Add approved leave requests not already in attendanceRecords
   approvedLeaveDates.forEach((req, dStr) => {
     if (!processedDays.has(dStr)) {
-      if (req.type === 'lop') {
+      if (req.type === 'lop' || req.type === 'maternity_unpaid') {
         rawLopDays += 1;
-      } else if (req.type === 'maternity' || req.type === 'paternity') {
+      } else if (req.type === 'maternity' || req.type === 'paternity' || req.type === 'weekoff') {
         specialPaidLeaves += 1;
       } else if ((req.type === 'casual' || req.type === 'sick' || req.type === 'monthly') && hasOneYearTenure) {
         rawPaidLeaveDays += 1;

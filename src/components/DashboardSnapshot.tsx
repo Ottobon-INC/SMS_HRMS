@@ -131,13 +131,7 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
     if (result && !result.success) {
       if (result.geoError) setGeoError(result.geoError);
       else if (result.error) {
-        if (result.error.startsWith("missed_punchout:")) {
-          setMissedPunchType('out');
-          setMissedPunchDate(result.error.split(":")[1]);
-          setRequestSubmitted(false);
-        } else {
-          alert(result.error);
-        }
+        alert(result.error);
       }
     }
   };
@@ -221,7 +215,7 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
 
   const monthlyEarlyExits = attendanceRecords.filter(r => 
     r.date.startsWith(currentMonthStr) && 
-    (r.status === 'half-day' || (r.punchNote && r.punchNote.includes('Early Exit')))
+    Boolean(r.punchNote && r.punchNote.includes('Early Exit'))
   ).length;
 
   const shiftWindow = getShiftPunchInWindow(todayShift);
@@ -250,7 +244,8 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
         const inDate = new Date();
         inDate.setHours(h, m, s || 0, 0);
         const workedHrs = (now.getTime() - inDate.getTime()) / (1000 * 3600);
-        if (workedHrs < 8.0) {
+        // Only trigger early departure if worked less than 7.8 hours (allowing minor grace)
+        if (workedHrs < 7.8) {
           isEarly = true;
         }
       }
@@ -622,8 +617,8 @@ export default function DashboardSnapshot({ language, currentUser, isCheckedIn, 
         </div>
       )}
 
-      {/* Missed Punch Modal (In and Out) */}
-      {missedPunchDate && (
+      {/* Missed Punch Modal (Late Punch-In Only) */}
+      {missedPunchDate && missedPunchType === 'in' && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fadeIn">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-4">
             {!requestSubmitted ? (

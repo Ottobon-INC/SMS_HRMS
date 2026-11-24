@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, Check, X, Moon, Clock, User, MessageSquare, AlertCircle } from 'lucide-react';
+import { Calendar, Check, X, Moon, Clock, User, MessageSquare, AlertCircle, Phone, Briefcase, ShieldCheck } from 'lucide-react';
 import { Language, Employee, LeaveRequest } from '../types';
 import { translations } from '../translations';
 
@@ -26,7 +26,7 @@ export default function AdminLeaveApprovals({
   const processedRequests: { emp: Employee; req: LeaveRequest }[] = [];
 
   employees.forEach(emp => {
-    emp.leaveRequests.forEach(req => {
+    (emp.leaveRequests || []).forEach(req => {
       if (req.status === 'pending') {
         pendingRequests.push({ emp, req });
       } else {
@@ -124,38 +124,124 @@ export default function AdminLeaveApprovals({
               const daysCount = calculateDays(req.fromDate, req.toDate);
               const noteText = decisionNotes[req.id] || '';
 
+              // Live employee leave balances
+              const casualLeft = Math.max(0, (emp.leaveBalance?.casual?.allowed || 0) - (emp.leaveBalance?.casual?.taken || 0));
+              const sickLeft = Math.max(0, (emp.leaveBalance?.sick?.allowed || 0) - (emp.leaveBalance?.sick?.taken || 0));
+              const weekoffAllowed = emp.leaveBalance?.weekoff?.allowed ?? (emp.gender === 'female' ? 3 : 2);
+              const weekoffLeft = Math.max(0, weekoffAllowed - (emp.leaveBalance?.weekoff?.taken || 0));
+              const maternityLeft = Math.max(0, (emp.leaveBalance?.maternity?.allowed || 90) - (emp.leaveBalance?.maternity?.taken || 0));
+              const maternityUnpaidLeft = Math.max(0, (emp.leaveBalance?.maternity_unpaid?.allowed || 90) - (emp.leaveBalance?.maternity_unpaid?.taken || 0));
+              const paternityLeft = Math.max(0, (emp.leaveBalance?.paternity?.allowed || 15) - (emp.leaveBalance?.paternity?.taken || 0));
+              const lopTaken = emp.leaveBalance?.lop?.taken || 0;
+
+              // Tenure calculation
+              const getTenure = (jDate?: string) => {
+                if (!jDate) return null;
+                const j = new Date(jDate);
+                if (isNaN(j.getTime())) return null;
+                const now = new Date();
+                const diffM = (now.getFullYear() - j.getFullYear()) * 12 + (now.getMonth() - j.getMonth());
+                const y = Math.floor(diffM / 12);
+                const m = diffM % 12;
+                return y > 0 ? `${y}y ${m}m service` : `${m}m service`;
+              };
+              const tenureStr = getTenure(emp.joiningDate);
+
+              const formattedSubmitted = (() => {
+                if (!req.submittedAt) return null;
+                try {
+                  const d = new Date(req.submittedAt);
+                  return isNaN(d.getTime()) ? req.submittedAt : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+                } catch {
+                  return req.submittedAt;
+                }
+              })();
+
               return (
                 <div 
                   key={req.id} 
                   id={`pending-leave-${req.id}`}
-                  className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col lg:flex-row justify-between gap-6"
+                  className="p-6 bg-slate-50/70 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col lg:flex-row justify-between gap-6 hover:border-slate-300 transition-all"
                 >
                   <div className="space-y-4 flex-1">
-                    {/* User profile row */}
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-teal-50 text-teal-700 rounded-xl flex items-center justify-center font-bold text-xs">
-                        {emp.name.split(' ').map(n => n[0]).join('')}
+                    {/* User profile row with rich details */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 bg-teal-600 text-white rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                          {emp.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-800 flex flex-wrap items-center gap-2">
+                            <span>{emp.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">({emp.id})</span>
+                            {emp.status === 'inactive' && (
+                              <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[9px] font-black rounded-md border border-rose-200">
+                                Deactivated
+                              </span>
+                            )}
+                          </h4>
+                          <p className="text-xs text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
+                            <span className="font-semibold text-slate-700">{emp.designation}</span>
+                            {emp.phone && <span className="text-slate-400 flex items-center gap-1">📞 {emp.phone}</span>}
+                            {emp.gender && <span className="capitalize text-slate-400">• {emp.gender}</span>}
+                            {emp.joiningDate && (
+                              <span className="text-slate-400">
+                                • Joined: {emp.joiningDate} {tenureStr ? `(${tenureStr})` : ''}
+                              </span>
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                          <span>{emp.name}</span>
-                          {emp.status === 'inactive' && (
-                            <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[9px] font-black rounded-md border border-rose-200">
-                              Deactivated
-                            </span>
-                          )}
-                        </h4>
-                        <p className="text-[10px] text-slate-400">{emp.designation} • ID: {emp.id}</p>
-                      </div>
+
+                      {formattedSubmitted && (
+                        <div className="text-right shrink-0 hidden sm:block">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Submitted</span>
+                          <span className="text-[11px] font-mono text-slate-600 flex items-center gap-1 justify-end">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            {formattedSubmitted}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Live Leave Balance Context Bar */}
+                    <div className="bg-white p-3 rounded-2xl border border-slate-100 flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px] mr-1">Balances:</span>
+                      <span className={`px-2.5 py-1 rounded-lg border font-mono font-bold ${casualLeft > 0 ? 'bg-teal-50 text-teal-700 border-teal-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                        CL: {casualLeft} left
+                      </span>
+                      <span className={`px-2.5 py-1 rounded-lg border font-mono font-bold ${sickLeft > 0 ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                        SL: {sickLeft} left
+                      </span>
+                      <span className={`px-2.5 py-1 rounded-lg border font-mono font-bold ${weekoffLeft > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                        WO: {weekoffLeft}/{weekoffAllowed} left
+                      </span>
+                      {emp.gender === 'female' ? (
+                        <>
+                          <span className={`px-2.5 py-1 rounded-lg border font-mono font-bold ${maternityLeft > 0 ? 'bg-pink-50 text-pink-700 border-pink-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                            Maternity (Paid): {maternityLeft} left
+                          </span>
+                          <span className={`px-2.5 py-1 rounded-lg border font-mono font-bold ${maternityUnpaidLeft > 0 ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                            Maternity (LOP): {maternityUnpaidLeft} left
+                          </span>
+                        </>
+                      ) : (
+                        <span className={`px-2.5 py-1 rounded-lg border font-mono font-bold ${paternityLeft > 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                          Paternity: {paternityLeft} left
+                        </span>
+                      )}
+                      <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-mono font-bold">
+                        LOP This Mo: {lopTaken}d
+                      </span>
                     </div>
 
                     {/* Details and period */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-white p-3.5 rounded-2xl border border-slate-100">
                       <div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{localizedText.colPeriod}</p>
-                        <p className="font-bold text-slate-700 mt-1 flex items-center gap-1.5">
-                          <span>{req.fromDate} to {req.toDate}</span>
-                          <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-black rounded-full">
+                        <p className="font-bold text-slate-700 mt-1 flex items-center gap-2">
+                          <span className="font-mono text-sm">{req.fromDate} to {req.toDate}</span>
+                          <span className="px-2.5 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-black rounded-full border border-teal-200">
                             {daysCount} {localizedText.badgeDays}
                           </span>
                         </p>
@@ -163,16 +249,20 @@ export default function AdminLeaveApprovals({
 
                       <div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{localizedText.colType}</p>
-                        <p className="font-bold text-teal-700 mt-1 uppercase">
-                          {req.type} LEAVE
+                        <p className="font-bold text-teal-700 mt-1 uppercase text-xs">
+                          {req.type === 'weekoff' ? 'WEEK OFF (PAID - NO PAY CUT)' : 
+                           req.type === 'maternity' ? 'MATERNITY LEAVE (WITH PAY)' : 
+                           req.type === 'maternity_unpaid' ? 'MATERNITY LEAVE (WITHOUT PAY / LOP)' : 
+                           req.type === 'lop' ? 'LOSS OF PAY (LOP - 1 DAY CUT)' : 
+                           `${req.type} LEAVE (PAID)`}
                         </p>
                       </div>
                     </div>
 
                     <div>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">{localizedText.colReason}</p>
-                      <p className="text-xs text-slate-600 bg-white p-3 rounded-xl border border-slate-100 italic">
-                        "{req.reason}"
+                      <p className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-100 italic leading-relaxed">
+                        "{req.reason || 'No specific reason provided'}"
                       </p>
                     </div>
 
@@ -197,7 +287,7 @@ export default function AdminLeaveApprovals({
                       onClick={() => onApproveLeave(emp.id, req.id, noteText)}
                       disabled={emp.status === 'inactive'}
                       title={emp.status === 'inactive' ? 'Cannot approve leave for deactivated staff' : undefined}
-                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer shadow-md shadow-teal-600/10"
+                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-3 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer shadow-md shadow-teal-600/10 active:scale-95"
                     >
                       <Check className="w-4 h-4" />
                       <span>{language === 'te' ? 'ఆమోదించు' : 'Approve'}</span>
@@ -205,7 +295,7 @@ export default function AdminLeaveApprovals({
                     
                     <button
                       onClick={() => onRejectLeave(emp.id, req.id, noteText)}
-                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-4 py-2.5 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer"
+                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-4 py-3 rounded-xl text-xs font-bold transition-all uppercase cursor-pointer active:scale-95"
                     >
                       <X className="w-4 h-4" />
                       <span>{language === 'te' ? 'తిరస్కరించు' : 'Reject'}</span>
@@ -252,7 +342,9 @@ export default function AdminLeaveApprovals({
                         <span className="text-[10px] text-slate-400">({emp.id})</span>
                       </div>
                     </td>
-                    <td className="p-4 text-xs font-semibold uppercase text-teal-700">{req.type}</td>
+                    <td className="p-4 text-xs font-semibold uppercase text-teal-700">
+                      {req.type === 'weekoff' ? 'WEEK OFF (PAID)' : req.type === 'maternity' ? 'MATERNITY (WITH PAY)' : req.type === 'maternity_unpaid' ? 'MATERNITY (WITHOUT PAY / LOP)' : req.type}
+                    </td>
                     <td className="p-4 text-xs text-slate-600 font-medium">
                       {req.fromDate} to {req.toDate}
                     </td>

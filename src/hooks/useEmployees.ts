@@ -2,11 +2,23 @@ import { useState, useCallback } from 'react';
 import { Employee } from '../types';
 import * as employeeService from '../lib/services/employee-service';
 
+function sanitizeEmployees(raw: any[]): Employee[] {
+  return (raw || []).map((e: any) => ({
+    ...e,
+    payslips: e.payslips || [],
+    leaveRequests: e.leaveRequests || [],
+    attendanceRecords: e.attendanceRecords || [],
+    checkInLogs: e.checkInLogs || [],
+    locationPins: e.locationPins || [],
+    advanceRequests: e.advanceRequests || []
+  }));
+}
+
 export function useEmployees() {
   const [employees, setEmployees] = useState<Employee[]>(() => {
     try {
       const saved = localStorage.getItem('hrms_local_employees');
-      return saved ? JSON.parse(saved) : [];
+      return saved ? sanitizeEmployees(JSON.parse(saved)) : [];
     } catch {
       return [];
     }
@@ -46,8 +58,9 @@ export function useEmployees() {
       }
 
       const emps = await employeeService.fetchAllEmployeesData();
-      setEmployees(emps);
-      saveLocalData(emps);
+      const sanitized = sanitizeEmployees(emps);
+      setEmployees(sanitized);
+      saveLocalData(sanitized);
     } catch (err: any) {
       console.error('Error fetching Supabase employee data:', err);
       const errDetails = err?.message || err?.details || 'Database connection offline.';

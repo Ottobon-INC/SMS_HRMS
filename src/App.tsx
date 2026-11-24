@@ -47,6 +47,7 @@ export default function App() {
       'admin-dashboard': 'adminDashboard',
       'directory': 'directory',
       'attendance-overview': 'attendanceOverview',
+      'team-attendance': 'attendanceOverview',
       'leave-approvals': 'leaveApprovals',
       'advance-approvals': 'advanceApprovals',
       'run-payroll': 'adminPayroll',
@@ -54,12 +55,17 @@ export default function App() {
       'special-events': 'specialEvents',
       'messages': 'messages',
       'admin-settings': 'adminSettings',
+      'duty-roster': 'dutyRoster',
+      'dutyRoster': 'dutyRoster',
       'missed-punches-admin': 'adminMissedPunches',
       'missed-punches': 'employeeMissedPunches',
       'field-duty': 'fieldDuty',
       'field-ops': 'fieldOps',
       'tasks': 'tasks',
-      'admin-tasks': 'adminTasks'
+      'admin-tasks': 'adminTasks',
+      'events': 'events',
+      'my-roster': 'myRoster',
+      'myRoster': 'myRoster'
     };
     
     if (pathToTab[path]) return pathToTab[path];
@@ -88,12 +94,15 @@ export default function App() {
       'specialEvents': 'special-events',
       'messages': 'messages',
       'adminSettings': 'admin-settings',
+      'dutyRoster': 'duty-roster',
       'adminMissedPunches': 'missed-punches-admin',
       'employeeMissedPunches': 'missed-punches',
       'fieldDuty': 'field-duty',
       'fieldOps': 'field-ops',
       'tasks': 'tasks',
-      'adminTasks': 'admin-tasks'
+      'adminTasks': 'admin-tasks',
+      'events': 'events',
+      'myRoster': 'my-roster'
     };
     
     const newPath = '/' + (tabToPath[activeTab] || activeTab);
@@ -110,22 +119,30 @@ export default function App() {
         'dashboard': 'dashboard',
         'attendance': 'attendance',
         'leave': 'leave',
+        'advance': 'advance',
         'payroll': 'payroll',
         'admin-dashboard': 'adminDashboard',
         'directory': 'directory',
         'team-attendance': 'attendanceOverview',
+        'attendance-overview': 'attendanceOverview',
         'leave-approvals': 'leaveApprovals',
+        'advance-approvals': 'advanceApprovals',
         'run-payroll': 'adminPayroll',
         'office-locations': 'officeLocations',
         'special-events': 'specialEvents',
         'messages': 'messages',
         'admin-settings': 'adminSettings',
+        'duty-roster': 'dutyRoster',
+        'dutyRoster': 'dutyRoster',
         'missed-punches-admin': 'adminMissedPunches',
         'missed-punches': 'employeeMissedPunches',
         'field-duty': 'fieldDuty',
         'field-ops': 'fieldOps',
         'tasks': 'tasks',
-        'admin-tasks': 'adminTasks'
+        'admin-tasks': 'adminTasks',
+        'events': 'events',
+        'my-roster': 'myRoster',
+        'myRoster': 'myRoster'
       };
       
       if (pathToTab[path]) {
@@ -141,7 +158,7 @@ export default function App() {
   const { employees, isLoading, error, loadData, addEmployee, updateEmployee, deleteEmployee, toggleStatus } = useEmployees();
   const { currentUser, currentUserId, login, logout } = useAuth(employees);
   
-  const { applyLeave, approveLeave, rejectLeave, updateBalances } = useLeaves(false, loadData);
+  const { applyLeave, approveLeave, rejectLeave, deleteLeave, updateBalances } = useLeaves(false, loadData);
   const { toggleCheckIn, updateAttendance, forceCloseSession } = useAttendance(false, loadData);
   const { runBulkPayroll, updatePayslip, generateSinglePayslip } = usePayroll(false, loadData);
   const { submitAdvance, approveAdvance, rejectAdvance } = useAdvances(false, loadData);
@@ -296,6 +313,7 @@ export default function App() {
               onApplyLeave={applyLeave}
               onApproveLeave={approveLeave}
               onRejectLeave={rejectLeave}
+              onDeleteLeave={deleteLeave}
               onSubmitAdvance={submitAdvance}
               onApproveAdvance={approveAdvance}
               onRejectAdvance={rejectAdvance}

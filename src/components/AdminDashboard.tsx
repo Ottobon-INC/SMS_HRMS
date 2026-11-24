@@ -46,7 +46,7 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
   const pendingRequests: { req: LeaveRequest; empName: string; empId: string }[] = [];
   employees.forEach(emp => {
     if (emp.status === 'inactive') return;
-    emp.leaveRequests.forEach(req => {
+    (emp.leaveRequests || []).forEach(req => {
       if (req.status === 'pending') {
         pendingRequests.push({ req, empName: emp.name, empId: emp.id });
       }
@@ -111,7 +111,7 @@ export default function AdminDashboard({ language, employees, setActiveTab }: Ad
   // Collect today's check-ins with location
   const todaysCheckIns = employees
     .map(emp => {
-      const todayLog = emp.checkInLogs.find(log => log.date === todayStr);
+      const todayLog = (emp.checkInLogs || []).find(log => log.date === todayStr);
       return {
         emp,
         log: todayLog

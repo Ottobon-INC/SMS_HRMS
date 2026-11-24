@@ -411,7 +411,7 @@ export default function EmployeeDirectory({
 
     // Check if on leave today
     const todayStr = new Date().toISOString().split('T')[0];
-    const isLeaveToday = emp.attendanceRecords.find(r => r.date === todayStr && r.status === 'leave');
+    const isLeaveToday = (emp.attendanceRecords || []).find(r => r.date === todayStr && r.status === 'leave');
     if (isLeaveToday) {
       return (
         <span className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-100">
@@ -576,8 +576,8 @@ export default function EmployeeDirectory({
                   <button
                     onClick={() => setIsEditingLetter(!isEditingLetter)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${isEditingLetter
-                        ? 'bg-slate-800 text-white shadow-sm hover:bg-slate-900'
-                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm'
+                      ? 'bg-slate-800 text-white shadow-sm hover:bg-slate-900'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm'
                       }`}
                   >
                     {isEditingLetter ? (
@@ -812,8 +812,8 @@ export default function EmployeeDirectory({
                                 });
                               }}
                               className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${expLetterData.isCurrentlyEmployed
-                                  ? 'bg-white text-teal-700 shadow-sm'
-                                  : 'text-slate-500 hover:text-slate-800'
+                                ? 'bg-white text-teal-700 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-800'
                                 }`}
                             >
                               {language === 'te' ? 'ప్రస్తుతం పనిచేస్తున్నారు' : 'Currently Employed'}
@@ -831,8 +831,8 @@ export default function EmployeeDirectory({
                                 });
                               }}
                               className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${!expLetterData.isCurrentlyEmployed
-                                  ? 'bg-white text-amber-700 shadow-sm'
-                                  : 'text-slate-500 hover:text-slate-800'
+                                ? 'bg-white text-amber-700 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-800'
                                 }`}
                             >
                               {language === 'te' ? 'విడుదలయ్యారు (Relieved)' : 'Relieved / Left'}
@@ -1194,7 +1194,7 @@ export default function EmployeeDirectory({
                   <td className="p-5">
                     {(() => {
                       const todayStr = new Date().toISOString().split('T')[0];
-                      const todayLog = emp.checkInLogs.find(log => log.date === todayStr);
+                      const todayLog = (emp.checkInLogs || []).find(log => log.date === todayStr);
 
                       if (!todayLog) return <span className="text-slate-300">-</span>;
 
@@ -1263,8 +1263,8 @@ export default function EmployeeDirectory({
                         <button
                           onClick={(e) => handleToggleStatus(emp.id, emp.name, emp.status || 'active', e)}
                           className={`p-2 rounded-lg transition-colors cursor-pointer ${emp.status === 'inactive'
-                              ? 'text-teal-600 hover:bg-teal-50'
-                              : 'text-rose-400 hover:text-rose-600 hover:bg-rose-50'
+                            ? 'text-teal-600 hover:bg-teal-50'
+                            : 'text-rose-400 hover:text-rose-600 hover:bg-rose-50'
                             }`}
                           title={emp.status === 'inactive' ? (language === 'te' ? 'యాక్టివేట్' : 'Reactivate') : (language === 'te' ? 'నిలిపివేయి' : 'Deactivate')}
                         >

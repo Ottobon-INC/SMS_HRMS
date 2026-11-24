@@ -1,31 +1,59 @@
 import React from 'react';
 import { Employee, Language, Task, PunchType, LeaveType, AdvanceType, RepaymentTimeline, PinType, LeaveBalance, Payslip } from '../../types';
 
-// Lazy Loaded Modules
-const DashboardSnapshot = React.lazy(() => import('../DashboardSnapshot'));
-const AttendanceModule = React.lazy(() => import('../AttendanceModule'));
-const EmployeeMissedPunches = React.lazy(() => import('../EmployeeMissedPunches'));
-const FieldDutyModule = React.lazy(() => import('../FieldDutyModule'));
-const EmployeeSpecialEvents = React.lazy(() => import('../EmployeeSpecialEvents'));
-const EmployeeRoster = React.lazy(() => import('../EmployeeRoster'));
-const LeaveModule = React.lazy(() => import('../LeaveModule'));
-const AdvanceRequestModule = React.lazy(() => import('../AdvanceRequestModule'));
-const PayrollModule = React.lazy(() => import('../PayrollModule'));
-const AdminDashboard = React.lazy(() => import('../AdminDashboard'));
-const EmployeeDirectory = React.lazy(() => import('../EmployeeDirectory'));
-const AdminAttendance = React.lazy(() => import('../AdminAttendance'));
-const AdminMissedPunches = React.lazy(() => import('../AdminMissedPunches'));
-const FieldOpsModule = React.lazy(() => import('../FieldOpsModule'));
-const AdminLeaveApprovals = React.lazy(() => import('../AdminLeaveApprovals'));
-const AdminAdvanceApprovals = React.lazy(() => import('../AdminAdvanceApprovals'));
-const AdminPayroll = React.lazy(() => import('../AdminPayroll'));
-const AdminOfficeLocations = React.lazy(() => import('../AdminOfficeLocations'));
-const AdminSpecialEvents = React.lazy(() => import('../AdminSpecialEvents'));
-const MessagingModule = React.lazy(() => import('../MessagingModule').then(m => ({ default: m.MessagingModule })));
-const AdminSettings = React.lazy(() => import('../AdminSettings'));
-const DutyRosterModule = React.lazy(() => import('../DutyRosterModule'));
-const TaskModule = React.lazy(() => import('../TaskModule'));
-const AdminTaskManager = React.lazy(() => import('../AdminTaskManager'));
+// Lazy Loaded Modules with automatic retry on network/refresh hiccup
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  componentImport: () => Promise<{ default: T } | any>
+) {
+  return React.lazy(async () => {
+    try {
+      const res = await componentImport();
+      sessionStorage.removeItem('chunk_reload_lock');
+      return res;
+    } catch (error) {
+      console.warn("Retrying lazy module load:", error);
+      await new Promise(res => setTimeout(res, 300));
+      try {
+        const res = await componentImport();
+        sessionStorage.removeItem('chunk_reload_lock');
+        return res;
+      } catch (secondError) {
+        console.error("Failed to load chunk after retry:", secondError);
+        const lock = sessionStorage.getItem('chunk_reload_lock');
+        if (!lock) {
+          sessionStorage.setItem('chunk_reload_lock', 'true');
+          window.location.reload();
+        }
+        throw secondError;
+      }
+    }
+  });
+}
+
+const DashboardSnapshot = lazyWithRetry(() => import('../DashboardSnapshot'));
+const AttendanceModule = lazyWithRetry(() => import('../AttendanceModule'));
+const EmployeeMissedPunches = lazyWithRetry(() => import('../EmployeeMissedPunches'));
+const FieldDutyModule = lazyWithRetry(() => import('../FieldDutyModule'));
+const EmployeeSpecialEvents = lazyWithRetry(() => import('../EmployeeSpecialEvents'));
+const EmployeeRoster = lazyWithRetry(() => import('../EmployeeRoster'));
+const LeaveModule = lazyWithRetry(() => import('../LeaveModule'));
+const AdvanceRequestModule = lazyWithRetry(() => import('../AdvanceRequestModule'));
+const PayrollModule = lazyWithRetry(() => import('../PayrollModule'));
+const AdminDashboard = lazyWithRetry(() => import('../AdminDashboard'));
+const EmployeeDirectory = lazyWithRetry(() => import('../EmployeeDirectory'));
+const AdminAttendance = lazyWithRetry(() => import('../AdminAttendance'));
+const AdminMissedPunches = lazyWithRetry(() => import('../AdminMissedPunches'));
+const FieldOpsModule = lazyWithRetry(() => import('../FieldOpsModule'));
+const AdminLeaveApprovals = lazyWithRetry(() => import('../AdminLeaveApprovals'));
+const AdminAdvanceApprovals = lazyWithRetry(() => import('../AdminAdvanceApprovals'));
+const AdminPayroll = lazyWithRetry(() => import('../AdminPayroll'));
+const AdminOfficeLocations = lazyWithRetry(() => import('../AdminOfficeLocations'));
+const AdminSpecialEvents = lazyWithRetry(() => import('../AdminSpecialEvents'));
+const MessagingModule = lazyWithRetry(() => import('../MessagingModule').then(m => ({ default: m.MessagingModule })));
+const AdminSettings = lazyWithRetry(() => import('../AdminSettings'));
+const DutyRosterModule = lazyWithRetry(() => import('../DutyRosterModule'));
+const TaskModule = lazyWithRetry(() => import('../TaskModule'));
+const AdminTaskManager = lazyWithRetry(() => import('../AdminTaskManager'));
 
 interface AppRouterProps {
   activeTab: string;
@@ -42,6 +70,7 @@ interface AppRouterProps {
   onApplyLeave: (empId: string, req: any) => Promise<void>;
   onApproveLeave: (reqId: string, note?: string) => Promise<void>;
   onRejectLeave: (reqId: string, note?: string) => Promise<void>;
+  onDeleteLeave?: (reqId: string, empId?: string) => Promise<void>;
   onSubmitAdvance: (empId: string, amount: number, reason: string, repaymentMonths?: RepaymentTimeline, type?: AdvanceType) => Promise<void>;
   onApproveAdvance: (advId: string) => Promise<void>;
   onRejectAdvance: (advId: string) => Promise<void>;
@@ -74,6 +103,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   onApplyLeave,
   onApproveLeave,
   onRejectLeave,
+  onDeleteLeave,
   onSubmitAdvance,
   onApproveAdvance,
   onRejectAdvance,
@@ -160,6 +190,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           }
           onApproveLeave={onApproveLeave}
           onRejectLeave={onRejectLeave}
+          onDeleteLeave={(reqId) => onDeleteLeave ? onDeleteLeave(reqId, currentUser.id) : undefined}
         />
       );
     case 'advance':

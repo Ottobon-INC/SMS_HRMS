@@ -167,15 +167,14 @@ export function useAttendance(isLocalMode: boolean, loadData: () => Promise<void
         await loadData();
         return { success: true };
       } else {
-        // 1. Run auto-expire for missed punch-outs older than 24 hours
-        await attendanceService.autoExpireMissedPunches(empId);
-
-        // 2. Check for missed punch-out from previous days before allowing punch in
-        const missedCheck = await attendanceService.checkMissedPunchOut(empId);
-        if (missedCheck && missedCheck.missedDate && !missedCheck.hasPending) {
-          // No pending request yet — prompt employee to submit one
-          return { success: false, error: `missed_punchout:${missedCheck.missedDate}` };
+        // 1. Run auto punch-out for unclosed sessions older than 24 hours (never blocks today's check-in)
+        try {
+          await attendanceService.autoPunchOutExpiredSessions(empId);
+        } catch (autoErr) {
+          console.warn("Auto punch-out check warning:", autoErr);
         }
+
+        // 2. Seamlessly clock in for today's session
         await attendanceService.clockInEmployee(empId, locationStr, latLngStr, photoData, punchType, punchNote);
       }
       

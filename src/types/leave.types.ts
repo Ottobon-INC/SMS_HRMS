@@ -1,4 +1,4 @@
-export type LeaveType = 'sick' | 'casual' | 'maternity' | 'paternity' | 'monthly' | 'lop';
+export type LeaveType = 'sick' | 'casual' | 'maternity' | 'maternity_unpaid' | 'paternity' | 'monthly' | 'lop' | 'weekoff';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 
 export interface LeaveRequest {
@@ -15,8 +15,10 @@ export interface LeaveBalance {
   sick: { allowed: number; taken: number };
   casual: { allowed: number; taken: number };
   maternity?: { allowed: number; taken: number };
+  maternity_unpaid?: { allowed: number; taken: number };
   paternity?: { allowed: number; taken: number };
   lop?: { taken: number };
+  weekoff?: { allowed: number; taken: number };
 }
 
 export interface MonthlyLeaveQuota {

@@ -37,8 +37,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   leaveLabel,
   payrollLabel
 }) => {
-  const getAvatarInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').slice(0, 2);
+  const getAvatarInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase();
   };
 
   const isAdmin = currentUser.role === 'admin';

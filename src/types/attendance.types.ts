@@ -25,6 +25,8 @@ export interface AttendanceRecord {
   note?: string;
   photoUrl?: string;
   punchNote?: string;
+  checkInTime?: string;
+  checkOutTime?: string | null;
 }
 
 // Missed Punch Correction Requests

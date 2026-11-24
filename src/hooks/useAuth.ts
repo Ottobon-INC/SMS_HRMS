@@ -18,7 +18,16 @@ function isTokenValid(token: string | null): boolean {
 }
 
 export function useAuth(employees: Employee[]) {
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
+    try {
+      const savedToken = localStorage.getItem('hrms_auth_token');
+      if (!isTokenValid(savedToken)) return null;
+      return localStorage.getItem('hrms_user_session') || null;
+    } catch {
+      return null;
+    }
+  });
+
   const [cachedUser, setCachedUser] = useState<Employee | null>(() => {
     try {
       const savedToken = localStorage.getItem('hrms_auth_token');
@@ -26,7 +35,17 @@ export function useAuth(employees: Employee[]) {
         return null;
       }
       const saved = localStorage.getItem('hrms_current_user') || localStorage.getItem('hrms_authenticated_employee');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      return {
+        ...parsed,
+        attendanceRecords: parsed.attendanceRecords || [],
+        checkInLogs: parsed.checkInLogs || [],
+        leaveRequests: parsed.leaveRequests || [],
+        payslips: parsed.payslips || [],
+        advanceRequests: parsed.advanceRequests || [],
+        locationPins: parsed.locationPins || []
+      };
     } catch {
       return null;
     }

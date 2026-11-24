@@ -462,50 +462,7 @@ app.get(['/api/hrms/attendance/missed-punchout', '/hrms/attendance/missed-puncho
     const { empId } = req.query;
     if (!empId) return res.status(400).json({ error: 'empId is required' });
 
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    const { data, error } = await supabase
-      .from('sms_hrms_attendance')
-      .select('date')
-      .eq('employee_id', empId)
-      .is('check_out_time', null)
-      .lt('date', todayStr)
-      .order('date', { ascending: false });
-
-    if (error) throw error;
-
-    if (data && data.length > 0) {
-      for (const session of data) {
-        const { data: approvedReq } = await supabase
-          .from('sms_hrms_missed_punch_requests')
-          .select('id')
-          .eq('employee_id', empId)
-          .eq('missed_date', session.date)
-          .eq('status', 'approved')
-          .maybeSingle();
-
-        if (approvedReq) {
-          await supabase
-            .from('sms_hrms_attendance')
-            .update({ check_out_time: '18:00:00', punch_note: 'Auto-closed by system (Previously Approved)' })
-            .eq('employee_id', empId)
-            .eq('date', session.date)
-            .is('check_out_time', null);
-        } else {
-          // Check if a pending request exists
-          const { data: pendingReq } = await supabase
-            .from('sms_hrms_missed_punch_requests')
-            .select('id')
-            .eq('employee_id', empId)
-            .eq('missed_date', session.date)
-            .eq('status', 'pending')
-            .maybeSingle();
-
-          return res.json({ missedDate: session.date, hasPending: !!pendingReq });
-        }
-      }
-    }
-
+    // Non-blocking: never block punch in for past missed punchouts
     return res.json({ missedDate: null, hasPending: false });
   } catch (err) {
     console.error('Check missed punchout error:', err);
@@ -519,44 +476,83 @@ app.post(['/api/hrms/attendance/auto-expire-missed', '/hrms/attendance/auto-expi
     const { empId } = req.body || {};
     if (!empId) return res.status(400).json({ error: 'empId is required' });
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const cutoffTime = yesterday.toISOString();
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    const { data: expiredRequests, error: fetchErr } = await supabase
-      .from('sms_hrms_missed_punch_requests')
-      .select('id, missed_date')
+    // Find unclosed sessions older than today
+    const { data: openSessions, error: fetchErr } = await supabase
+      .from('sms_hrms_attendance')
+      .select('id, date, status, check_in_time, check_out_time, punch_note')
       .eq('employee_id', empId)
-      .eq('punch_type', 'out')
-      .eq('status', 'pending')
-      .lt('created_at', cutoffTime);
+      .is('check_out_time', null)
+      .lt('date', todayStr)
+      .order('date', { ascending: true });
 
     if (fetchErr) throw fetchErr;
 
-    if (expiredRequests && expiredRequests.length > 0) {
-      for (const reqItem of expiredRequests) {
-        const { data: att } = await supabase
+    if (openSessions && openSessions.length > 0) {
+      for (const session of openSessions) {
+        const sessionDate = session.date;
+        const monthStr = sessionDate.slice(0, 7);
+
+        // Count monthly auto punch-outs for this employee
+        const { data: monthRecords } = await supabase
           .from('sms_hrms_attendance')
+          .select('id, punch_note, status')
+          .eq('employee_id', empId)
+          .like('date', `${monthStr}%`);
+
+        let priorAutoPunches = 0;
+        if (monthRecords) {
+          priorAutoPunches = monthRecords.filter(r => 
+            r.id !== session.id &&
+            r.punch_note && r.punch_note.includes('Auto Punch-Out')
+          ).length;
+        }
+
+        const { data: approvedReqs } = await supabase
+          .from('sms_hrms_missed_punch_requests')
           .select('id')
           .eq('employee_id', empId)
-          .eq('date', reqItem.missed_date)
-          .limit(1);
+          .eq('status', 'approved')
+          .like('missed_date', `${monthStr}%`);
 
-        if (att && att.length > 0) {
-          await supabase
-            .from('sms_hrms_attendance')
-            .update({ status: 'Half-day', check_out_time: '18:00:00', punch_note: 'Auto-closed by system (Missed punch)' })
-            .eq('id', att[0].id);
+        const priorApproved = approvedReqs ? approvedReqs.length : 0;
+        const totalPriorMissed = priorAutoPunches + priorApproved;
+        const thisMissedNumber = totalPriorMissed + 1;
+
+        // Policy Rule: 1st & 2nd are grace (₹0 / Present). From 3rd time onwards, every single missed punch is Half-Day cut!
+        const isHalfDayCut = thisMissedNumber >= 3;
+        const newStatus = isHalfDayCut ? 'Half-day' : (session.status || 'Present');
+        const autoNote = `Auto Punch-Out (24-hr cycle elapsed) - Missed #${thisMissedNumber}${isHalfDayCut ? ' (Half-Day deduction)' : ' (Grace)'}`;
+        const finalNote = session.punch_note ? `${session.punch_note} | ${autoNote}` : autoNote;
+
+        // Calculate 8-hour shift completion from punch-in time if available
+        let autoOutTime = '18:00:00';
+        if (session.check_in_time) {
+          const [inH, inM, inS] = session.check_in_time.split(':').map(Number);
+          const endH = Math.min(23, inH + 8);
+          autoOutTime = `${String(endH).padStart(2, '0')}:${String(inM || 0).padStart(2, '0')}:${String(inS || 0).padStart(2, '0')}`;
         }
+
+        await supabase
+          .from('sms_hrms_attendance')
+          .update({
+            check_out_time: autoOutTime,
+            status: newStatus,
+            punch_note: finalNote
+          })
+          .eq('id', session.id);
 
         await supabase
           .from('sms_hrms_missed_punch_requests')
           .update({
             status: 'rejected',
-            admin_note: 'Auto-expired: 24-hr window passed. Marked as half-day.',
+            admin_note: `Auto-resolved: 24-hr cycle elapsed. Missed #${thisMissedNumber}: ${newStatus}.`,
             resolved_at: new Date().toISOString()
           })
-          .eq('id', reqItem.id);
+          .eq('employee_id', empId)
+          .eq('missed_date', sessionDate)
+          .eq('status', 'pending');
       }
     }
 
@@ -764,6 +760,19 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
+  });
+});
+
+// Serve frontend dist assets and SPA fallback if dist directory exists
+const distDir = path.resolve(__dirname, '../dist');
+app.use(express.static(distDir));
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+    return next();
+  }
+  const indexPath = path.join(distDir, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) next();
   });
 });
 

@@ -7,51 +7,89 @@ function getAuthHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function autoExpireMissedPunches(empId: string): Promise<void> {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const cutoffTime = yesterday.toISOString();
+export async function autoPunchOutExpiredSessions(empId: string): Promise<void> {
+  const todayStr = new Date().toISOString().split('T')[0];
 
   try {
-    const { data: expiredRequests, error: fetchErr } = await supabase
-      .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
-      .select('id, missed_date')
+    // 1. Find unclosed sessions older than today (or exceeding the 24-hr shift cycle)
+    const { data: openSessions, error: openErr } = await supabase
+      .from(DB_TABLES.ATTENDANCE)
+      .select('id, date, status, check_in_time, check_out_time, punch_note')
       .eq('employee_id', empId)
-      .eq('punch_type', 'out')
-      .eq('status', 'pending')
-      .lt('created_at', cutoffTime);
+      .is('check_out_time', null)
+      .lt('date', todayStr)
+      .order('date', { ascending: true });
 
-    if (!fetchErr && expiredRequests && expiredRequests.length > 0) {
-      for (const req of expiredRequests) {
-        // Update attendance record to Half-day
-        const { data: att } = await supabase
+    if (!openErr && openSessions && openSessions.length > 0) {
+      for (const session of openSessions) {
+        const sessionDate = session.date;
+        const monthStr = sessionDate.slice(0, 7);
+
+        // Count previous auto punch-outs in this month for this employee
+        const { data: monthRecords } = await supabase
           .from(DB_TABLES.ATTENDANCE)
-          .select('id')
+          .select('id, punch_note, status')
           .eq('employee_id', empId)
-          .eq('date', req.missed_date)
-          .limit(1);
+          .like('date', `${monthStr}%`);
 
-        if (att && att.length > 0) {
-          await supabase
-            .from(DB_TABLES.ATTENDANCE)
-            .update({ status: 'Half-day', check_out_time: '18:00:00', punch_note: 'Auto-closed by system (Missed punch)' })
-            .eq('id', att[0].id);
+        let priorAutoPunches = 0;
+        if (monthRecords) {
+          priorAutoPunches = monthRecords.filter(r => 
+            r.id !== session.id &&
+            r.punch_note && r.punch_note.includes('Auto Punch-Out')
+          ).length;
         }
 
-        // Update request status to rejected
+        // Count approved missed punch requests for the month
+        const { data: approvedReqs } = await supabase
+          .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
+          .select('id')
+          .eq('employee_id', empId)
+          .eq('status', 'approved')
+          .like('missed_date', `${monthStr}%`);
+
+        const priorApproved = approvedReqs ? approvedReqs.length : 0;
+        const totalPriorMissed = priorAutoPunches + priorApproved;
+        const thisMissedNumber = totalPriorMissed + 1;
+
+        // Policy Rule: 1st & 2nd are grace (₹0 / Present). From 3rd time onwards, every single missed punch is Half-Day cut!
+        const isHalfDayCut = thisMissedNumber >= 3;
+        const newStatus = isHalfDayCut ? 'Half-day' : (session.status || 'Present');
+        const autoNote = `Auto Punch-Out (24-hr cycle elapsed) - Missed #${thisMissedNumber}${isHalfDayCut ? ' (Half-Day deduction)' : ' (Grace)'}`;
+        const finalNote = session.punch_note ? `${session.punch_note} | ${autoNote}` : autoNote;
+
+        // Calculate 8-hour shift completion from punch-in time if available
+        let autoOutTime = '18:00:00';
+        if (session.check_in_time) {
+          const [inH, inM, inS] = session.check_in_time.split(':').map(Number);
+          const endH = Math.min(23, inH + 8);
+          autoOutTime = `${String(endH).padStart(2, '0')}:${String(inM || 0).padStart(2, '0')}:${String(inS || 0).padStart(2, '0')}`;
+        }
+
+        await supabase
+          .from(DB_TABLES.ATTENDANCE)
+          .update({
+            check_out_time: autoOutTime,
+            status: newStatus,
+            punch_note: finalNote
+          })
+          .eq('id', session.id);
+
+        // Auto-resolve any pending request for this date
         await supabase
           .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
           .update({
             status: 'rejected',
-            admin_note: 'Auto-expired: 24-hr window passed. Marked as half-day.',
+            admin_note: `Auto-resolved: 24-hr cycle elapsed. Missed #${thisMissedNumber}: ${newStatus}.`,
             resolved_at: new Date().toISOString()
           })
-          .eq('id', req.id);
+          .eq('employee_id', empId)
+          .eq('missed_date', sessionDate)
+          .eq('status', 'pending');
       }
-      return;
     }
   } catch (err) {
-    console.warn("Direct auto-expire check notice:", err);
+    console.warn("Direct autoPunchOutExpiredSessions notice:", err);
   }
 
   // REST API fallback
@@ -67,71 +105,13 @@ export async function autoExpireMissedPunches(empId: string): Promise<void> {
   } catch {}
 }
 
+export async function autoExpireMissedPunches(empId: string): Promise<void> {
+  await autoPunchOutExpiredSessions(empId);
+}
+
 export async function checkMissedPunchOut(empId: string): Promise<{ missedDate: string; hasPending: boolean } | null> {
-  const todayStr = new Date().toISOString().split('T')[0];
-
-  try {
-    // 1. Look for unclosed sessions older than today
-    const { data: openSessions, error: openErr } = await supabase
-      .from(DB_TABLES.ATTENDANCE)
-      .select('date')
-      .eq('employee_id', empId)
-      .is('check_out_time', null)
-      .lt('date', todayStr)
-      .order('date', { ascending: false });
-
-    if (!openErr && openSessions && openSessions.length > 0) {
-      for (const session of openSessions) {
-        // Check if there is an approved missed punch request
-        const { data: approvedReq } = await supabase
-          .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
-          .select('id')
-          .eq('employee_id', empId)
-          .eq('missed_date', session.date)
-          .eq('status', 'approved')
-          .maybeSingle();
-
-        if (approvedReq) {
-          // Auto-close session if request was approved
-          await supabase
-            .from(DB_TABLES.ATTENDANCE)
-            .update({ check_out_time: '18:00:00', punch_note: 'Auto-closed by system (Previously Approved)' })
-            .eq('employee_id', empId)
-            .eq('date', session.date)
-            .is('check_out_time', null);
-          continue;
-        }
-
-        // Check if there is a pending missed punch request
-        const { data: pendingReq } = await supabase
-          .from(DB_TABLES.MISSED_PUNCH_REQUESTS)
-          .select('id')
-          .eq('employee_id', empId)
-          .eq('missed_date', session.date)
-          .eq('status', 'pending')
-          .maybeSingle();
-
-        return { missedDate: session.date, hasPending: !!pendingReq };
-      }
-    }
-    return null;
-  } catch (err) {
-    console.warn("Direct check missed punch-out notice:", err);
-  }
-
-  // REST API fallback
-  try {
-    const res = await fetch(`/api/hrms/attendance/missed-punchout?empId=${encodeURIComponent(empId)}`, {
-      headers: { ...getAuthHeader() }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.missedDate) {
-        return { missedDate: data.missedDate, hasPending: !!data.hasPending };
-      }
-    }
-  } catch {}
-
+  // Automatically close any expired sessions in the background; never block punch-in
+  await autoPunchOutExpiredSessions(empId);
   return null;
 }
 
