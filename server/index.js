@@ -503,7 +503,7 @@ app.post(['/api/hrms/attendance/auto-expire-missed', '/hrms/attendance/auto-expi
 
         let priorAutoPunches = 0;
         if (monthRecords) {
-          priorAutoPunches = monthRecords.filter(r => 
+          priorAutoPunches = monthRecords.filter(r =>
             r.id !== session.id &&
             r.punch_note && r.punch_note.includes('Auto Punch-Out')
           ).length;
@@ -748,7 +748,7 @@ io.on('connection', (socket) => {
         const { error } = await supabase
           .from('sms_hrms_chat_messages')
           .insert([newMessage]);
-          
+
         if (error) {
           console.error("Error saving message to Supabase:", error.message);
         }
