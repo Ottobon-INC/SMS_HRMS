@@ -65,7 +65,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
       if (cached) {
         try {
           return sanitizeCached(JSON.parse(cached));
-        } catch {}
+        } catch { }
       }
       return [];
     }
@@ -81,7 +81,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
       if (cached) {
         try {
           return sanitizeCached(JSON.parse(cached));
-        } catch {}
+        } catch { }
       }
       return [];
     }
@@ -202,7 +202,7 @@ export async function fetchAllEmployeesData(): Promise<Employee[]> {
           if (hrs >= 7.8) {
             recStatus = 'present';
           }
-        } catch {}
+        } catch { }
       }
       return {
         date: a.date,
