@@ -763,19 +763,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Serve frontend dist assets and SPA fallback if dist directory exists
-const distDir = path.resolve(__dirname, '../dist');
-app.use(express.static(distDir));
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
-    return next();
-  }
-  const indexPath = path.join(distDir, 'index.html');
-  res.sendFile(indexPath, (err) => {
-    if (err) next();
-  });
-});
-
 const PORT = process.env.PORT || 9640;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SMS HRMS API & Chat Server running on port ${PORT}`);
